@@ -18,6 +18,7 @@ export {
   detectProvider,
   getProviderBaseUrl,
   getProviderAuthHeader,
+  KNOWN_PROVIDER_NAMES,
   type ProviderName,
 } from "./providers.js";
 

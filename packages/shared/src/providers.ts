@@ -12,6 +12,15 @@ interface ProviderPattern {
   pathPatterns?: RegExp[];
 }
 
+/** All known provider names (excludes "unknown"). Single source of truth. */
+export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
+  "openai",
+  "anthropic",
+  "google",
+  "mistral",
+  "cohere",
+];
+
 const PROVIDER_PATTERNS: ProviderPattern[] = [
   {
     name: "openai",

@@ -50,6 +50,7 @@
   "dependencies": {
     "@agenttrace/server": "^0.1.0",
     "@agenttrace/proxy": "^0.1.0",
+    "@agenttrace/shared": "^0.1.0",
     "open": "^10.1.0"
   },
   "devDependencies": {

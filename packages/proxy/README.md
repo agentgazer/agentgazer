@@ -14,10 +14,12 @@ Transparent HTTP proxy for LLM API calls. Forwards requests to upstream provider
 
 1. Your LLM client sends requests to the proxy instead of the provider directly
 2. The proxy detects the provider from the Host header or request path
-3. The request is forwarded to the real upstream API
-4. The response is streamed back to your client in real-time
-5. Token counts, model, latency, and cost are extracted and buffered
-6. Buffered events are flushed to the AgentTrace server periodically
+3. If configured, a provider API key is injected into the request headers
+4. If configured, a per-provider rate limit is enforced (429 on excess)
+5. The request is forwarded to the real upstream API
+6. The response is streamed back to your client in real-time
+7. Token counts, model, latency, and cost are extracted and buffered
+8. Buffered events are flushed to the AgentTrace server periodically
 
 Both standard JSON responses and SSE streaming responses are supported.
 
@@ -26,8 +28,16 @@ Both standard JSON responses and SSE streaming responses are supported.
 ### As part of the CLI (typical)
 
 ```bash
-npx agenttrace
+npx agenttrace start
 # Proxy starts on port 4000
+```
+
+### Standalone CLI
+
+```bash
+agenttrace-proxy --api-key <token> --agent-id proxy \
+  --provider-keys '{"openai":"sk-..."}' \
+  --rate-limits '{"openai":{"maxRequests":100,"windowSeconds":60}}'
 ```
 
 ### Programmatic
@@ -40,6 +50,13 @@ const { server, shutdown } = startProxy({
   apiKey: "your-token",
   agentId: "proxy",
   endpoint: "http://localhost:8080/api/events",
+  providerKeys: {
+    openai: "sk-...",
+    anthropic: "sk-ant-...",
+  },
+  rateLimits: {
+    openai: { maxRequests: 100, windowSeconds: 60 },
+  },
 });
 
 // Later
@@ -51,6 +68,22 @@ await shutdown();
 The proxy auto-detects the target provider from the `Host` header. Set your LLM client's base URL to `http://localhost:4000` and the proxy handles routing.
 
 If auto-detection fails, set the `x-target-url` header to specify the upstream base URL explicitly.
+
+### API key injection
+
+When `providerKeys` is configured, the proxy injects the correct auth header per provider:
+
+| Provider | Header |
+|----------|--------|
+| OpenAI, Mistral, Cohere | `Authorization: Bearer <key>` |
+| Anthropic | `x-api-key: <key>` |
+| Google | `x-goog-api-key: <key>` |
+
+If the client already provides the auth header, the proxy does not override it.
+
+### Rate limiting
+
+When `rateLimits` is configured, the proxy enforces a sliding-window rate limit per provider. Requests exceeding the limit receive a `429` response with a `Retry-After` header.
 
 ### Health check
 
@@ -68,6 +101,8 @@ GET http://localhost:4000/health
 | `endpoint` | `string` | — | Event ingestion URL |
 | `flushInterval` | `number` | `5000` | Event buffer flush interval in ms |
 | `maxBufferSize` | `number` | `50` | Max buffered events before auto-flush |
+| `providerKeys` | `Record<string, string>` | — | Provider API keys to inject |
+| `rateLimits` | `Record<string, RateLimitConfig>` | — | Per-provider rate limits |
 
 ## License
 

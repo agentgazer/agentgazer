@@ -15,6 +15,7 @@ import {
 } from "./config.js";
 import { startServer } from "@agenttrace/server";
 import { startProxy } from "@agenttrace/proxy";
+import { KNOWN_PROVIDER_NAMES } from "@agenttrace/shared";
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -76,7 +77,7 @@ Examples:
 // Subcommands
 // ---------------------------------------------------------------------------
 
-const KNOWN_PROVIDERS = ["openai", "anthropic", "google", "mistral", "cohere"];
+const KNOWN_PROVIDERS = KNOWN_PROVIDER_NAMES;
 
 function ask(rl: readline.Interface, question: string): Promise<string> {
   return new Promise((resolve) => {

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { startProxy } from "./proxy-server.js";
+import type { RateLimitConfig } from "./rate-limiter.js";
 
 function parseArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {};
@@ -25,14 +26,26 @@ function printUsage(): void {
 Usage: agenttrace-proxy --api-key <key> --agent-id <id> [options]
 
 Required:
-  --api-key    AgentTrace API key
-  --agent-id   Agent identifier
+  --api-key          AgentTrace API key
+  --agent-id         Agent identifier
 
 Options:
-  --port       Port to listen on (default: 4000)
-  --endpoint   AgentTrace ingest API URL
-  --help       Show this help message
+  --port             Port to listen on (default: 4000)
+  --endpoint         AgentTrace ingest API URL
+  --provider-keys    Provider API keys as JSON, e.g. '{"openai":"sk-...","anthropic":"sk-ant-..."}'
+  --rate-limits      Rate limits as JSON, e.g. '{"openai":{"maxRequests":100,"windowSeconds":60}}'
+  --help             Show this help message
 `);
+}
+
+function parseJsonFlag<T>(value: string | undefined, flagName: string): T | undefined {
+  if (!value) return undefined;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    console.error(`Error: --${flagName} must be valid JSON`);
+    process.exit(1);
+  }
 }
 
 function main(): void {
@@ -65,18 +78,40 @@ function main(): void {
   }
 
   const endpoint = args["endpoint"] || undefined;
+  const providerKeys = parseJsonFlag<Record<string, string>>(
+    args["provider-keys"],
+    "provider-keys"
+  );
+  const rateLimits = parseJsonFlag<Record<string, RateLimitConfig>>(
+    args["rate-limits"],
+    "rate-limits"
+  );
 
   const { shutdown } = startProxy({
     apiKey,
     agentId,
     port,
     endpoint,
+    providerKeys,
+    rateLimits,
   });
 
   const listenPort = port ?? 4000;
   console.log(
     `AgentTrace Proxy running on http://localhost:${listenPort}`
   );
+  if (providerKeys) {
+    const names = Object.keys(providerKeys);
+    if (names.length > 0) {
+      console.log(`Provider keys configured: ${names.join(", ")}`);
+    }
+  }
+  if (rateLimits) {
+    const names = Object.keys(rateLimits);
+    if (names.length > 0) {
+      console.log(`Rate limits configured: ${names.join(", ")}`);
+    }
+  }
 
   let shuttingDown = false;
 
