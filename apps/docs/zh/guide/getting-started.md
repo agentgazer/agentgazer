@@ -100,7 +100,7 @@ agenttrace providers list    # 列出已設定的 provider
 ## 架構
 
 ```
-你的 App ──> AgentTrace 代理 ──> LLM Provider (OpenAI, Anthropic 等)
+你的 App ──> AgentTrace 代理 ──> LLM Provider (OpenAI, Anthropic, DeepSeek 等)
                   │
                   ▼
             AgentTrace Server (Express + SQLite)

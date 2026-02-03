@@ -128,6 +128,12 @@ const PARSERS: Record<string, ResponseParser> = {
   google: parseGoogle,
   mistral: parseMistral,
   cohere: parseCohere,
+  deepseek: parseOpenAI,
+  moonshot: parseOpenAI,
+  zhipu: parseOpenAI,
+  minimax: parseOpenAI,
+  baichuan: parseOpenAI,
+  yi: parseOpenAI,
 };
 
 export function parseProviderResponse(

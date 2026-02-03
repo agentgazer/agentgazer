@@ -219,6 +219,12 @@ function parseSSEResponse(
   switch (provider) {
     case "openai":
     case "mistral":
+    case "deepseek":
+    case "moonshot":
+    case "zhipu":
+    case "minimax":
+    case "baichuan":
+    case "yi":
       return parseOpenAISSE(dataLines, statusCode);
     case "anthropic":
       return parseAnthropicSSE(dataLines, statusCode);

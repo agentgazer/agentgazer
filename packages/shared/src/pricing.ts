@@ -33,6 +33,35 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   // Cohere
   "command-r-plus": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
   "command-r": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
+
+  // DeepSeek
+  "deepseek-chat": { inputPerMToken: 0.27, outputPerMToken: 1.10 },
+  "deepseek-reasoner": { inputPerMToken: 0.55, outputPerMToken: 2.19 },
+
+  // Moonshot
+  "moonshot-v1-8k": { inputPerMToken: 0.20, outputPerMToken: 2.00 },
+  "moonshot-v1-32k": { inputPerMToken: 1.00, outputPerMToken: 3.00 },
+  "moonshot-v1-128k": { inputPerMToken: 0.60, outputPerMToken: 2.50 },
+
+  // Zhipu (GLM)
+  "glm-4.7": { inputPerMToken: 0.28, outputPerMToken: 1.11 },
+  "glm-4.7-flash": { inputPerMToken: 0, outputPerMToken: 0 },
+  "glm-4": { inputPerMToken: 0.14, outputPerMToken: 0.42 },
+  "glm-4-air": { inputPerMToken: 0.11, outputPerMToken: 0.28 },
+  "glm-4-flash": { inputPerMToken: 0, outputPerMToken: 0 },
+
+  // MiniMax
+  "MiniMax-M2": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
+  "MiniMax-01": { inputPerMToken: 0.20, outputPerMToken: 1.10 },
+
+  // Baichuan
+  "Baichuan4": { inputPerMToken: 13.89, outputPerMToken: 13.89 },
+  "Baichuan3-Turbo": { inputPerMToken: 1.39, outputPerMToken: 1.39 },
+
+  // Yi (01.AI)
+  "yi-lightning": { inputPerMToken: 0.14, outputPerMToken: 0.14 },
+  "yi-large": { inputPerMToken: 2.78, outputPerMToken: 2.78 },
+  "yi-medium": { inputPerMToken: 0.35, outputPerMToken: 0.35 },
 };
 
 export function getModelPricing(model: string): ModelPricing | null {

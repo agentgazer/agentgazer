@@ -4,6 +4,12 @@ export type ProviderName =
   | "google"
   | "mistral"
   | "cohere"
+  | "deepseek"
+  | "moonshot"
+  | "zhipu"
+  | "minimax"
+  | "baichuan"
+  | "yi"
   | "unknown";
 
 interface ProviderPattern {
@@ -19,6 +25,12 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "google",
   "mistral",
   "cohere",
+  "deepseek",
+  "moonshot",
+  "zhipu",
+  "minimax",
+  "baichuan",
+  "yi",
 ];
 
 const PROVIDER_PATTERNS: ProviderPattern[] = [
@@ -43,6 +55,30 @@ const PROVIDER_PATTERNS: ProviderPattern[] = [
   {
     name: "cohere",
     hostPatterns: [/api\.cohere\.com/, /api\.cohere\.ai/],
+  },
+  {
+    name: "deepseek",
+    hostPatterns: [/api\.deepseek\.com/],
+  },
+  {
+    name: "moonshot",
+    hostPatterns: [/api\.moonshot\.cn/],
+  },
+  {
+    name: "zhipu",
+    hostPatterns: [/open\.bigmodel\.cn/, /api\.z\.ai/],
+  },
+  {
+    name: "minimax",
+    hostPatterns: [/api\.minimax\.chat/],
+  },
+  {
+    name: "baichuan",
+    hostPatterns: [/api\.baichuan-ai\.com/],
+  },
+  {
+    name: "yi",
+    hostPatterns: [/api\.lingyiwanwu\.com/],
   },
 ];
 
@@ -71,6 +107,12 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
     google: "https://generativelanguage.googleapis.com",
     mistral: "https://api.mistral.ai",
     cohere: "https://api.cohere.com",
+    deepseek: "https://api.deepseek.com",
+    moonshot: "https://api.moonshot.cn",
+    zhipu: "https://open.bigmodel.cn",
+    minimax: "https://api.minimax.chat",
+    baichuan: "https://api.baichuan-ai.com",
+    yi: "https://api.lingyiwanwu.com",
   };
   return urls[provider] ?? null;
 }
@@ -87,6 +129,12 @@ export function getProviderAuthHeader(
     case "openai":
     case "mistral":
     case "cohere":
+    case "deepseek":
+    case "moonshot":
+    case "zhipu":
+    case "minimax":
+    case "baichuan":
+    case "yi":
       return { name: "authorization", value: `Bearer ${apiKey}` };
     case "anthropic":
       return { name: "x-api-key", value: apiKey };

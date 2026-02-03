@@ -109,6 +109,67 @@ describe("detectProvider", () => {
     });
   });
 
+  describe("DeepSeek", () => {
+    it("detects DeepSeek by host", () => {
+      expect(
+        detectProvider("https://api.deepseek.com/v1/models")
+      ).toBe("deepseek");
+    });
+
+    it("detects DeepSeek with chat path (host matched before OpenAI path)", () => {
+      // OpenAI path pattern matches /v1/chat/completions first since OpenAI is checked before DeepSeek
+      expect(
+        detectProvider("https://api.deepseek.com/v1/chat/completions")
+      ).toBe("openai");
+    });
+  });
+
+  describe("Moonshot", () => {
+    it("detects Moonshot by host", () => {
+      expect(
+        detectProvider("https://api.moonshot.cn/v1/models")
+      ).toBe("moonshot");
+    });
+  });
+
+  describe("Zhipu", () => {
+    it("detects Zhipu by open.bigmodel.cn host", () => {
+      expect(
+        detectProvider("https://open.bigmodel.cn/api/paas/v4/chat/completions")
+      ).toBe("zhipu");
+    });
+
+    it("detects Zhipu by api.z.ai host", () => {
+      expect(
+        detectProvider("https://api.z.ai/api/paas/v4/chat/completions")
+      ).toBe("zhipu");
+    });
+  });
+
+  describe("MiniMax", () => {
+    it("detects MiniMax by host", () => {
+      expect(
+        detectProvider("https://api.minimax.chat/v1/text/chatcompletion_v2")
+      ).toBe("minimax");
+    });
+  });
+
+  describe("Baichuan", () => {
+    it("detects Baichuan by host", () => {
+      expect(
+        detectProvider("https://api.baichuan-ai.com/v1/models")
+      ).toBe("baichuan");
+    });
+  });
+
+  describe("Yi", () => {
+    it("detects Yi by host", () => {
+      expect(
+        detectProvider("https://api.lingyiwanwu.com/v1/models")
+      ).toBe("yi");
+    });
+  });
+
   describe("unknown", () => {
     it("returns unknown for unrecognized URL", () => {
       expect(detectProvider("https://some-random-api.com/v1/chat")).toBe(
@@ -167,6 +228,30 @@ describe("getProviderBaseUrl", () => {
     expect(getProviderBaseUrl("cohere")).toBe("https://api.cohere.com");
   });
 
+  it("returns base URL for deepseek", () => {
+    expect(getProviderBaseUrl("deepseek")).toBe("https://api.deepseek.com");
+  });
+
+  it("returns base URL for moonshot", () => {
+    expect(getProviderBaseUrl("moonshot")).toBe("https://api.moonshot.cn");
+  });
+
+  it("returns base URL for zhipu", () => {
+    expect(getProviderBaseUrl("zhipu")).toBe("https://open.bigmodel.cn");
+  });
+
+  it("returns base URL for minimax", () => {
+    expect(getProviderBaseUrl("minimax")).toBe("https://api.minimax.chat");
+  });
+
+  it("returns base URL for baichuan", () => {
+    expect(getProviderBaseUrl("baichuan")).toBe("https://api.baichuan-ai.com");
+  });
+
+  it("returns base URL for yi", () => {
+    expect(getProviderBaseUrl("yi")).toBe("https://api.lingyiwanwu.com");
+  });
+
   it("returns null for unknown provider", () => {
     expect(getProviderBaseUrl("unknown")).toBeNull();
   });
@@ -196,6 +281,36 @@ describe("getProviderAuthHeader", () => {
   it("returns x-goog-api-key for google", () => {
     const result = getProviderAuthHeader("google", "AIza-test");
     expect(result).toEqual({ name: "x-goog-api-key", value: "AIza-test" });
+  });
+
+  it("returns Bearer Authorization for deepseek", () => {
+    const result = getProviderAuthHeader("deepseek", "sk-ds-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-ds-test" });
+  });
+
+  it("returns Bearer Authorization for moonshot", () => {
+    const result = getProviderAuthHeader("moonshot", "sk-ms-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-ms-test" });
+  });
+
+  it("returns Bearer Authorization for zhipu", () => {
+    const result = getProviderAuthHeader("zhipu", "sk-zp-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-zp-test" });
+  });
+
+  it("returns Bearer Authorization for minimax", () => {
+    const result = getProviderAuthHeader("minimax", "sk-mm-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-mm-test" });
+  });
+
+  it("returns Bearer Authorization for baichuan", () => {
+    const result = getProviderAuthHeader("baichuan", "sk-bc-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-bc-test" });
+  });
+
+  it("returns Bearer Authorization for yi", () => {
+    const result = getProviderAuthHeader("yi", "sk-yi-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-yi-test" });
   });
 
   it("returns null for unknown provider", () => {

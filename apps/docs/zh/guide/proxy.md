@@ -24,6 +24,12 @@ AgentTrace 代理是一個透明的 HTTP proxy，位於你的應用程式和 LLM
 | Google | `generativelanguage.googleapis.com` | Host |
 | Mistral | `api.mistral.ai` | Host |
 | Cohere | `api.cohere.com` | Host |
+| DeepSeek | `api.deepseek.com` | Host |
+| Moonshot | `api.moonshot.cn` | Host |
+| Zhipu (GLM) | `open.bigmodel.cn` | Host |
+| MiniMax | `api.minimax.chat` | Host |
+| Baichuan | `api.baichuan-ai.com` | Host |
+| Yi (01.AI) | `api.lingyiwanwu.com` | Host |
 
 ## Provider 偵測
 
@@ -44,7 +50,7 @@ curl http://localhost:4000/v1/chat/completions \
 
 | Provider | Header |
 |----------|--------|
-| OpenAI, Mistral, Cohere | `Authorization: Bearer <key>` |
+| OpenAI, Mistral, Cohere, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan, Yi | `Authorization: Bearer <key>` |
 | Anthropic | `x-api-key: <key>` |
 | Google | `x-goog-api-key: <key>` |
 

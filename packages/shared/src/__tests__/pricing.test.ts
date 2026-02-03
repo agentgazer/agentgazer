@@ -126,6 +126,116 @@ describe("getModelPricing", () => {
     });
   });
 
+  // DeepSeek
+  it("returns pricing for deepseek-chat", () => {
+    const pricing = getModelPricing("deepseek-chat");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.27,
+      outputPerMToken: 1.10,
+    });
+  });
+
+  it("returns pricing for deepseek-reasoner", () => {
+    const pricing = getModelPricing("deepseek-reasoner");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.55,
+      outputPerMToken: 2.19,
+    });
+  });
+
+  // Moonshot
+  it("returns pricing for moonshot-v1-8k", () => {
+    const pricing = getModelPricing("moonshot-v1-8k");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.20,
+      outputPerMToken: 2.00,
+    });
+  });
+
+  it("returns pricing for moonshot-v1-32k", () => {
+    const pricing = getModelPricing("moonshot-v1-32k");
+    expect(pricing).toEqual({
+      inputPerMToken: 1.00,
+      outputPerMToken: 3.00,
+    });
+  });
+
+  it("returns pricing for moonshot-v1-128k", () => {
+    const pricing = getModelPricing("moonshot-v1-128k");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.60,
+      outputPerMToken: 2.50,
+    });
+  });
+
+  // Zhipu
+  it("returns pricing for glm-4.7", () => {
+    const pricing = getModelPricing("glm-4.7");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.28,
+      outputPerMToken: 1.11,
+    });
+  });
+
+  it("returns pricing for glm-4.7-flash (free)", () => {
+    const pricing = getModelPricing("glm-4.7-flash");
+    expect(pricing).toEqual({
+      inputPerMToken: 0,
+      outputPerMToken: 0,
+    });
+  });
+
+  it("returns pricing for glm-4", () => {
+    const pricing = getModelPricing("glm-4");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.14,
+      outputPerMToken: 0.42,
+    });
+  });
+
+  it("returns pricing for glm-4-flash (free)", () => {
+    const pricing = getModelPricing("glm-4-flash");
+    expect(pricing).toEqual({
+      inputPerMToken: 0,
+      outputPerMToken: 0,
+    });
+  });
+
+  // MiniMax
+  it("returns pricing for MiniMax-M2", () => {
+    const pricing = getModelPricing("MiniMax-M2");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.30,
+      outputPerMToken: 1.20,
+    });
+  });
+
+  // Baichuan
+  it("returns pricing for Baichuan4", () => {
+    const pricing = getModelPricing("Baichuan4");
+    expect(pricing).toEqual({
+      inputPerMToken: 13.89,
+      outputPerMToken: 13.89,
+    });
+  });
+
+  // Yi
+  it("returns pricing for yi-lightning", () => {
+    const pricing = getModelPricing("yi-lightning");
+    expect(pricing).toEqual({
+      inputPerMToken: 0.14,
+      outputPerMToken: 0.14,
+    });
+  });
+
+  it("returns pricing for yi-large", () => {
+    const pricing = getModelPricing("yi-large");
+    expect(pricing).toEqual({
+      inputPerMToken: 2.78,
+      outputPerMToken: 2.78,
+    });
+  });
+
   it("returns null for unknown model", () => {
     expect(getModelPricing("nonexistent-model")).toBeNull();
   });
@@ -263,6 +373,47 @@ describe("listSupportedModels", () => {
     const models = listSupportedModels();
     expect(models).toContain("command-r-plus");
     expect(models).toContain("command-r");
+  });
+
+  it("includes known DeepSeek models", () => {
+    const models = listSupportedModels();
+    expect(models).toContain("deepseek-chat");
+    expect(models).toContain("deepseek-reasoner");
+  });
+
+  it("includes known Moonshot models", () => {
+    const models = listSupportedModels();
+    expect(models).toContain("moonshot-v1-8k");
+    expect(models).toContain("moonshot-v1-32k");
+    expect(models).toContain("moonshot-v1-128k");
+  });
+
+  it("includes known Zhipu models", () => {
+    const models = listSupportedModels();
+    expect(models).toContain("glm-4.7");
+    expect(models).toContain("glm-4.7-flash");
+    expect(models).toContain("glm-4");
+    expect(models).toContain("glm-4-air");
+    expect(models).toContain("glm-4-flash");
+  });
+
+  it("includes known MiniMax models", () => {
+    const models = listSupportedModels();
+    expect(models).toContain("MiniMax-M2");
+    expect(models).toContain("MiniMax-01");
+  });
+
+  it("includes known Baichuan models", () => {
+    const models = listSupportedModels();
+    expect(models).toContain("Baichuan4");
+    expect(models).toContain("Baichuan3-Turbo");
+  });
+
+  it("includes known Yi models", () => {
+    const models = listSupportedModels();
+    expect(models).toContain("yi-lightning");
+    expect(models).toContain("yi-large");
+    expect(models).toContain("yi-medium");
   });
 
   it("returns strings only", () => {

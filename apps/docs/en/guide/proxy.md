@@ -24,6 +24,12 @@ Both standard JSON responses and SSE streaming responses are supported.
 | Google | `generativelanguage.googleapis.com` | Host |
 | Mistral | `api.mistral.ai` | Host |
 | Cohere | `api.cohere.com` | Host |
+| DeepSeek | `api.deepseek.com` | Host |
+| Moonshot | `api.moonshot.cn` | Host |
+| Zhipu (GLM) | `open.bigmodel.cn` | Host |
+| MiniMax | `api.minimax.chat` | Host |
+| Baichuan | `api.baichuan-ai.com` | Host |
+| Yi (01.AI) | `api.lingyiwanwu.com` | Host |
 
 ## Provider Detection
 
@@ -44,7 +50,7 @@ When provider keys are configured (via `agenttrace onboard` or `agenttrace provi
 
 | Provider | Header |
 |----------|--------|
-| OpenAI, Mistral, Cohere | `Authorization: Bearer <key>` |
+| OpenAI, Mistral, Cohere, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan, Yi | `Authorization: Bearer <key>` |
 | Anthropic | `x-api-key: <key>` |
 | Google | `x-goog-api-key: <key>` |
 

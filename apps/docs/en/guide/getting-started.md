@@ -100,7 +100,7 @@ agenttrace providers list    # List configured providers
 ## Architecture
 
 ```
-Your App ──> AgentTrace Proxy ──> LLM Provider (OpenAI, Anthropic, etc.)
+Your App ──> AgentTrace Proxy ──> LLM Provider (OpenAI, Anthropic, DeepSeek, etc.)
                   │
                   ▼
             AgentTrace Server (Express + SQLite)
