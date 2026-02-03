@@ -2,8 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { AgentEvent } from "@agenttrace/shared";
 import type { AgentTraceOptions, TrackOptions, Trace, Span } from "./types.js";
 
-const DEFAULT_ENDPOINT =
-  "https://your-project.supabase.co/functions/v1/ingest";
+const DEFAULT_ENDPOINT = "http://localhost:8080/api/events";
 const DEFAULT_FLUSH_INTERVAL = 5000;
 const DEFAULT_MAX_BUFFER_SIZE = 50;
 

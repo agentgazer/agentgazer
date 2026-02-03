@@ -370,7 +370,7 @@ describe("Event ingestion POST /api/events", () => {
     expect(agentRes.status).toBe(200);
     expect(agentRes.body.agent_id).toBe(agentId);
     expect(agentRes.body.status).toBe("healthy");
-    expect(agentRes.body.last_heartbeat_at).toBeTruthy();
+    expect(agentRes.body.last_heartbeat).toBeTruthy();
   });
 });
 

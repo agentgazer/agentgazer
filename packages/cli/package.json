@@ -42,7 +42,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs=require('fs');const p=require('path');const src=p.resolve(__dirname,'../../apps/dashboard-local/dist');const dst=p.resolve(__dirname,'dist/dashboard');if(fs.existsSync(src)){fs.cpSync(src,dst,{recursive:true});console.log('Copied dashboard to dist/dashboard')}else{console.warn('Warning: dashboard-local/dist not found')}\"",
     "dev": "tsc --watch",
     "test": "vitest run",
     "prepublishOnly": "npm run build"
@@ -53,6 +53,7 @@
     "open": "^10.1.0"
   },
   "devDependencies": {
+    "dashboard-local": "*",
     "typescript": "^5.5.0",
     "vitest": "^2.1.9"
   }

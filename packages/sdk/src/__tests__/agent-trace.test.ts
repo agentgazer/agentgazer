@@ -81,7 +81,7 @@ describe("AgentTrace", () => {
       expect(fetchMock).toHaveBeenCalledOnce();
       const calledUrl = fetchMock.mock.calls[0][0] as string;
       expect(calledUrl).toBe(
-        "https://your-project.supabase.co/functions/v1/ingest",
+        "http://localhost:8080/api/events",
       );
 
       void watch.shutdown();

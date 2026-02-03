@@ -1,7 +1,0 @@
-{
-  "framework": "nextjs",
-  "outputDirectory": ".next",
-  "buildCommand": "cd ../.. && npx turbo build --filter=dashboard",
-  "installCommand": "cd ../.. && npm install",
-  "rootDirectory": "apps/dashboard"
-}

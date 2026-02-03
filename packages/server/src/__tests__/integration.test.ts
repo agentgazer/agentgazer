@@ -150,7 +150,7 @@ describe("Integration: SDK -> Local Server", () => {
     expect(agentRes.status).toBe(200);
     expect(agentRes.body.agent_id).toBe(agentId);
     expect(agentRes.body.status).toBe("healthy"); // heartbeat was sent
-    expect(agentRes.body.last_heartbeat_at).toBeTruthy();
+    expect(agentRes.body.last_heartbeat).toBeTruthy();
   });
 
   it("SDK custom events and tags round-trip through the server", async () => {

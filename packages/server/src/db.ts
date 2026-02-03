@@ -193,14 +193,17 @@ export interface AgentRow {
   agent_id: string;
   name: string | null;
   status: string;
-  last_heartbeat_at: string | null;
+  last_heartbeat: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export function getAllAgents(db: Database.Database): (AgentRow & { total_events: number })[] {
   return db.prepare(`
-    SELECT a.*, COALESCE(e.cnt, 0) AS total_events
+    SELECT a.id, a.agent_id, a.name, a.status,
+           a.last_heartbeat_at AS last_heartbeat,
+           a.created_at, a.updated_at,
+           COALESCE(e.cnt, 0) AS total_events
     FROM agents a
     LEFT JOIN (SELECT agent_id, COUNT(*) AS cnt FROM agent_events GROUP BY agent_id) e
       ON e.agent_id = a.agent_id
@@ -212,7 +215,12 @@ export function getAgentByAgentId(
   db: Database.Database,
   agentId: string,
 ): AgentRow | undefined {
-  return db.prepare("SELECT * FROM agents WHERE agent_id = ?").get(agentId) as AgentRow | undefined;
+  return db.prepare(`
+    SELECT id, agent_id, name, status,
+           last_heartbeat_at AS last_heartbeat,
+           created_at, updated_at
+    FROM agents WHERE agent_id = ?
+  `).get(agentId) as AgentRow | undefined;
 }
 
 export interface EventQueryOptions {
