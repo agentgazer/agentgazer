@@ -776,6 +776,192 @@ describe("Proxy Server Integration", () => {
     expect(providerServer.receivedRequests[0].body).toBe("");
   });
 
+  it("streams SSE response through to client and extracts OpenAI metrics", async () => {
+    ingestServer = await createMockIngestServer();
+
+    // Build OpenAI-style SSE chunks
+    const sseChunks = [
+      `data: ${JSON.stringify({ id: "chatcmpl-1", object: "chat.completion.chunk", model: "gpt-4o", choices: [{ delta: { role: "assistant" } }] })}\n\n`,
+      `data: ${JSON.stringify({ id: "chatcmpl-1", object: "chat.completion.chunk", model: "gpt-4o", choices: [{ delta: { content: "Hello" } }] })}\n\n`,
+      `data: ${JSON.stringify({ id: "chatcmpl-1", object: "chat.completion.chunk", model: "gpt-4o", choices: [{ delta: { content: "!" } }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\n`,
+      `data: [DONE]\n\n`,
+    ];
+
+    // Create SSE mock provider
+    const sseServer = await new Promise<{ server: http.Server; port: number }>((resolve) => {
+      const server = http.createServer((_req, res) => {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+        // Write all chunks then end
+        for (const chunk of sseChunks) {
+          res.write(chunk);
+        }
+        res.end();
+      });
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address() as { port: number };
+        resolve({ server, port: addr.port });
+      });
+    });
+
+    const fakeOpenAIUrl = `http://127.0.0.1:${sseServer.port}?host=api.openai.com`;
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-sse-openai",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 1,
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    const res = await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeOpenAIUrl,
+      },
+      body: JSON.stringify({ model: "gpt-4o", messages: [], stream: true }),
+    });
+
+    // The SSE response should be streamed through
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+    expect(res.body).toContain("data: ");
+    expect(res.body).toContain("[DONE]");
+
+    // Wait for event buffer to flush
+    await vi.waitFor(
+      () => {
+        expect(ingestServer!.receivedBatches.length).toBeGreaterThanOrEqual(1);
+      },
+      { timeout: 3000, interval: 50 }
+    );
+
+    const events = ingestServer.receivedBatches[0].events as Array<{
+      agent_id: string;
+      provider: string;
+      model: string;
+      tokens_in: number;
+      tokens_out: number;
+      tokens_total: number;
+      status_code: number;
+      tags: Record<string, string>;
+    }>;
+
+    expect(events).toHaveLength(1);
+    expect(events[0].agent_id).toBe("agent-sse-openai");
+    expect(events[0].provider).toBe("openai");
+    expect(events[0].model).toBe("gpt-4o");
+    expect(events[0].tokens_in).toBe(10);
+    expect(events[0].tokens_out).toBe(5);
+    expect(events[0].tokens_total).toBe(15);
+    expect(events[0].status_code).toBe(200);
+    expect(events[0].tags).toEqual({ streaming: "true" });
+
+    await closeServer(sseServer.server);
+  });
+
+  it("streams SSE response through to client and extracts Anthropic metrics", async () => {
+    ingestServer = await createMockIngestServer();
+
+    // Build Anthropic-style SSE chunks
+    const sseChunks = [
+      `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { id: "msg_1", type: "message", model: "claude-sonnet-4-20250514", usage: { input_tokens: 25 }, content: [], stop_reason: null } })}\n\n`,
+      `event: content_block_start\ndata: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}\n\n`,
+      `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello!" } })}\n\n`,
+      `event: content_block_stop\ndata: ${JSON.stringify({ type: "content_block_stop", index: 0 })}\n\n`,
+      `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 12 } })}\n\n`,
+      `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
+    ];
+
+    const sseServer = await new Promise<{ server: http.Server; port: number }>((resolve) => {
+      const server = http.createServer((_req, res) => {
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+        for (const chunk of sseChunks) {
+          res.write(chunk);
+        }
+        res.end();
+      });
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address() as { port: number };
+        resolve({ server, port: addr.port });
+      });
+    });
+
+    const fakeAnthropicUrl = `http://127.0.0.1:${sseServer.port}?host=api.anthropic.com`;
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-sse-anthropic",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 1,
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    const res = await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/messages",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeAnthropicUrl,
+      },
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", messages: [], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/event-stream");
+    expect(res.body).toContain("message_start");
+
+    // Wait for event buffer to flush
+    await vi.waitFor(
+      () => {
+        expect(ingestServer!.receivedBatches.length).toBeGreaterThanOrEqual(1);
+      },
+      { timeout: 3000, interval: 50 }
+    );
+
+    const events = ingestServer.receivedBatches[0].events as Array<{
+      agent_id: string;
+      provider: string;
+      model: string;
+      tokens_in: number;
+      tokens_out: number;
+      tokens_total: number;
+      tags: Record<string, string>;
+    }>;
+
+    expect(events).toHaveLength(1);
+    expect(events[0].agent_id).toBe("agent-sse-anthropic");
+    expect(events[0].provider).toBe("anthropic");
+    expect(events[0].model).toBe("claude-sonnet-4-20250514");
+    expect(events[0].tokens_in).toBe(25);
+    expect(events[0].tokens_out).toBe(12);
+    expect(events[0].tokens_total).toBe(37);
+    expect(events[0].tags).toEqual({ streaming: "true" });
+
+    await closeServer(sseServer.server);
+  });
+
   it("shutdown() cleanly shuts down the server and flushes events", async () => {
     providerServer = await createMockProviderServer();
     ingestServer = await createMockIngestServer();

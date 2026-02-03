@@ -23,4 +23,19 @@ export interface TrackOptions {
   status?: number;
   tags?: Record<string, unknown>;
   error_message?: string;
+  trace_id?: string;
+  span_id?: string;
+  parent_span_id?: string;
+}
+
+export interface Trace {
+  traceId: string;
+  startSpan(name?: string): Span;
+}
+
+export interface Span {
+  spanId: string;
+  traceId: string;
+  parentSpanId: string | null;
+  startSpan(name?: string): Span;
 }

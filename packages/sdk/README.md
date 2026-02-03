@@ -1,6 +1,6 @@
 # @agenttrace/sdk
 
-TypeScript SDK for AgentTrace — agent-level observability for AI agents.
+TypeScript SDK for recording AI agent activity to an AgentTrace server.
 
 ## Install
 
@@ -8,72 +8,102 @@ TypeScript SDK for AgentTrace — agent-level observability for AI agents.
 npm install @agenttrace/sdk
 ```
 
-## Quick Start
+## Usage
 
 ```typescript
 import { AgentTrace } from "@agenttrace/sdk";
 
-const watch = AgentTrace.init({
-  apiKey: "aw_your_api_key",
+const at = AgentTrace.init({
+  apiKey: "your-token",
   agentId: "my-agent",
+  endpoint: "http://localhost:8080/api/events",
 });
 
 // Track an LLM call
-watch.track({
+at.track({
   provider: "openai",
   model: "gpt-4o",
-  tokens: { input: 500, output: 200 },
+  tokens: { input: 150, output: 50 },
   latency_ms: 1200,
   status: 200,
 });
 
-// Send a heartbeat (call periodically to show agent is alive)
-watch.heartbeat();
+// Report errors
+at.error(new Error("Something went wrong"));
 
-// Report an error
-watch.error(new Error("Failed to connect to database"));
+// Send a heartbeat (for agent-down alerts)
+at.heartbeat();
 
-// Send a custom event
-watch.custom({ task: "data-processing", items: 42 });
+// Send custom events
+at.custom({ step: "planning", result: "success" });
 
-// Graceful shutdown (flushes remaining events)
-await watch.shutdown();
+// Flush buffer and shut down
+await at.shutdown();
 ```
 
-## API
+## Distributed tracing
 
-### `AgentTrace.init(options)`
+```typescript
+const trace = at.startTrace();
+const parentSpan = trace.startSpan("orchestrator");
+const childSpan = parentSpan.startSpan("tool-call");
+
+at.track({
+  provider: "anthropic",
+  model: "claude-sonnet-4-20250514",
+  trace_id: trace.traceId,
+  span_id: childSpan.spanId,
+  parent_span_id: childSpan.parentSpanId,
+  tokens: { input: 500, output: 200 },
+  latency_ms: 3000,
+  status: 200,
+});
+```
+
+## Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `apiKey` | `string` | required | Your AgentTrace API key |
-| `agentId` | `string` | required | Unique identifier for this agent |
-| `endpoint` | `string` | AgentTrace cloud | Ingest API URL |
-| `flushInterval` | `number` | `5000` | Milliseconds between automatic flushes |
-| `maxBufferSize` | `number` | `50` | Flush when buffer reaches this size |
+| `apiKey` | `string` | **required** | Auth token for the AgentTrace server |
+| `agentId` | `string` | **required** | Unique identifier for this agent |
+| `endpoint` | `string` | — | Event ingestion URL |
+| `flushInterval` | `number` | `5000` | Buffer flush interval in ms |
+| `maxBufferSize` | `number` | `50` | Max events before auto-flush |
 
-### `watch.track(options)`
+## API
 
-Record an LLM API call.
+### `AgentTrace.init(options): AgentTrace`
 
-### `watch.heartbeat()`
+Create a new client instance.
 
-Signal that the agent is alive. Call this periodically (e.g., every 30 seconds).
+### `track(options: TrackOptions): void`
 
-### `watch.error(err)`
+Record an LLM call event. All fields in `TrackOptions` are optional except that at least one should be meaningful.
 
-Report an error. Accepts `Error` or `string`.
+### `startTrace(): Trace`
 
-### `watch.flush()`
+Start a new distributed trace. Returns a `Trace` object with a `traceId` and a `startSpan()` method for creating child spans.
 
-Manually flush buffered events. Called automatically on interval and when buffer is full.
+### `heartbeat(): void`
 
-### `watch.shutdown()`
+Send a heartbeat event. Used by the server's alert evaluator to detect agent-down conditions.
 
-Stop the flush timer and send remaining events. Call before process exit.
+### `error(err: Error | string): void`
 
-## Behavior
+Record an error event. If an `Error` object is passed, the stack trace is captured in tags.
 
-- Events are buffered and sent in batches for efficiency
-- Network failures are logged but never thrown — the SDK will not crash your agent
-- The flush timer is `unref()`'d so it won't prevent Node.js from exiting
+### `custom(data: Record<string, unknown>): void`
+
+Record a custom event with arbitrary data stored in tags.
+
+### `flush(): Promise<void>`
+
+Flush the event buffer to the server.
+
+### `shutdown(): Promise<void>`
+
+Stop the flush timer and send any remaining buffered events.
+
+## License
+
+Apache-2.0

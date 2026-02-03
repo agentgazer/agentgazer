@@ -1,0 +1,1109 @@
+openapi: 3.0.3
+info:
+  title: AgentTrace API
+  version: 0.1.0
+  description: >
+    AgentTrace is an observability platform for AI agents. It ingests telemetry
+    events (LLM calls, completions, heartbeats, errors, and custom events),
+    tracks agent health, computes usage statistics, and manages alert rules with
+    delivery via webhook or email.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - name: Health
+    description: Server health check
+  - name: Auth
+    description: Token verification
+  - name: Agents
+    description: Registered agent management
+  - name: Events
+    description: Event ingestion and querying
+  - name: Stats
+    description: Aggregated statistics per agent
+  - name: Alerts
+    description: Alert rule and alert history management
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  /api/health:
+    get:
+      operationId: getHealth
+      tags: [Health]
+      summary: Health check
+      description: Returns server status and uptime. Does not require authentication.
+      security: []
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+  /api/auth/verify:
+    post:
+      operationId: verifyToken
+      tags: [Auth]
+      summary: Verify an API token
+      description: >
+        Checks whether the supplied token is valid. Does not require
+        authentication via header; the token is passed in the request body.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyTokenRequest"
+      responses:
+        "200":
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyTokenResponse"
+              example:
+                valid: true
+        "401":
+          description: Token is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyTokenResponse"
+              example:
+                valid: false
+
+  # ---------------------------------------------------------------------------
+  # Agents
+  # ---------------------------------------------------------------------------
+  /api/agents:
+    get:
+      operationId: listAgents
+      tags: [Agents]
+      summary: List all agents
+      description: Returns every registered agent along with its total event count.
+      responses:
+        "200":
+          description: A list of agents
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - agents
+                properties:
+                  agents:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AgentWithEvents"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/agents/{agentId}:
+    get:
+      operationId: getAgent
+      tags: [Agents]
+      summary: Get a single agent
+      description: Returns the agent identified by its unique agent_id.
+      parameters:
+        - $ref: "#/components/parameters/AgentIdPath"
+      responses:
+        "200":
+          description: Agent found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Agent"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Agent not found
+
+  # ---------------------------------------------------------------------------
+  # Events
+  # ---------------------------------------------------------------------------
+  /api/events:
+    post:
+      operationId: ingestEvents
+      tags: [Events]
+      summary: Ingest events
+      description: >
+        Accepts a single event object or a batch of events via the `events`
+        array wrapper. Each event is validated independently; partial success
+        returns HTTP 207. Rate-limited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/EventBatchRequest"
+                - $ref: "#/components/schemas/AgentEventInput"
+      responses:
+        "200":
+          description: All events ingested successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventIngestionResponse"
+        "207":
+          description: Partial success -- some events failed validation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventIngestionResponse"
+        "400":
+          description: All events failed validation or no events provided
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/EventIngestionResponse"
+                  - $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          description: Rate limit exceeded
+
+    get:
+      operationId: queryEvents
+      tags: [Events]
+      summary: Query events
+      description: >
+        Returns events for a given agent, with optional filtering by time range,
+        event type, provider, model, trace ID, and free-text search.
+      parameters:
+        - name: agent_id
+          in: query
+          required: true
+          description: The agent_id to query events for
+          schema:
+            type: string
+        - name: from
+          in: query
+          required: false
+          description: Start of time range (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: End of time range (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: event_type
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/EventType"
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: model
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: trace_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          description: Free-text search across model, provider, error_message, and tags
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of events to return (default 1000)
+          schema:
+            type: integer
+            default: 1000
+      responses:
+        "200":
+          description: Matching events
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - events
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AgentEvent"
+        "400":
+          description: Missing required agent_id parameter
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: agent_id query parameter is required
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/events/export:
+    get:
+      operationId: exportEvents
+      tags: [Events]
+      summary: Export events as JSON or CSV
+      description: >
+        Exports events for the given agent in either JSON or CSV format.
+        The response includes a Content-Disposition header for file download.
+      parameters:
+        - name: agent_id
+          in: query
+          required: true
+          description: The agent_id to export events for
+          schema:
+            type: string
+        - name: format
+          in: query
+          required: false
+          description: Export format
+          schema:
+            type: string
+            enum: [json, csv]
+            default: json
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: event_type
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/EventType"
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: model
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: trace_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exported event data
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 'Attachment filename, e.g. attachment; filename="events-<agentId>.csv"'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - events
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AgentEvent"
+            text/csv:
+              schema:
+                type: string
+                description: CSV data with header row
+        "400":
+          description: Missing agent_id or invalid format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ---------------------------------------------------------------------------
+  # Stats
+  # ---------------------------------------------------------------------------
+  /api/stats/{agentId}:
+    get:
+      operationId: getAgentStats
+      tags: [Stats]
+      summary: Get aggregated statistics for an agent
+      description: >
+        Returns request counts, error rates, cost totals, token totals,
+        latency percentiles, cost breakdown by model, and a token time-series
+        for the requested time range.
+      parameters:
+        - $ref: "#/components/parameters/AgentIdPath"
+        - name: range
+          in: query
+          required: false
+          description: Predefined time range
+          schema:
+            type: string
+            enum: ["1h", "24h", "7d", "30d", custom]
+            default: "24h"
+        - name: from
+          in: query
+          required: false
+          description: Custom range start (ISO 8601). Used when range is "custom".
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Custom range end (ISO 8601). Defaults to now.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Aggregated statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentStats"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ---------------------------------------------------------------------------
+  # Alerts
+  # ---------------------------------------------------------------------------
+  /api/alerts:
+    get:
+      operationId: listAlertRules
+      tags: [Alerts]
+      summary: List all alert rules
+      description: Returns all alert rules ordered by creation date descending.
+      responses:
+        "200":
+          description: A list of alert rules
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - alerts
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AlertRule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: createAlertRule
+      tags: [Alerts]
+      summary: Create a new alert rule
+      description: >
+        Creates an alert rule for a specific agent. At least one delivery
+        channel (webhook_url or email) must be provided.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertRuleInput"
+      responses:
+        "201":
+          description: Alert rule created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/alerts/{id}:
+    put:
+      operationId: updateAlertRule
+      tags: [Alerts]
+      summary: Update an alert rule
+      description: Replaces fields on an existing alert rule. Omitted fields keep their current values.
+      parameters:
+        - $ref: "#/components/parameters/AlertRuleIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlertRuleInput"
+      responses:
+        "200":
+          description: Alert rule updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Alert rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Alert rule not found
+
+    delete:
+      operationId: deleteAlertRule
+      tags: [Alerts]
+      summary: Delete an alert rule
+      description: Permanently removes the alert rule and its associated history.
+      parameters:
+        - $ref: "#/components/parameters/AlertRuleIdPath"
+      responses:
+        "204":
+          description: Alert rule deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Alert rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Alert rule not found
+
+  /api/alerts/{id}/toggle:
+    patch:
+      operationId: toggleAlertRule
+      tags: [Alerts]
+      summary: Toggle alert rule enabled status
+      description: Enables or disables an existing alert rule.
+      parameters:
+        - $ref: "#/components/parameters/AlertRuleIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+                  description: Whether the alert rule should be enabled
+      responses:
+        "200":
+          description: Alert rule toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertRule"
+        "400":
+          description: Missing or invalid enabled field
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: "enabled field (boolean) is required"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Alert rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Alert rule not found
+
+  /api/alert-history:
+    get:
+      operationId: listAlertHistory
+      tags: [Alerts]
+      summary: List alert delivery history
+      description: Returns the most recent alert deliveries ordered by delivery date descending.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of history entries to return (default 100)
+          schema:
+            type: integer
+            default: 100
+      responses:
+        "200":
+          description: A list of alert history entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - history
+                properties:
+                  history:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AlertHistory"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+# =============================================================================
+# Components
+# =============================================================================
+components:
+  # ---------------------------------------------------------------------------
+  # Security Schemes
+  # ---------------------------------------------------------------------------
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: "Pass the API token as a Bearer token: `Authorization: Bearer <token>`"
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: "Pass the API token via the x-api-key header"
+
+  # ---------------------------------------------------------------------------
+  # Reusable Parameters
+  # ---------------------------------------------------------------------------
+  parameters:
+    AgentIdPath:
+      name: agentId
+      in: path
+      required: true
+      description: Unique agent identifier
+      schema:
+        type: string
+
+    AlertRuleIdPath:
+      name: id
+      in: path
+      required: true
+      description: Alert rule UUID
+      schema:
+        type: string
+        format: uuid
+
+  # ---------------------------------------------------------------------------
+  # Reusable Responses
+  # ---------------------------------------------------------------------------
+  responses:
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: Unauthorized
+
+  # ---------------------------------------------------------------------------
+  # Schemas
+  # ---------------------------------------------------------------------------
+  schemas:
+    # -- Generic --
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+
+    # -- Health --
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - uptime_ms
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        uptime_ms:
+          type: number
+          description: Server uptime in milliseconds
+
+    # -- Auth --
+    VerifyTokenRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          description: The API token to verify
+
+    VerifyTokenResponse:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+          description: Whether the token is valid
+
+    # -- Agents --
+    Agent:
+      type: object
+      required:
+        - id
+        - agent_id
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Internal unique ID (hex)
+        agent_id:
+          type: string
+          description: User-defined unique agent identifier
+        name:
+          type: string
+          nullable: true
+          description: Optional human-readable name
+        status:
+          type: string
+          enum: [healthy, degraded, down, unknown]
+          description: Current agent health status
+        last_heartbeat_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp of the most recent heartbeat
+        created_at:
+          type: string
+          format: date-time
+          description: When the agent was first registered
+        updated_at:
+          type: string
+          format: date-time
+          description: When the agent record was last updated
+
+    AgentWithEvents:
+      allOf:
+        - $ref: "#/components/schemas/Agent"
+        - type: object
+          required:
+            - total_events
+          properties:
+            total_events:
+              type: integer
+              description: Total number of events recorded for this agent
+
+    # -- Events --
+    EventType:
+      type: string
+      enum: [llm_call, completion, heartbeat, error, custom]
+      description: The type of agent event
+
+    EventSource:
+      type: string
+      enum: [sdk, proxy]
+      description: How the event was ingested
+
+    AgentEventInput:
+      type: object
+      required:
+        - agent_id
+        - event_type
+        - source
+        - timestamp
+      properties:
+        agent_id:
+          type: string
+          description: Agent that produced this event
+        event_type:
+          $ref: "#/components/schemas/EventType"
+        source:
+          $ref: "#/components/schemas/EventSource"
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event occurred (ISO 8601)
+        provider:
+          type: string
+          nullable: true
+          description: LLM provider name (e.g. openai, anthropic)
+        model:
+          type: string
+          nullable: true
+          description: Model identifier (e.g. gpt-4o, claude-3-opus)
+        tokens_in:
+          type: integer
+          nullable: true
+          description: Number of input/prompt tokens
+        tokens_out:
+          type: integer
+          nullable: true
+          description: Number of output/completion tokens
+        tokens_total:
+          type: integer
+          nullable: true
+          description: Total token count
+        cost_usd:
+          type: number
+          format: double
+          nullable: true
+          description: Estimated cost in USD
+        latency_ms:
+          type: integer
+          nullable: true
+          description: Request latency in milliseconds
+        status_code:
+          type: integer
+          nullable: true
+          description: HTTP status code of the upstream call
+        error_message:
+          type: string
+          nullable: true
+          description: Error description if the call failed
+        tags:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Arbitrary key-value metadata
+        trace_id:
+          type: string
+          nullable: true
+          description: Distributed trace identifier
+        span_id:
+          type: string
+          nullable: true
+          description: Span identifier within a trace
+        parent_span_id:
+          type: string
+          nullable: true
+          description: Parent span identifier for nested spans
+
+    AgentEvent:
+      allOf:
+        - $ref: "#/components/schemas/AgentEventInput"
+        - type: object
+          required:
+            - id
+            - created_at
+          properties:
+            id:
+              type: string
+              description: Server-generated unique event ID (UUID)
+            created_at:
+              type: string
+              format: date-time
+              description: When the event was persisted
+
+    EventBatchRequest:
+      type: object
+      required:
+        - events
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentEventInput"
+          description: Array of events to ingest
+
+    EventIngestionResult:
+      type: object
+      required:
+        - index
+        - success
+      properties:
+        index:
+          type: integer
+          description: Original index of the event in the batch
+        success:
+          type: boolean
+          description: Whether the event was ingested successfully
+        id:
+          type: string
+          description: Assigned event ID (present when success is true)
+        error:
+          type: string
+          description: Validation error message (present when success is false)
+
+    EventIngestionResponse:
+      type: object
+      required:
+        - status
+        - event_ids
+        - results
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+          description: Overall ingestion status
+        event_ids:
+          type: array
+          items:
+            type: string
+          description: IDs of successfully ingested events
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventIngestionResult"
+          description: Per-event results ordered by original index
+
+    # -- Stats --
+    CostByModel:
+      type: object
+      required:
+        - model
+        - provider
+        - cost
+        - count
+      properties:
+        model:
+          type: string
+          nullable: true
+          description: Model identifier
+        provider:
+          type: string
+          nullable: true
+          description: Provider name
+        cost:
+          type: number
+          format: double
+          description: Total cost in USD for this model
+        count:
+          type: integer
+          description: Number of LLM events for this model
+
+    TokenSeriesEntry:
+      type: object
+      required:
+        - timestamp
+        - tokens_in
+        - tokens_out
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        tokens_in:
+          type: integer
+          nullable: true
+        tokens_out:
+          type: integer
+          nullable: true
+
+    AgentStats:
+      type: object
+      required:
+        - total_requests
+        - total_errors
+        - error_rate
+        - total_cost
+        - total_tokens
+        - p50_latency
+        - p99_latency
+        - cost_by_model
+        - token_series
+      properties:
+        total_requests:
+          type: integer
+          description: Total number of events in the time range
+        total_errors:
+          type: integer
+          description: Number of error events
+        error_rate:
+          type: number
+          format: double
+          description: Ratio of errors to total requests (0.0 - 1.0)
+        total_cost:
+          type: number
+          format: double
+          description: Sum of cost_usd across LLM events
+        total_tokens:
+          type: integer
+          description: Sum of tokens_total across LLM events
+        p50_latency:
+          type: number
+          nullable: true
+          description: Median latency in milliseconds
+        p99_latency:
+          type: number
+          nullable: true
+          description: 99th percentile latency in milliseconds
+        cost_by_model:
+          type: array
+          items:
+            $ref: "#/components/schemas/CostByModel"
+          description: Cost and count breakdown per model/provider pair
+        token_series:
+          type: array
+          items:
+            $ref: "#/components/schemas/TokenSeriesEntry"
+          description: Time-series of token usage (max 500 entries)
+
+    # -- Alerts --
+    AlertRuleType:
+      type: string
+      enum: [agent_down, error_rate, budget]
+      description: The kind of condition this alert monitors
+
+    AlertRuleInput:
+      type: object
+      required:
+        - agent_id
+        - rule_type
+        - config
+      properties:
+        agent_id:
+          type: string
+          description: The agent this rule applies to
+        rule_type:
+          $ref: "#/components/schemas/AlertRuleType"
+        config:
+          type: object
+          additionalProperties: true
+          description: >
+            Rule-specific configuration. Shape depends on rule_type.
+            For "agent_down": { timeout_seconds: number }.
+            For "error_rate": { threshold: number, window_seconds: number }.
+            For "budget": { max_cost_usd: number, window: string }.
+        enabled:
+          type: boolean
+          default: true
+          description: Whether the rule is active
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Webhook URL for alert delivery
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Email address for alert delivery
+
+    AlertRule:
+      type: object
+      required:
+        - id
+        - agent_id
+        - rule_type
+        - config
+        - enabled
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique alert rule ID
+        agent_id:
+          type: string
+          description: The agent this rule applies to
+        rule_type:
+          $ref: "#/components/schemas/AlertRuleType"
+        config:
+          type: object
+          additionalProperties: true
+          description: Rule-specific configuration
+        enabled:
+          type: boolean
+          description: Whether the rule is currently active
+        webhook_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Webhook URL for delivery
+        email:
+          type: string
+          format: email
+          nullable: true
+          description: Email address for delivery
+        created_at:
+          type: string
+          format: date-time
+          description: When the rule was created
+        updated_at:
+          type: string
+          format: date-time
+          description: When the rule was last modified
+
+    DeliveryChannel:
+      type: string
+      enum: [webhook, email]
+      description: How the alert was delivered
+
+    AlertHistory:
+      type: object
+      required:
+        - id
+        - alert_rule_id
+        - agent_id
+        - rule_type
+        - message
+        - delivered_via
+        - delivered_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique history entry ID
+        alert_rule_id:
+          type: string
+          format: uuid
+          description: The alert rule that triggered this delivery
+        agent_id:
+          type: string
+          description: The agent that triggered the alert
+        rule_type:
+          $ref: "#/components/schemas/AlertRuleType"
+        message:
+          type: string
+          description: Human-readable alert message
+        delivered_via:
+          $ref: "#/components/schemas/DeliveryChannel"
+        delivered_at:
+          type: string
+          format: date-time
+          description: When the alert was delivered
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Optional structured data associated with the alert

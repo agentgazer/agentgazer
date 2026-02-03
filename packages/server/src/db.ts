@@ -47,12 +47,16 @@ const SCHEMA = `
     tags TEXT DEFAULT '{}',
     source TEXT NOT NULL CHECK (source IN ('sdk', 'proxy')),
     timestamp TEXT NOT NULL,
+    trace_id TEXT,
+    span_id TEXT,
+    parent_span_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE INDEX IF NOT EXISTS idx_agent_events_agent_id ON agent_events(agent_id);
   CREATE INDEX IF NOT EXISTS idx_agent_events_timestamp ON agent_events(timestamp);
   CREATE INDEX IF NOT EXISTS idx_agent_events_type ON agent_events(event_type);
+  CREATE INDEX IF NOT EXISTS idx_agent_events_trace ON agent_events(trace_id);
 
   CREATE TABLE IF NOT EXISTS alert_rules (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -128,6 +132,9 @@ export interface InsertEventRow {
   tags?: Record<string, unknown>;
   source: string;
   timestamp: string;
+  trace_id?: string | null;
+  span_id?: string | null;
+  parent_span_id?: string | null;
 }
 
 export function insertEvents(
@@ -139,12 +146,12 @@ export function insertEvents(
       id, agent_id, event_type, provider, model,
       tokens_in, tokens_out, tokens_total, cost_usd,
       latency_ms, status_code, error_message, tags,
-      source, timestamp
+      source, timestamp, trace_id, span_id, parent_span_id
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
       ?, ?, ?, ?,
-      ?, ?
+      ?, ?, ?, ?, ?
     )
   `);
 
@@ -169,6 +176,9 @@ export function insertEvents(
         JSON.stringify(e.tags ?? {}),
         e.source,
         e.timestamp,
+        e.trace_id ?? null,
+        e.span_id ?? null,
+        e.parent_span_id ?? null,
       );
       ids.push(id);
     }
@@ -210,6 +220,10 @@ export interface EventQueryOptions {
   from?: string;
   to?: string;
   event_type?: string;
+  provider?: string;
+  model?: string;
+  trace_id?: string;
+  search?: string;
   limit?: number;
 }
 
@@ -229,7 +243,34 @@ export interface EventRow {
   tags: string;
   source: string;
   timestamp: string;
+  trace_id: string | null;
+  span_id: string | null;
+  parent_span_id: string | null;
   created_at: string;
+}
+
+/**
+ * Delete events and alert history older than the given number of days.
+ * Returns the number of rows deleted from each table.
+ */
+export function purgeOldData(
+  db: Database.Database,
+  retentionDays: number,
+): { eventsDeleted: number; historyDeleted: number } {
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+
+  const eventsResult = db.prepare(
+    "DELETE FROM agent_events WHERE timestamp < ?",
+  ).run(cutoff);
+
+  const historyResult = db.prepare(
+    "DELETE FROM alert_history WHERE delivered_at < ?",
+  ).run(cutoff);
+
+  return {
+    eventsDeleted: eventsResult.changes,
+    historyDeleted: historyResult.changes,
+  };
 }
 
 export function queryEvents(
@@ -250,6 +291,23 @@ export function queryEvents(
   if (options.event_type) {
     conditions.push("event_type = ?");
     params.push(options.event_type);
+  }
+  if (options.provider) {
+    conditions.push("provider = ?");
+    params.push(options.provider);
+  }
+  if (options.model) {
+    conditions.push("model = ?");
+    params.push(options.model);
+  }
+  if (options.trace_id) {
+    conditions.push("trace_id = ?");
+    params.push(options.trace_id);
+  }
+  if (options.search) {
+    conditions.push("(model LIKE ? OR provider LIKE ? OR error_message LIKE ? OR tags LIKE ?)");
+    const term = `%${options.search}%`;
+    params.push(term, term, term, term);
   }
 
   const limit = options.limit ?? 1000;

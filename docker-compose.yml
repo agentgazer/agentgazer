@@ -1,0 +1,13 @@
+services:
+  agenttrace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+      - "4000:4000"
+    volumes:
+      - agenttrace-data:/root/.agenttrace
+
+volumes:
+  agenttrace-data:

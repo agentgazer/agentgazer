@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type Database from "better-sqlite3";
 import { insertEvents, upsertAgent, queryEvents, type InsertEventRow } from "../db.js";
+import { rateLimitEvents } from "../middleware/rate-limit.js";
 
 const router = Router();
 
@@ -22,6 +23,9 @@ interface RawEvent {
   status_code?: unknown;
   error_message?: unknown;
   tags?: unknown;
+  trace_id?: unknown;
+  span_id?: unknown;
+  parent_span_id?: unknown;
 }
 
 interface ValidationResult {
@@ -132,11 +136,32 @@ function validateEvent(raw: RawEvent): ValidationResult {
     event.tags = raw.tags as Record<string, unknown>;
   }
 
+  if (raw.trace_id != null) {
+    if (typeof raw.trace_id !== "string") {
+      return { valid: false, error: "trace_id must be a string" };
+    }
+    event.trace_id = raw.trace_id;
+  }
+
+  if (raw.span_id != null) {
+    if (typeof raw.span_id !== "string") {
+      return { valid: false, error: "span_id must be a string" };
+    }
+    event.span_id = raw.span_id;
+  }
+
+  if (raw.parent_span_id != null) {
+    if (typeof raw.parent_span_id !== "string") {
+      return { valid: false, error: "parent_span_id must be a string" };
+    }
+    event.parent_span_id = raw.parent_span_id;
+  }
+
   return { valid: true, event };
 }
 
 // POST /api/events - Event ingestion
-router.post("/api/events", (req, res) => {
+router.post("/api/events", rateLimitEvents, (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const body = req.body as { events?: unknown[] } | RawEvent;
 
@@ -224,6 +249,10 @@ router.get("/api/events", (req, res) => {
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
   const eventType = req.query.event_type as string | undefined;
+  const provider = req.query.provider as string | undefined;
+  const model = req.query.model as string | undefined;
+  const traceId = req.query.trace_id as string | undefined;
+  const search = req.query.search as string | undefined;
   const limitStr = req.query.limit as string | undefined;
   const limit = limitStr ? parseInt(limitStr, 10) : undefined;
 
@@ -232,6 +261,10 @@ router.get("/api/events", (req, res) => {
     from,
     to,
     event_type: eventType,
+    provider,
+    model,
+    trace_id: traceId,
+    search,
     limit: limit && !isNaN(limit) ? limit : undefined,
   });
 
@@ -242,6 +275,80 @@ router.get("/api/events", (req, res) => {
   }));
 
   res.json({ events });
+});
+
+// GET /api/events/export - Export events as CSV or JSON
+router.get("/api/events/export", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+
+  const agentId = req.query.agent_id as string | undefined;
+  if (!agentId) {
+    res.status(400).json({ error: "agent_id query parameter is required" });
+    return;
+  }
+
+  const format = (req.query.format as string | undefined) ?? "json";
+  if (format !== "json" && format !== "csv") {
+    res.status(400).json({ error: "format must be 'json' or 'csv'" });
+    return;
+  }
+
+  const from = req.query.from as string | undefined;
+  const to = req.query.to as string | undefined;
+  const eventType = req.query.event_type as string | undefined;
+  const provider = req.query.provider as string | undefined;
+  const model = req.query.model as string | undefined;
+  const traceId = req.query.trace_id as string | undefined;
+
+  const rows = queryEvents(db, {
+    agent_id: agentId,
+    from,
+    to,
+    event_type: eventType,
+    provider,
+    model,
+    trace_id: traceId,
+    limit: 100_000,
+  });
+
+  if (format === "csv") {
+    const headers = [
+      "id", "agent_id", "event_type", "provider", "model",
+      "tokens_in", "tokens_out", "tokens_total", "cost_usd",
+      "latency_ms", "status_code", "error_message", "source",
+      "timestamp", "trace_id", "span_id", "parent_span_id", "tags",
+    ];
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="events-${agentId}.csv"`);
+
+    res.write(headers.join(",") + "\n");
+
+    for (const row of rows) {
+      const values = headers.map((h) => {
+        const val = (row as unknown as Record<string, unknown>)[h];
+        if (val == null) return "";
+        const str = String(val);
+        // Escape CSV values containing commas, quotes, or newlines
+        if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+          return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+      });
+      res.write(values.join(",") + "\n");
+    }
+
+    res.end();
+  } else {
+    const events = rows.map((row) => ({
+      ...row,
+      tags: typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags,
+    }));
+
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="events-${agentId}.json"`);
+    res.json({ events });
+  }
 });
 
 export default router;

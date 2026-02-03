@@ -22,6 +22,9 @@ export const AgentEventSchema = z.object({
   tags: z.record(z.unknown()).default({}),
   source: Source,
   timestamp: z.string().datetime(),
+  trace_id: z.string().nullish(),
+  span_id: z.string().nullish(),
+  parent_span_id: z.string().nullish(),
 });
 
 export type AgentEvent = z.infer<typeof AgentEventSchema>;

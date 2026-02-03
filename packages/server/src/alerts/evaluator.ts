@@ -1,4 +1,8 @@
 import type Database from "better-sqlite3";
+import nodemailer from "nodemailer";
+import { createLogger } from "@agenttrace/shared";
+
+const log = createLogger("evaluator");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,23 +79,84 @@ const SQL_INSERT_HISTORY = `
 // Webhook delivery
 // ---------------------------------------------------------------------------
 
-async function postWebhook(
+function postWebhook(
+  url: string,
+  payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
+): void {
+  // Fire initial attempt, then retry in the background without blocking.
+  void postWebhookWithRetry(url, payload);
+}
+
+async function postWebhookWithRetry(
   url: string,
   payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
 ): Promise<void> {
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      console.error(
-        `[agenttrace] Webhook POST to ${url} returned ${res.status}`,
-      );
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) return;
+      log.error(`Webhook POST returned ${res.status}`, { url, attempt: attempt + 1, maxAttempts: MAX_RETRIES + 1 });
+    } catch (err) {
+      log.error(`Webhook POST failed`, { url, attempt: attempt + 1, maxAttempts: MAX_RETRIES + 1, err: String(err) });
     }
+    if (attempt < MAX_RETRIES) {
+      const delayMs = Math.pow(4, attempt) * 1000; // 1s, 4s, 16s
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Email delivery
+// ---------------------------------------------------------------------------
+
+function getSmtpTransport(): nodemailer.Transporter | null {
+  const host = process.env.SMTP_HOST;
+  if (!host) return null;
+
+  const port = parseInt(process.env.SMTP_PORT ?? "587", 10);
+  const secure = process.env.SMTP_SECURE === "true";
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    ...(user && pass ? { auth: { user, pass } } : {}),
+  });
+}
+
+async function sendEmail(
+  to: string,
+  payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
+): Promise<void> {
+  const transport = getSmtpTransport();
+  if (!transport) {
+    log.warn("Email alert skipped: SMTP_HOST not configured");
+    return;
+  }
+
+  const from = process.env.SMTP_FROM ?? "alerts@agenttrace.dev";
+  const ruleLabel = payload.rule_type.replace(/_/g, " ");
+  const subject = `[AgentTrace] ${ruleLabel} alert: ${payload.agent_id}`;
+  const text = [
+    `Alert: ${ruleLabel}`,
+    `Agent: ${payload.agent_id}`,
+    `Time: ${payload.timestamp}`,
+    ``,
+    payload.message,
+  ].join("\n");
+
+  try {
+    await transport.sendMail({ from, to, subject, text });
   } catch (err) {
-    console.error(`[agenttrace] Webhook POST to ${url} failed:`, err);
+    log.error(`Email delivery failed`, { to, err: String(err) });
   }
 }
 
@@ -186,7 +251,7 @@ async function tick(db: Database.Database): Promise<void> {
   try {
     rules = db.prepare(SQL_ENABLED_RULES).all() as AlertRuleRow[];
   } catch (err) {
-    console.error("[agenttrace] Failed to query alert rules:", err);
+    log.error("Failed to query alert rules", { err: String(err) });
     return;
   }
 
@@ -206,9 +271,7 @@ async function tick(db: Database.Database): Promise<void> {
           message = evaluateBudget(db, rule, config as BudgetConfig);
           break;
         default:
-          console.warn(
-            `[agenttrace] Unknown rule_type "${rule.rule_type}" for rule ${rule.id}`,
-          );
+          log.warn(`Unknown rule_type "${rule.rule_type}"`, { ruleId: rule.id });
           continue;
       }
 
@@ -224,32 +287,39 @@ async function tick(db: Database.Database): Promise<void> {
 
       // -- Fire alert --------------------------------------------------------
 
-      console.log(`[agenttrace] Alert fired: ${message}`);
+      log.info(`Alert fired: ${message}`, { ruleId: rule.id, ruleType: rule.rule_type, agentId: rule.agent_id });
 
       const timestamp = new Date().toISOString();
+      const payload = {
+        agent_id: rule.agent_id,
+        rule_type: rule.rule_type,
+        message,
+        timestamp,
+      };
 
       if (rule.webhook_url) {
-        await postWebhook(rule.webhook_url, {
-          agent_id: rule.agent_id,
-          rule_type: rule.rule_type,
+        postWebhook(rule.webhook_url, payload);
+        db.prepare(SQL_INSERT_HISTORY).run(
+          rule.id,
+          rule.agent_id,
+          rule.rule_type,
           message,
-          timestamp,
-        });
+          "webhook",
+        );
       }
 
-      // Record in history
-      db.prepare(SQL_INSERT_HISTORY).run(
-        rule.id,
-        rule.agent_id,
-        rule.rule_type,
-        message,
-        "webhook",
-      );
+      if (rule.email) {
+        void sendEmail(rule.email, payload);
+        db.prepare(SQL_INSERT_HISTORY).run(
+          rule.id,
+          rule.agent_id,
+          rule.rule_type,
+          message,
+          "email",
+        );
+      }
     } catch (err) {
-      console.error(
-        `[agenttrace] Error evaluating rule ${rule.id} (${rule.rule_type}):`,
-        err,
-      );
+      log.error(`Error evaluating rule`, { ruleId: rule.id, ruleType: rule.rule_type, err: String(err) });
     }
   }
 }
@@ -264,12 +334,12 @@ export function startEvaluator(options: EvaluatorOptions): { stop: () => void } 
 
   // Run the first evaluation immediately (fire-and-forget).
   tick(db).catch((err) =>
-    console.error("[agenttrace] Evaluator tick failed:", err),
+    log.error("Evaluator tick failed", { err: String(err) }),
   );
 
   const timer = setInterval(() => {
     tick(db).catch((err) =>
-      console.error("[agenttrace] Evaluator tick failed:", err),
+      log.error("Evaluator tick failed", { err: String(err) }),
     );
   }, intervalMs);
 

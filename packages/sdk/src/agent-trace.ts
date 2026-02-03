@@ -1,5 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { AgentEvent } from "@agenttrace/shared";
-import type { AgentTraceOptions, TrackOptions } from "./types.js";
+import type { AgentTraceOptions, TrackOptions, Trace, Span } from "./types.js";
 
 const DEFAULT_ENDPOINT =
   "https://your-project.supabase.co/functions/v1/ingest";
@@ -8,7 +9,8 @@ const DEFAULT_MAX_BUFFER_SIZE = 50;
 
 export class AgentTrace {
   private readonly apiKey: string;
-  private readonly agentId: string;
+  /** @internal */
+  readonly agentId: string;
   private readonly endpoint: string;
   private readonly maxBufferSize: number;
   private buffer: AgentEvent[] = [];
@@ -60,8 +62,22 @@ export class AgentTrace {
       status_code: options.status ?? null,
       error_message: options.error_message ?? null,
       tags: options.tags ?? {},
+      trace_id: options.trace_id ?? null,
+      span_id: options.span_id ?? null,
+      parent_span_id: options.parent_span_id ?? null,
     };
     this.enqueue(event);
+  }
+
+  startTrace(): Trace {
+    const traceId = randomUUID();
+    const self = this;
+    return {
+      traceId,
+      startSpan(name?: string): Span {
+        return createSpan(self, traceId, null, name);
+      },
+    };
   }
 
   heartbeat(): void {
@@ -149,10 +165,45 @@ export class AgentTrace {
   // Internal helpers
   // -------------------------------------------------------------------
 
+  /** @internal — used by createSpan to enqueue events */
+  _enqueue(event: AgentEvent): void {
+    this.enqueue(event);
+  }
+
   private enqueue(event: AgentEvent): void {
     this.buffer.push(event);
     if (this.buffer.length >= this.maxBufferSize) {
       void this.flush();
     }
   }
+}
+
+function createSpan(
+  client: AgentTrace,
+  traceId: string,
+  parentSpanId: string | null,
+  name?: string,
+): Span {
+  const spanId = randomUUID();
+
+  // Record span start as a custom event
+  client._enqueue({
+    agent_id: client.agentId,
+    event_type: "custom",
+    source: "sdk",
+    timestamp: new Date().toISOString(),
+    trace_id: traceId,
+    span_id: spanId,
+    parent_span_id: parentSpanId,
+    tags: { span_event: "start", ...(name ? { span_name: name } : {}) },
+  });
+
+  return {
+    spanId,
+    traceId,
+    parentSpanId,
+    startSpan(childName?: string): Span {
+      return createSpan(client, traceId, spanId, childName);
+    },
+  };
 }

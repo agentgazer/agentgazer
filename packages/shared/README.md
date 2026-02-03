@@ -1,33 +1,35 @@
 # @agenttrace/shared
 
-Shared types, schemas, and utilities for AgentTrace packages.
+Shared types, schemas, and utilities used by all AgentTrace packages.
 
-## Install
+## Contents
 
-```bash
-npm install @agenttrace/shared
-```
+### Types and schemas
 
-## What's inside
+- `AgentEvent` / `AgentEventSchema` — Zod-validated event schema with fields for provider, model, tokens, cost, latency, trace IDs, and tags
+- `BatchEvents` / `BatchEventsSchema` — Wrapper for event arrays
+- `EventType` — `llm_call`, `completion`, `heartbeat`, `error`, `custom`
+- `Source` — `sdk`, `proxy`
 
-- **Types & Schemas** — `AgentEvent`, `BatchEvents` with Zod validation
-- **Pricing** — Token cost calculation for common LLM models
-- **Providers** — Provider detection and base URL mapping (OpenAI, Anthropic, etc.)
-- **Parsers** — Response parsers for extracting token usage from provider responses
+### Provider detection
 
-## Usage
+- `detectProvider(url)` — Detects the LLM provider from a URL (returns `openai`, `anthropic`, `google`, `mistral`, `cohere`, or `unknown`)
+- `getProviderBaseUrl(provider)` — Returns the base API URL for a provider
 
-```typescript
-import {
-  AgentEventSchema,
-  calculateCost,
-  detectProvider,
-  parseProviderResponse,
-} from "@agenttrace/shared";
-```
+### Response parsing
+
+- `parseProviderResponse(provider, body, statusCode)` — Extracts model, token counts, and errors from provider-specific JSON response formats
+
+### Pricing
+
+- `calculateCost(model, tokensIn, tokensOut)` — Calculates USD cost for a known model
+- `getModelPricing(model)` — Returns per-million-token pricing
+- `listSupportedModels()` — Lists all models with known pricing
+
+### Logging
+
+- `createLogger(component)` — Creates a structured logger with `debug`, `info`, `warn`, `error` methods. Outputs JSON in production, pretty-printed text in development.
 
 ## License
 
-Apache-2.0 — see [LICENSE](./LICENSE).
-
-Part of the [AgentTrace](https://github.com/agenttrace/agenttrace) monorepo.
+Apache-2.0

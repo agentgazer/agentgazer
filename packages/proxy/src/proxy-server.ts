@@ -4,8 +4,12 @@ import {
   getProviderBaseUrl,
   parseProviderResponse,
   calculateCost,
+  createLogger,
   type AgentEvent,
+  type ParsedResponse,
 } from "@agenttrace/shared";
+
+const log = createLogger("proxy");
 import { EventBuffer } from "./event-buffer.js";
 
 export interface ProxyOptions {
@@ -48,6 +52,184 @@ function sendJson(
   });
   res.end(payload);
 }
+
+// ---------------------------------------------------------------------------
+// SSE streaming parsers — extract usage/model from provider-specific formats
+// ---------------------------------------------------------------------------
+
+function parseOpenAISSE(
+  dataLines: string[],
+  statusCode: number
+): ParsedResponse {
+  let model: string | null = null;
+  let tokensIn: number | null = null;
+  let tokensOut: number | null = null;
+  let tokensTotal: number | null = null;
+
+  for (const line of dataLines) {
+    try {
+      const data = JSON.parse(line);
+      if (data.model) model = data.model;
+      if (data.usage) {
+        tokensIn = data.usage.prompt_tokens ?? null;
+        tokensOut = data.usage.completion_tokens ?? null;
+        tokensTotal = data.usage.total_tokens ?? null;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return {
+    model,
+    tokensIn,
+    tokensOut,
+    tokensTotal,
+    statusCode,
+    errorMessage: null,
+  };
+}
+
+function parseAnthropicSSE(
+  dataLines: string[],
+  statusCode: number
+): ParsedResponse {
+  let model: string | null = null;
+  let tokensIn: number | null = null;
+  let tokensOut: number | null = null;
+
+  for (const line of dataLines) {
+    try {
+      const data = JSON.parse(line);
+      if (data.type === "message_start" && data.message) {
+        model = data.message.model ?? null;
+        tokensIn = data.message.usage?.input_tokens ?? null;
+      }
+      if (data.type === "message_delta" && data.usage) {
+        tokensOut = data.usage.output_tokens ?? null;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  const tokensTotal =
+    tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null;
+
+  return {
+    model,
+    tokensIn,
+    tokensOut,
+    tokensTotal,
+    statusCode,
+    errorMessage: null,
+  };
+}
+
+function parseGoogleSSE(
+  dataLines: string[],
+  statusCode: number
+): ParsedResponse {
+  let model: string | null = null;
+  let tokensIn: number | null = null;
+  let tokensOut: number | null = null;
+  let tokensTotal: number | null = null;
+
+  for (const line of dataLines) {
+    try {
+      const data = JSON.parse(line);
+      if (data.modelVersion) model = data.modelVersion;
+      if (data.usageMetadata) {
+        tokensIn = data.usageMetadata.promptTokenCount ?? null;
+        tokensOut = data.usageMetadata.candidatesTokenCount ?? null;
+        tokensTotal = data.usageMetadata.totalTokenCount ?? null;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return {
+    model,
+    tokensIn,
+    tokensOut,
+    tokensTotal,
+    statusCode,
+    errorMessage: null,
+  };
+}
+
+function parseCohereSSE(
+  dataLines: string[],
+  statusCode: number
+): ParsedResponse {
+  let tokensIn: number | null = null;
+  let tokensOut: number | null = null;
+
+  for (const line of dataLines) {
+    try {
+      const data = JSON.parse(line);
+      if (data.meta?.billed_units) {
+        tokensIn = data.meta.billed_units.input_tokens ?? null;
+        tokensOut = data.meta.billed_units.output_tokens ?? null;
+      }
+      // Cohere v2 chat streaming uses response.meta at the end
+      if (data.response?.meta?.billed_units) {
+        tokensIn = data.response.meta.billed_units.input_tokens ?? null;
+        tokensOut = data.response.meta.billed_units.output_tokens ?? null;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  const tokensTotal =
+    tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null;
+
+  return {
+    model: null,
+    tokensIn,
+    tokensOut,
+    tokensTotal,
+    statusCode,
+    errorMessage: null,
+  };
+}
+
+function parseSSEResponse(
+  provider: string,
+  sseText: string,
+  statusCode: number
+): ParsedResponse | null {
+  const lines = sseText.split("\n");
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("data: ") && line !== "data: [DONE]") {
+      dataLines.push(line.slice(6));
+    }
+  }
+
+  if (dataLines.length === 0) return null;
+
+  switch (provider) {
+    case "openai":
+    case "mistral":
+      return parseOpenAISSE(dataLines, statusCode);
+    case "anthropic":
+      return parseAnthropicSSE(dataLines, statusCode);
+    case "google":
+      return parseGoogleSSE(dataLines, statusCode);
+    case "cohere":
+      return parseCohereSSE(dataLines, statusCode);
+    default:
+      return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Proxy server
+// ---------------------------------------------------------------------------
 
 export function startProxy(options: ProxyOptions): ProxyServer {
   const port = options.port ?? DEFAULT_PORT;
@@ -160,50 +342,148 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown fetch error";
-      console.error(
-        `[agenttrace-proxy] Upstream request failed: ${message}`
-      );
+      log.error(`Upstream request failed: ${message}`);
       sendJson(res, 502, { error: `Upstream request failed: ${message}` });
       return;
     }
 
-    const latencyMs = Date.now() - requestStart;
+    // Check if the response is an SSE stream
+    const contentType = providerResponse.headers.get("content-type") ?? "";
+    const isSSE = contentType.includes("text/event-stream");
 
-    // Read the full response body from the provider
-    let responseBodyBuffer: Buffer;
-    try {
-      const arrayBuffer = await providerResponse.arrayBuffer();
-      responseBodyBuffer = Buffer.from(arrayBuffer);
-    } catch {
-      sendJson(res, 502, { error: "Failed to read upstream response body" });
+    if (isSSE && providerResponse.body) {
+      // ---------------------------------------------------------------
+      // STREAMING PATH: pipe chunks through to client in real-time,
+      // accumulate them for metric extraction after the stream ends.
+      // ---------------------------------------------------------------
+      const responseHeaders: Record<string, string> = {};
+      providerResponse.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+      res.writeHead(providerResponse.status, responseHeaders);
+
+      const chunks: Buffer[] = [];
+      const reader = providerResponse.body.getReader();
+
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const buf = Buffer.from(value);
+          chunks.push(buf);
+          res.write(buf);
+        }
+      } catch (error) {
+        log.error("Stream read error", { err: error instanceof Error ? error.message : String(error) });
+      } finally {
+        res.end();
+      }
+
+      const latencyMs = Date.now() - requestStart;
+      const fullBody = Buffer.concat(chunks);
+
+      try {
+        extractStreamingMetrics(
+          targetUrl,
+          providerResponse.status,
+          fullBody,
+          latencyMs
+        );
+      } catch (error) {
+        log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
+      }
+    } else {
+      // ---------------------------------------------------------------
+      // NON-STREAMING PATH: buffer full response, forward, extract.
+      // ---------------------------------------------------------------
+      let responseBodyBuffer: Buffer;
+      try {
+        const arrayBuffer = await providerResponse.arrayBuffer();
+        responseBodyBuffer = Buffer.from(arrayBuffer);
+      } catch {
+        sendJson(res, 502, {
+          error: "Failed to read upstream response body",
+        });
+        return;
+      }
+
+      const latencyMs = Date.now() - requestStart;
+
+      // Forward status code and headers back to the client
+      const responseHeaders: Record<string, string> = {};
+      providerResponse.headers.forEach((value, key) => {
+        // Skip transfer-encoding since we are sending the full body
+        if (key.toLowerCase() === "transfer-encoding") return;
+        responseHeaders[key] = value;
+      });
+
+      res.writeHead(providerResponse.status, responseHeaders);
+      res.end(responseBodyBuffer);
+
+      // After response is sent, extract metrics asynchronously
+      try {
+        extractAndQueueMetrics(
+          targetUrl,
+          providerResponse.status,
+          responseBodyBuffer,
+          latencyMs
+        );
+      } catch (error) {
+        log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
+      }
+    }
+  }
+
+  function extractStreamingMetrics(
+    targetUrl: string,
+    statusCode: number,
+    sseBody: Buffer,
+    latencyMs: number
+  ): void {
+    const provider = detectProvider(targetUrl);
+
+    if (provider === "unknown") {
+      log.warn(`Unrecognized provider for URL: ${targetUrl} - skipping metric extraction`);
       return;
     }
 
-    // Forward status code and headers back to the client
-    const responseHeaders: Record<string, string> = {};
-    providerResponse.headers.forEach((value, key) => {
-      // Skip transfer-encoding since we are sending the full body
-      if (key.toLowerCase() === "transfer-encoding") return;
-      responseHeaders[key] = value;
-    });
+    const sseText = sseBody.toString("utf-8");
+    const parsed = parseSSEResponse(provider, sseText, statusCode);
 
-    res.writeHead(providerResponse.status, responseHeaders);
-    res.end(responseBodyBuffer);
+    let model: string | null = null;
+    let tokensIn: number | null = null;
+    let tokensOut: number | null = null;
+    let tokensTotal: number | null = null;
+    let costUsd: number | null = null;
 
-    // After response is sent, extract metrics asynchronously
-    try {
-      extractAndQueueMetrics(
-        targetUrl,
-        providerResponse.status,
-        responseBodyBuffer,
-        latencyMs
-      );
-    } catch (error) {
-      console.error(
-        `[agenttrace-proxy] Metric extraction error:`,
-        error instanceof Error ? error.message : String(error)
-      );
+    if (parsed) {
+      model = parsed.model;
+      tokensIn = parsed.tokensIn;
+      tokensOut = parsed.tokensOut;
+      tokensTotal = parsed.tokensTotal;
+
+      if (model && tokensIn != null && tokensOut != null) {
+        costUsd = calculateCost(model, tokensIn, tokensOut);
+      }
     }
+
+    const event: AgentEvent = {
+      agent_id: agentId,
+      event_type: "llm_call",
+      provider,
+      model,
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      tokens_total: tokensTotal,
+      cost_usd: costUsd,
+      latency_ms: latencyMs,
+      status_code: statusCode,
+      source: "proxy",
+      timestamp: new Date().toISOString(),
+      tags: { streaming: "true" },
+    };
+
+    eventBuffer.add(event);
   }
 
   function extractAndQueueMetrics(
@@ -215,9 +495,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const provider = detectProvider(targetUrl);
 
     if (provider === "unknown") {
-      console.warn(
-        `[agenttrace-proxy] Unrecognized provider for URL: ${targetUrl} - skipping metric extraction`
-      );
+      log.warn(`Unrecognized provider for URL: ${targetUrl} - skipping metric extraction`);
       return;
     }
 
@@ -226,17 +504,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     try {
       parsedBody = JSON.parse(responseBody.toString("utf-8"));
     } catch {
-      console.warn(
-        `[agenttrace-proxy] Could not parse response body as JSON for ${provider} - skipping metric extraction`
-      );
+      log.warn(`Could not parse response body as JSON for ${provider} - skipping metric extraction`);
       return;
     }
 
     const parsed = parseProviderResponse(provider, parsedBody, statusCode);
     if (!parsed) {
-      console.warn(
-        `[agenttrace-proxy] No parser result for provider: ${provider}`
-      );
+      log.warn(`No parser result for provider: ${provider}`);
       return;
     }
 

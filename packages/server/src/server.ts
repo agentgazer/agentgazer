@@ -2,7 +2,10 @@ import * as http from "node:http";
 import * as path from "node:path";
 import express from "express";
 import cors from "cors";
-import { initDatabase } from "./db.js";
+import { createLogger } from "@agenttrace/shared";
+import { initDatabase, purgeOldData } from "./db.js";
+
+const log = createLogger("server");
 import { authMiddleware } from "./middleware/auth.js";
 import healthRouter from "./routes/health.js";
 import authRouter from "./routes/auth.js";
@@ -17,6 +20,7 @@ export interface ServerOptions {
   token: string;
   dbPath: string;
   dashboardDir?: string;
+  retentionDays?: number;
 }
 
 export function createServer(options: ServerOptions): { app: express.Express; db: ReturnType<typeof initDatabase> } {
@@ -68,6 +72,25 @@ export async function startServer(
   // Start alert evaluator
   const evaluator = startEvaluator({ db });
 
+  // Start data retention cleanup (runs on startup and every 24h)
+  const retentionDays = options.retentionDays ?? 30;
+  let retentionTimer: ReturnType<typeof setInterval> | null = null;
+
+  function runRetention(): void {
+    try {
+      const { eventsDeleted, historyDeleted } = purgeOldData(db, retentionDays);
+      if (eventsDeleted > 0 || historyDeleted > 0) {
+        log.info("Retention cleanup complete", { eventsDeleted, historyDeleted, retentionDays });
+      }
+    } catch (err) {
+      log.error("Retention cleanup failed", { err: String(err) });
+    }
+  }
+
+  runRetention();
+  retentionTimer = setInterval(runRetention, 24 * 60 * 60 * 1000);
+  retentionTimer.unref();
+
   const server = http.createServer(app);
 
   await new Promise<void>((resolve, reject) => {
@@ -77,6 +100,7 @@ export async function startServer(
 
   async function shutdown(): Promise<void> {
     evaluator.stop();
+    if (retentionTimer) clearInterval(retentionTimer);
     return new Promise((resolve, reject) => {
       server.close((err) => {
         db.close();

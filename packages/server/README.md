@@ -1,37 +1,86 @@
 # @agenttrace/server
 
-Local AgentTrace server — Express API backed by SQLite. Receives events from the SDK and proxy, stores them locally, and serves the dashboard API.
+Express + SQLite API server for AgentTrace. Handles event ingestion, agent management, statistics, alerting, and serves the web dashboard.
 
-## Install
+## Usage
+
+### As part of the CLI (typical)
 
 ```bash
-npm install @agenttrace/server
+npx agenttrace
+# Server starts on port 8080
 ```
 
-## Programmatic usage
+### Programmatic
 
 ```typescript
 import { startServer } from "@agenttrace/server";
 
-const { app, cleanup } = await startServer({
-  port: 3274,
-  dbPath: "~/.agenttrace/data.db",
-  bearerToken: "your-token",
+const { server, shutdown } = await startServer({
+  port: 8080,
+  token: "your-auth-token",
+  dbPath: "/path/to/data.db",
+  dashboardDir: "/path/to/dashboard/dist",  // optional
+  retentionDays: 30,                        // optional
 });
+
+// Later
+await shutdown();
 ```
 
 ## API endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/events` | Ingest agent events |
-| GET | `/api/agents` | List known agents |
-| GET | `/api/events` | Query events (with filters) |
-| GET | `/api/stats` | Aggregated statistics |
-| GET | `/api/health` | Health check |
+All endpoints except `/health` and `/api/auth/verify` require `Authorization: Bearer <token>`.
+
+### Health & auth
+
+- `GET /health` — Server health check
+- `POST /api/auth/verify` — Verify auth token
+
+### Events
+
+- `POST /api/events` — Ingest a batch of events (rate-limited: 1000/min per key)
+- `GET /api/events` — Query events with filters (`agent_id`, `from`, `to`, `provider`, `model`, `trace_id`, `search`)
+- `GET /api/events/export` — Export events as CSV or JSON
+
+### Agents
+
+- `GET /api/agents` — List registered agents
+- `POST /api/agents/register` — Register or update an agent
+- `POST /api/agents/heartbeat` — Record a heartbeat
+
+### Statistics
+
+- `GET /api/stats/summary` — Aggregated stats (total calls, tokens, cost, errors)
+- `GET /api/stats/timeseries` — Time-bucketed stats (`minute`, `hour`, `day`)
+
+### Alerts
+
+- `GET /api/alerts` — List alert rules
+- `POST /api/alerts` — Create an alert rule
+- `PUT /api/alerts/:id` — Update an alert rule
+- `DELETE /api/alerts/:id` — Delete an alert rule
+- `PATCH /api/alerts/:id/toggle` — Toggle enabled status
+- `GET /api/alert-history` — View alert delivery history
+
+See `openapi.yaml` in this package for the full OpenAPI specification.
+
+## Alert rule types
+
+| Type | Config | Description |
+|------|--------|-------------|
+| `agent_down` | `{ duration_minutes: number }` | No heartbeat within duration |
+| `error_rate` | `{ window_minutes: number, threshold: number }` | Error % exceeds threshold |
+| `budget` | `{ threshold: number }` | Daily USD spend exceeds threshold |
+
+Alerts are delivered via webhook and/or email. Webhooks retry up to 3 times with exponential backoff. Email requires SMTP environment variables (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`).
+
+A 15-minute cooldown prevents duplicate alerts for the same rule.
+
+## Data retention
+
+Old events and alert history are automatically purged based on `retentionDays` (default: 30). Cleanup runs on startup and every 24 hours.
 
 ## License
 
-Apache-2.0 — see [LICENSE](./LICENSE).
-
-Part of the [AgentTrace](https://github.com/agenttrace/agenttrace) monorepo.
+Apache-2.0

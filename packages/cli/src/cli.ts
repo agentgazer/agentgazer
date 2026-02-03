@@ -30,11 +30,12 @@ AgentTrace — AI Agent Observability
 Usage: agenttrace [options]
 
 Options:
-  --port <number>        Server/dashboard port (default: 8080)
-  --proxy-port <number>  LLM proxy port (default: 4000)
-  --no-open              Don't auto-open browser
-  --reset-token          Generate a new auth token and exit
-  --help                 Show this help message
+  --port <number>            Server/dashboard port (default: 8080)
+  --proxy-port <number>      LLM proxy port (default: 4000)
+  --retention-days <number>  Data retention period in days (default: 30)
+  --no-open                  Don't auto-open browser
+  --reset-token              Generate a new auth token and exit
+  --help                     Show this help message
 
 Examples:
   agenttrace                          Start with defaults
@@ -77,6 +78,15 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const retentionDays = args["retention-days"]
+    ? parseInt(args["retention-days"], 10)
+    : 30;
+
+  if (isNaN(retentionDays) || retentionDays < 1) {
+    console.error("Error: --retention-days must be a positive integer");
+    process.exit(1);
+  }
+
   // Resolve the dashboard dist directory
   // In the built package, dashboard files are at ../dashboard-local/dist relative to this file
   // We try multiple possible locations
@@ -104,6 +114,7 @@ async function main(): Promise<void> {
     token: config.token,
     dbPath: getDbPath(),
     dashboardDir,
+    retentionDays,
   });
 
   // Start the LLM proxy, pointing events to the local server
