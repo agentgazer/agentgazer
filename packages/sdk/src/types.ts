@@ -1,0 +1,26 @@
+export type {
+  AgentEvent,
+  BatchEvents,
+  EventType,
+  Source,
+} from "@agentwatch/shared";
+
+export { AgentEventSchema, BatchEventsSchema } from "@agentwatch/shared";
+
+export interface AgentWatchOptions {
+  apiKey: string;
+  agentId: string;
+  endpoint?: string;
+  flushInterval?: number;
+  maxBufferSize?: number;
+}
+
+export interface TrackOptions {
+  provider?: string;
+  model?: string;
+  tokens?: { input?: number; output?: number; total?: number };
+  latency_ms?: number;
+  status?: number;
+  tags?: Record<string, unknown>;
+  error_message?: string;
+}

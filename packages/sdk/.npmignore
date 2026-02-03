@@ -1,0 +1,9 @@
+src/
+tsconfig.json
+tsconfig.tsbuildinfo
+*.test.ts
+*.spec.ts
+__tests__/
+tests/
+.turbo/
+node_modules/

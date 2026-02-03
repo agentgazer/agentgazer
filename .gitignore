@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.turbo/
+.next/
+.claude/
+.env*
+.DS_Store
+*.tsbuildinfo
+*.pem
+npm-debug.log*
+.vercel

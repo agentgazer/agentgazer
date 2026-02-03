@@ -1,0 +1,9 @@
+[project]
+id = "agentwatch"
+name = "AgentWatch"
+
+[auth]
+enabled = true
+
+[auth.external.github]
+enabled = true
