@@ -65,3 +65,25 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
   };
   return urls[provider] ?? null;
 }
+
+/**
+ * Returns the auth header name and value for a given provider.
+ * Different providers use different header conventions.
+ */
+export function getProviderAuthHeader(
+  provider: ProviderName,
+  apiKey: string
+): { name: string; value: string } | null {
+  switch (provider) {
+    case "openai":
+    case "mistral":
+    case "cohere":
+      return { name: "authorization", value: `Bearer ${apiKey}` };
+    case "anthropic":
+      return { name: "x-api-key", value: apiKey };
+    case "google":
+      return { name: "x-goog-api-key", value: apiKey };
+    default:
+      return null;
+  }
+}

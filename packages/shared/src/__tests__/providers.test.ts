@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectProvider, getProviderBaseUrl } from "../providers.js";
+import { detectProvider, getProviderBaseUrl, getProviderAuthHeader } from "../providers.js";
 
 describe("detectProvider", () => {
   describe("OpenAI", () => {
@@ -169,5 +169,36 @@ describe("getProviderBaseUrl", () => {
 
   it("returns null for unknown provider", () => {
     expect(getProviderBaseUrl("unknown")).toBeNull();
+  });
+});
+
+describe("getProviderAuthHeader", () => {
+  it("returns Bearer Authorization for openai", () => {
+    const result = getProviderAuthHeader("openai", "sk-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-test" });
+  });
+
+  it("returns Bearer Authorization for mistral", () => {
+    const result = getProviderAuthHeader("mistral", "key-123");
+    expect(result).toEqual({ name: "authorization", value: "Bearer key-123" });
+  });
+
+  it("returns Bearer Authorization for cohere", () => {
+    const result = getProviderAuthHeader("cohere", "co-key");
+    expect(result).toEqual({ name: "authorization", value: "Bearer co-key" });
+  });
+
+  it("returns x-api-key for anthropic", () => {
+    const result = getProviderAuthHeader("anthropic", "sk-ant-test");
+    expect(result).toEqual({ name: "x-api-key", value: "sk-ant-test" });
+  });
+
+  it("returns x-goog-api-key for google", () => {
+    const result = getProviderAuthHeader("google", "AIza-test");
+    expect(result).toEqual({ name: "x-goog-api-key", value: "AIza-test" });
+  });
+
+  it("returns null for unknown provider", () => {
+    expect(getProviderAuthHeader("unknown", "key")).toBeNull();
   });
 });

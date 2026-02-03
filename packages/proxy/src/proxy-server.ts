@@ -2,6 +2,7 @@ import * as http from "node:http";
 import {
   detectProvider,
   getProviderBaseUrl,
+  getProviderAuthHeader,
   parseProviderResponse,
   calculateCost,
   createLogger,
@@ -11,6 +12,7 @@ import {
 
 const log = createLogger("proxy");
 import { EventBuffer } from "./event-buffer.js";
+import { RateLimiter, type RateLimitConfig } from "./rate-limiter.js";
 
 export interface ProxyOptions {
   port?: number;
@@ -19,6 +21,8 @@ export interface ProxyOptions {
   endpoint?: string;
   flushInterval?: number;
   maxBufferSize?: number;
+  providerKeys?: Record<string, string>;
+  rateLimits?: Record<string, RateLimitConfig>;
 }
 
 export interface ProxyServer {
@@ -237,6 +241,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
   const flushInterval = options.flushInterval ?? DEFAULT_FLUSH_INTERVAL;
   const maxBufferSize = options.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
+  const providerKeys = options.providerKeys ?? {};
+  const rateLimiter = new RateLimiter(options.rateLimits);
 
   const startTime = Date.now();
 
@@ -311,6 +317,45 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
+    // Detect provider for rate limiting and key injection
+    const detectedProviderForAuth = detectProvider(targetUrl);
+
+    // Rate limiting: check before forwarding
+    if (detectedProviderForAuth !== "unknown") {
+      const rateLimitResult = rateLimiter.check(detectedProviderForAuth);
+      if (!rateLimitResult.allowed) {
+        res.writeHead(429, {
+          "Content-Type": "application/json",
+          "Retry-After": String(rateLimitResult.retryAfterSeconds),
+        });
+        res.end(
+          JSON.stringify({
+            error: `Rate limit exceeded for provider: ${detectedProviderForAuth}`,
+            retry_after_seconds: rateLimitResult.retryAfterSeconds,
+          })
+        );
+
+        // Record rate limit event
+        const event: AgentEvent = {
+          agent_id: agentId,
+          event_type: "error",
+          provider: detectedProviderForAuth,
+          model: null,
+          tokens_in: null,
+          tokens_out: null,
+          tokens_total: null,
+          cost_usd: null,
+          latency_ms: null,
+          status_code: 429,
+          source: "proxy",
+          timestamp: new Date().toISOString(),
+          tags: { rate_limited: "true" },
+        };
+        eventBuffer.add(event);
+        return;
+      }
+    }
+
     // Build forwarded headers, removing proxy-specific ones
     const forwardHeaders: Record<string, string> = {};
     for (const [key, value] of Object.entries(req.headers)) {
@@ -324,6 +369,26 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
       if (value !== undefined) {
         forwardHeaders[key] = Array.isArray(value) ? value.join(", ") : value;
+      }
+    }
+
+    // Inject provider API key if configured and no auth header is present
+    if (detectedProviderForAuth !== "unknown") {
+      const providerKey = providerKeys[detectedProviderForAuth];
+      if (providerKey) {
+        const authHeader = getProviderAuthHeader(
+          detectedProviderForAuth,
+          providerKey
+        );
+        if (authHeader) {
+          // Only inject if the client didn't already provide an auth header
+          const existingAuthKey = Object.keys(forwardHeaders).find(
+            (k) => k.toLowerCase() === authHeader.name.toLowerCase()
+          );
+          if (!existingAuthKey) {
+            forwardHeaders[authHeader.name] = authHeader.value;
+          }
+        }
       }
     }
 

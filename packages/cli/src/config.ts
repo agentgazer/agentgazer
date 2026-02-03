@@ -3,8 +3,19 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 import * as os from "node:os";
 
+export interface ProviderRateLimit {
+  maxRequests: number;
+  windowSeconds: number;
+}
+
+export interface ProviderConfig {
+  apiKey: string;
+  rateLimit?: ProviderRateLimit;
+}
+
 export interface AgentTraceConfig {
   token: string;
+  providers?: Record<string, ProviderConfig>;
 }
 
 const CONFIG_DIR = path.join(os.homedir(), ".agenttrace");
@@ -52,12 +63,53 @@ export function readConfig(): AgentTraceConfig | null {
     const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.token === "string" && parsed.token.length > 0) {
-      return parsed as AgentTraceConfig;
+      const config: AgentTraceConfig = { token: parsed.token };
+      if (parsed.providers && typeof parsed.providers === "object") {
+        config.providers = parsed.providers;
+      }
+      return config;
     }
     return null;
   } catch {
     return null;
   }
+}
+
+export function saveConfig(config: AgentTraceConfig): void {
+  if (!fs.existsSync(CONFIG_DIR)) {
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  }
+  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+}
+
+export function setProvider(
+  name: string,
+  providerConfig: ProviderConfig
+): AgentTraceConfig {
+  const config = ensureConfig();
+  if (!config.providers) {
+    config.providers = {};
+  }
+  config.providers[name] = providerConfig;
+  saveConfig(config);
+  return config;
+}
+
+export function removeProvider(name: string): AgentTraceConfig {
+  const config = ensureConfig();
+  if (config.providers) {
+    delete config.providers[name];
+    if (Object.keys(config.providers).length === 0) {
+      delete config.providers;
+    }
+  }
+  saveConfig(config);
+  return config;
+}
+
+export function listProviders(): Record<string, ProviderConfig> {
+  const config = readConfig();
+  return config?.providers ?? {};
 }
 
 export function resetToken(): AgentTraceConfig {

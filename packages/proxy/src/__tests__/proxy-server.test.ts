@@ -1005,4 +1005,266 @@ describe("Proxy Server Integration", () => {
     const allEvents = ingestServer.receivedBatches.flatMap((b) => b.events);
     expect(allEvents.length).toBeGreaterThanOrEqual(1);
   });
+
+  // -----------------------------------------------------------------------
+  // Provider key injection
+  // -----------------------------------------------------------------------
+
+  it("injects Authorization header for OpenAI when providerKeys is set", async () => {
+    providerServer = await createMockProviderServer();
+    ingestServer = await createMockIngestServer();
+
+    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-key-inject",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 100,
+      providerKeys: {
+        openai: "sk-injected-key-12345",
+      },
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    // Send request WITHOUT Authorization header
+    await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeOpenAIUrl,
+      },
+      body: JSON.stringify({ model: "gpt-4o", messages: [] }),
+    });
+
+    expect(providerServer.receivedRequests).toHaveLength(1);
+    // The proxy should have injected the Authorization header
+    expect(providerServer.receivedRequests[0].headers["authorization"]).toBe(
+      "Bearer sk-injected-key-12345"
+    );
+  });
+
+  it("does not override existing Authorization header from client", async () => {
+    providerServer = await createMockProviderServer();
+    ingestServer = await createMockIngestServer();
+
+    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-key-no-override",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 100,
+      providerKeys: {
+        openai: "sk-injected-key-12345",
+      },
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    // Send request WITH existing Authorization header
+    await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeOpenAIUrl,
+        Authorization: "Bearer sk-client-own-key",
+      },
+      body: JSON.stringify({ model: "gpt-4o", messages: [] }),
+    });
+
+    expect(providerServer.receivedRequests).toHaveLength(1);
+    // Client's own key should be preserved, NOT overwritten
+    expect(providerServer.receivedRequests[0].headers["authorization"]).toBe(
+      "Bearer sk-client-own-key"
+    );
+  });
+
+  it("injects x-api-key header for Anthropic when providerKeys is set", async () => {
+    providerServer = await createMockProviderServer();
+    ingestServer = await createMockIngestServer();
+
+    providerServer.responseOverride.body = {
+      id: "msg_123",
+      type: "message",
+      model: "claude-sonnet-4-20250514",
+      usage: { input_tokens: 10, output_tokens: 5 },
+      content: [{ type: "text", text: "Hi" }],
+    };
+
+    const fakeAnthropicUrl = `${providerServer.url}?host=api.anthropic.com`;
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-anthropic-key",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 100,
+      providerKeys: {
+        anthropic: "sk-ant-injected-key",
+      },
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/messages",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeAnthropicUrl,
+      },
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", messages: [] }),
+    });
+
+    expect(providerServer.receivedRequests).toHaveLength(1);
+    expect(providerServer.receivedRequests[0].headers["x-api-key"]).toBe(
+      "sk-ant-injected-key"
+    );
+  });
+
+  // -----------------------------------------------------------------------
+  // Rate limiting
+  // -----------------------------------------------------------------------
+
+  it("returns 429 when provider rate limit is exceeded", async () => {
+    providerServer = await createMockProviderServer();
+    ingestServer = await createMockIngestServer();
+
+    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-rate-limit",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 100,
+      rateLimits: {
+        openai: { maxRequests: 2, windowSeconds: 60 },
+      },
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    const makeRequest = () =>
+      httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: "/v1/chat/completions",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-target-url": fakeOpenAIUrl,
+        },
+        body: JSON.stringify({ model: "gpt-4o", messages: [] }),
+      });
+
+    // First 2 requests should succeed
+    const res1 = await makeRequest();
+    expect(res1.status).toBe(200);
+
+    const res2 = await makeRequest();
+    expect(res2.status).toBe(200);
+
+    // 3rd request should be rate limited
+    const res3 = await makeRequest();
+    expect(res3.status).toBe(429);
+    expect(res3.headers["retry-after"]).toBeDefined();
+
+    const body = JSON.parse(res3.body);
+    expect(body.error).toContain("Rate limit exceeded");
+    expect(body.retry_after_seconds).toBeGreaterThanOrEqual(1);
+  });
+
+  it("rate limiting is per-provider — other providers are unaffected", async () => {
+    providerServer = await createMockProviderServer();
+    ingestServer = await createMockIngestServer();
+
+    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+    const fakeAnthropicUrl = `${providerServer.url}?host=api.anthropic.com`;
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-rate-per-provider",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 100,
+      rateLimits: {
+        openai: { maxRequests: 1, windowSeconds: 60 },
+      },
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    // Exhaust OpenAI limit
+    const res1 = await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeOpenAIUrl,
+      },
+      body: JSON.stringify({ model: "gpt-4o", messages: [] }),
+    });
+    expect(res1.status).toBe(200);
+
+    // OpenAI should be blocked
+    const res2 = await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeOpenAIUrl,
+      },
+      body: JSON.stringify({ model: "gpt-4o", messages: [] }),
+    });
+    expect(res2.status).toBe(429);
+
+    // Anthropic should still work (no rate limit configured)
+    providerServer.responseOverride.body = {
+      id: "msg_123",
+      type: "message",
+      model: "claude-sonnet-4-20250514",
+      usage: { input_tokens: 10, output_tokens: 5 },
+      content: [{ type: "text", text: "Hi" }],
+    };
+
+    const res3 = await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/messages",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeAnthropicUrl,
+      },
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", messages: [] }),
+    });
+    expect(res3.status).toBe(200);
+  });
 });

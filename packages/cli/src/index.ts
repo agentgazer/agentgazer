@@ -1,2 +1,2 @@
-export { ensureConfig, readConfig, resetToken } from "./config.js";
-export type { AgentTraceConfig } from "./config.js";
+export { ensureConfig, readConfig, resetToken, saveConfig, setProvider, removeProvider, listProviders } from "./config.js";
+export type { AgentTraceConfig, ProviderConfig, ProviderRateLimit } from "./config.js";

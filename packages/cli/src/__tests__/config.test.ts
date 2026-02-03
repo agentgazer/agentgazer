@@ -267,4 +267,171 @@ describe("config", () => {
       expect(tokens.size).toBe(10);
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Provider CRUD
+  // -----------------------------------------------------------------------
+  describe("setProvider()", () => {
+    it("adds a provider to the config", async () => {
+      const { ensureConfig, setProvider, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", { apiKey: "sk-test-123" });
+
+      const config = readConfig();
+      expect(config).not.toBeNull();
+      expect(config!.providers).toBeDefined();
+      expect(config!.providers!["openai"]).toEqual({ apiKey: "sk-test-123" });
+    });
+
+    it("adds a provider with rate limit", async () => {
+      const { ensureConfig, setProvider, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", {
+        apiKey: "sk-test-456",
+        rateLimit: { maxRequests: 100, windowSeconds: 60 },
+      });
+
+      const config = readConfig();
+      expect(config!.providers!["openai"]).toEqual({
+        apiKey: "sk-test-456",
+        rateLimit: { maxRequests: 100, windowSeconds: 60 },
+      });
+    });
+
+    it("updates an existing provider", async () => {
+      const { ensureConfig, setProvider, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", { apiKey: "sk-old" });
+      setProvider("openai", { apiKey: "sk-new" });
+
+      const config = readConfig();
+      expect(config!.providers!["openai"].apiKey).toBe("sk-new");
+    });
+
+    it("can set multiple providers", async () => {
+      const { ensureConfig, setProvider, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", { apiKey: "sk-oai" });
+      setProvider("anthropic", { apiKey: "sk-ant" });
+
+      const config = readConfig();
+      expect(Object.keys(config!.providers!)).toHaveLength(2);
+      expect(config!.providers!["openai"].apiKey).toBe("sk-oai");
+      expect(config!.providers!["anthropic"].apiKey).toBe("sk-ant");
+    });
+  });
+
+  describe("removeProvider()", () => {
+    it("removes a provider from the config", async () => {
+      const { ensureConfig, setProvider, removeProvider, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", { apiKey: "sk-test" });
+      removeProvider("openai");
+
+      const config = readConfig();
+      expect(config!.providers).toBeUndefined();
+    });
+
+    it("does not affect other providers when removing one", async () => {
+      const { ensureConfig, setProvider, removeProvider, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", { apiKey: "sk-oai" });
+      setProvider("anthropic", { apiKey: "sk-ant" });
+      removeProvider("openai");
+
+      const config = readConfig();
+      expect(config!.providers!["anthropic"].apiKey).toBe("sk-ant");
+      expect(config!.providers!["openai"]).toBeUndefined();
+    });
+
+    it("is safe to call on non-existent provider", async () => {
+      const { ensureConfig, removeProvider, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      removeProvider("nonexistent");
+
+      const config = readConfig();
+      expect(config).not.toBeNull();
+    });
+  });
+
+  describe("listProviders()", () => {
+    it("returns empty object when no providers are set", async () => {
+      const { ensureConfig, listProviders } = await loadConfigModule();
+      ensureConfig();
+
+      expect(listProviders()).toEqual({});
+    });
+
+    it("returns all configured providers", async () => {
+      const { ensureConfig, setProvider, listProviders } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", { apiKey: "sk-oai" });
+      setProvider("anthropic", { apiKey: "sk-ant" });
+
+      const providers = listProviders();
+      expect(Object.keys(providers)).toHaveLength(2);
+      expect(providers["openai"].apiKey).toBe("sk-oai");
+      expect(providers["anthropic"].apiKey).toBe("sk-ant");
+    });
+  });
+
+  describe("readConfig() with providers", () => {
+    it("reads config with providers from disk", async () => {
+      const configDir = path.join(tmpDir, ".agenttrace");
+      fs.mkdirSync(configDir, { recursive: true });
+      const config = {
+        token: "a".repeat(64),
+        providers: {
+          openai: { apiKey: "sk-test" },
+        },
+      };
+      fs.writeFileSync(
+        path.join(configDir, "config.json"),
+        JSON.stringify(config),
+        "utf-8",
+      );
+
+      const { readConfig } = await loadConfigModule();
+      const result = readConfig();
+
+      expect(result).not.toBeNull();
+      expect(result!.providers!["openai"].apiKey).toBe("sk-test");
+    });
+
+    it("ignores invalid providers field", async () => {
+      const configDir = path.join(tmpDir, ".agenttrace");
+      fs.mkdirSync(configDir, { recursive: true });
+      const config = {
+        token: "a".repeat(64),
+        providers: "not-an-object",
+      };
+      fs.writeFileSync(
+        path.join(configDir, "config.json"),
+        JSON.stringify(config),
+        "utf-8",
+      );
+
+      const { readConfig } = await loadConfigModule();
+      const result = readConfig();
+
+      expect(result).not.toBeNull();
+      expect(result!.providers).toBeUndefined();
+    });
+  });
 });

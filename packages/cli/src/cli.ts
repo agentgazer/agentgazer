@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 
 import * as path from "node:path";
-import { ensureConfig, readConfig, resetToken, getDbPath, getConfigDir } from "./config.js";
+import * as readline from "node:readline";
+import {
+  ensureConfig,
+  readConfig,
+  resetToken,
+  getDbPath,
+  getConfigDir,
+  setProvider,
+  removeProvider,
+  listProviders,
+  type ProviderConfig,
+} from "./config.js";
 import { startServer } from "@agenttrace/server";
 import { startProxy } from "@agenttrace/proxy";
 
@@ -38,10 +49,13 @@ AgentTrace — AI Agent Observability
 Usage: agenttrace <command> [options]
 
 Commands:
-  onboard       First-time setup — generate token and show SDK snippet
-  start         Start the server, proxy, and dashboard
-  status        Show current configuration
-  reset-token   Generate a new auth token
+  onboard                     First-time setup — generate token and configure providers
+  start                       Start the server, proxy, and dashboard
+  status                      Show current configuration
+  reset-token                 Generate a new auth token
+  providers list              List configured providers
+  providers set <name> <key>  Set/update a provider API key
+  providers remove <name>     Remove a provider
 
 Options (for start):
   --port <number>            Server/dashboard port (default: 8080)
@@ -50,9 +64,11 @@ Options (for start):
   --no-open                  Don't auto-open browser
 
 Examples:
-  agenttrace onboard                    First-time setup
-  agenttrace start                      Start with defaults
-  agenttrace start --port 9090          Use custom server port
+  agenttrace onboard                           First-time setup
+  agenttrace start                             Start with defaults
+  agenttrace start --port 9090                 Use custom server port
+  agenttrace providers set openai sk-xxx       Set OpenAI API key
+  agenttrace providers list                    List configured providers
 `);
 }
 
@@ -60,15 +76,19 @@ Examples:
 // Subcommands
 // ---------------------------------------------------------------------------
 
-function cmdOnboard(): void {
-  const config = ensureConfig();
-  const isNew = !readConfig();
+const KNOWN_PROVIDERS = ["openai", "anthropic", "google", "mistral", "cohere"];
 
-  // Re-read to get the saved config
+function ask(rl: readline.Interface, question: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => resolve(answer.trim()));
+  });
+}
+
+async function cmdOnboard(): Promise<void> {
   const saved = ensureConfig();
 
   console.log(`
-  AgentTrace — Setup Complete
+  AgentTrace — Setup
   ───────────────────────────────────────
 
   Token:    ${saved.token}
@@ -77,6 +97,56 @@ function cmdOnboard(): void {
   Server:   http://localhost:8080
   Proxy:    http://localhost:4000
 
+  ───────────────────────────────────────
+`);
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  try {
+    console.log("  Configure provider API keys (the proxy will inject these for you).");
+    console.log(`  Available providers: ${KNOWN_PROVIDERS.join(", ")}\n`);
+
+    for (const provider of KNOWN_PROVIDERS) {
+      const key = await ask(rl, `  API key for ${provider} (press Enter to skip): `);
+      if (!key) continue;
+
+      const rateLimitAnswer = await ask(
+        rl,
+        `  Set rate limit for ${provider}? (e.g. "100/60" for 100 req per 60s, Enter to skip): `
+      );
+
+      const providerConfig: ProviderConfig = { apiKey: key };
+
+      if (rateLimitAnswer) {
+        const parts = rateLimitAnswer.split("/");
+        if (parts.length === 2) {
+          const maxRequests = parseInt(parts[0], 10);
+          const windowSeconds = parseInt(parts[1], 10);
+          if (!isNaN(maxRequests) && !isNaN(windowSeconds) && maxRequests > 0 && windowSeconds > 0) {
+            providerConfig.rateLimit = { maxRequests, windowSeconds };
+          }
+        }
+      }
+
+      setProvider(provider, providerConfig);
+      console.log(`  ✓ ${provider} configured.\n`);
+    }
+  } finally {
+    rl.close();
+  }
+
+  // Re-read to show final state
+  const finalConfig = readConfig() ?? saved;
+  const providerCount = finalConfig.providers
+    ? Object.keys(finalConfig.providers).length
+    : 0;
+
+  console.log(`
+  ───────────────────────────────────────
+  Setup complete. ${providerCount} provider(s) configured.
   ───────────────────────────────────────
 
   Add this to your project to start tracking:
@@ -106,6 +176,57 @@ function cmdOnboard(): void {
 
   Next: run "agenttrace start" to launch.
 `);
+}
+
+function cmdProviders(args: string[]): void {
+  const action = args[0];
+
+  switch (action) {
+    case "list": {
+      const providers = listProviders();
+      const names = Object.keys(providers);
+      if (names.length === 0) {
+        console.log("No providers configured. Use \"agenttrace providers set <name> <key>\" to add one.");
+        return;
+      }
+      console.log("\n  Configured providers:");
+      console.log("  ───────────────────────────────────────");
+      for (const name of names) {
+        const p = providers[name];
+        const maskedKey = p.apiKey.slice(0, 8) + "..." + p.apiKey.slice(-4);
+        const rateInfo = p.rateLimit
+          ? ` (rate limit: ${p.rateLimit.maxRequests} req / ${p.rateLimit.windowSeconds}s)`
+          : "";
+        console.log(`  ${name}: ${maskedKey}${rateInfo}`);
+      }
+      console.log();
+      break;
+    }
+    case "set": {
+      const name = args[1];
+      const key = args[2];
+      if (!name || !key) {
+        console.error("Usage: agenttrace providers set <provider-name> <api-key>");
+        process.exit(1);
+      }
+      setProvider(name, { apiKey: key });
+      console.log(`Provider "${name}" configured.`);
+      break;
+    }
+    case "remove": {
+      const name = args[1];
+      if (!name) {
+        console.error("Usage: agenttrace providers remove <provider-name>");
+        process.exit(1);
+      }
+      removeProvider(name);
+      console.log(`Provider "${name}" removed.`);
+      break;
+    }
+    default:
+      console.error("Usage: agenttrace providers <list|set|remove>");
+      process.exit(1);
+  }
 }
 
 function cmdStatus(): void {
@@ -188,12 +309,26 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     retentionDays,
   });
 
+  // Build provider keys and rate limits from config
+  const providerKeys: Record<string, string> = {};
+  const rateLimits: Record<string, { maxRequests: number; windowSeconds: number }> = {};
+  if (config.providers) {
+    for (const [name, pConfig] of Object.entries(config.providers)) {
+      providerKeys[name] = pConfig.apiKey;
+      if (pConfig.rateLimit) {
+        rateLimits[name] = pConfig.rateLimit;
+      }
+    }
+  }
+
   // Start the LLM proxy
   const { shutdown: shutdownProxy } = startProxy({
     apiKey: config.token,
     agentId: "proxy",
     port: proxyPort,
     endpoint: `http://localhost:${serverPort}/api/events`,
+    providerKeys,
+    rateLimits,
   });
 
   console.log(`
@@ -252,7 +387,7 @@ async function main(): Promise<void> {
 
   switch (subcommand) {
     case "onboard":
-      cmdOnboard();
+      await cmdOnboard();
       break;
     case "start":
       await cmdStart(flags);
@@ -262,6 +397,9 @@ async function main(): Promise<void> {
       break;
     case "reset-token":
       cmdResetToken();
+      break;
+    case "providers":
+      cmdProviders(process.argv.slice(3));
       break;
     case "--help":
     case "-h":

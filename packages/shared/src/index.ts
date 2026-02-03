@@ -17,6 +17,7 @@ export {
 export {
   detectProvider,
   getProviderBaseUrl,
+  getProviderAuthHeader,
   type ProviderName,
 } from "./providers.js";
 
