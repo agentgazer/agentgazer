@@ -1,0 +1,33 @@
+{
+  "name": "@agentwatch/server",
+  "version": "0.1.0",
+  "description": "AgentWatch local server with Express and SQLite",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentwatch/shared": "*",
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.7.0",
+    "cors": "^2.8.5",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cors": "^2.8.17",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.9"
+  }
+}

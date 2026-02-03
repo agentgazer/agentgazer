@@ -1,0 +1,31 @@
+{
+  "name": "agentwatch",
+  "version": "0.1.0",
+  "description": "AgentWatch — AI Agent observability. One command to monitor your agents locally.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "agentwatch": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentwatch/server": "*",
+    "@agentwatch/proxy": "*",
+    "open": "^10.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.9"
+  }
+}
