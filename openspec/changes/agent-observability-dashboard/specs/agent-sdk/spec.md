@@ -2,26 +2,26 @@
 
 ### Requirement: SDK initialization
 
-The SDK SHALL export an `AgentWatch.init()` function that accepts a configuration object with the following properties: `apiKey` (required string), `agentId` (required string), and `endpoint` (optional string). The function MUST return a `watch` instance that exposes the `track`, `heartbeat`, and `error` methods. If `apiKey` or `agentId` is missing, `init()` MUST throw a descriptive error.
+The SDK SHALL export an `AgentTrace.init()` function that accepts a configuration object with the following properties: `apiKey` (required string), `agentId` (required string), and `endpoint` (optional string). The function MUST return a `watch` instance that exposes the `track`, `heartbeat`, and `error` methods. If `apiKey` or `agentId` is missing, `init()` MUST throw a descriptive error.
 
 #### Scenario: Successful initialization
 
-WHEN a developer calls `AgentWatch.init({ apiKey: "ak_test123", agentId: "bot-1" })`
+WHEN a developer calls `AgentTrace.init({ apiKey: "ak_test123", agentId: "bot-1" })`
 THEN the function MUST return a `watch` instance with `track`, `heartbeat`, and `error` methods available.
 
 #### Scenario: Initialization with custom endpoint
 
-WHEN a developer calls `AgentWatch.init({ apiKey: "ak_test123", agentId: "bot-1", endpoint: "http://localhost:4000" })`
+WHEN a developer calls `AgentTrace.init({ apiKey: "ak_test123", agentId: "bot-1", endpoint: "http://localhost:4000" })`
 THEN the SDK MUST send all subsequent events to `http://localhost:4000` instead of the default cloud API.
 
 #### Scenario: Initialization with missing apiKey
 
-WHEN a developer calls `AgentWatch.init({ agentId: "bot-1" })` without providing `apiKey`
+WHEN a developer calls `AgentTrace.init({ agentId: "bot-1" })` without providing `apiKey`
 THEN the function MUST throw an error indicating that `apiKey` is required.
 
 #### Scenario: Initialization with missing agentId
 
-WHEN a developer calls `AgentWatch.init({ apiKey: "ak_test123" })` without providing `agentId`
+WHEN a developer calls `AgentTrace.init({ apiKey: "ak_test123" })` without providing `agentId`
 THEN the function MUST throw an error indicating that `agentId` is required.
 
 ### Requirement: Manual tracking via watch.track()
@@ -105,19 +105,19 @@ THEN the type MUST be available and MUST describe the full event schema includin
 
 #### Scenario: Configuration type exported
 
-WHEN a TypeScript developer imports `{ AgentWatchConfig }` from the SDK package
+WHEN a TypeScript developer imports `{ AgentTraceConfig }` from the SDK package
 THEN the type MUST be available and MUST describe `apiKey` (string), `agentId` (string), and `endpoint` (optional string).
 
 ### Requirement: Configurable endpoint URL
 
-The SDK SHALL use a default endpoint URL pointing to the cloud-hosted ingest API. The endpoint MUST be overridable via the `endpoint` property in the `AgentWatch.init()` configuration. When `endpoint` is provided, all event flushes MUST be sent to the specified URL instead of the default.
+The SDK SHALL use a default endpoint URL pointing to the cloud-hosted ingest API. The endpoint MUST be overridable via the `endpoint` property in the `AgentTrace.init()` configuration. When `endpoint` is provided, all event flushes MUST be sent to the specified URL instead of the default.
 
 #### Scenario: Default endpoint used when not specified
 
-WHEN a developer calls `AgentWatch.init({ apiKey: "ak_test123", agentId: "bot-1" })` without specifying `endpoint`
+WHEN a developer calls `AgentTrace.init({ apiKey: "ak_test123", agentId: "bot-1" })` without specifying `endpoint`
 THEN the SDK MUST send events to the default cloud API endpoint.
 
 #### Scenario: Custom endpoint override
 
-WHEN a developer calls `AgentWatch.init({ apiKey: "ak_test123", agentId: "bot-1", endpoint: "https://custom.example.com/api/events" })`
+WHEN a developer calls `AgentTrace.init({ apiKey: "ak_test123", agentId: "bot-1", endpoint: "https://custom.example.com/api/events" })`
 THEN the SDK MUST send all flushed events to `https://custom.example.com/api/events`.

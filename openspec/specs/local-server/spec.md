@@ -1,14 +1,14 @@
 ## ADDED Requirements
 
 ### Requirement: Local SQLite database initialization
-The server SHALL create a SQLite database at `~/.agentwatch/data.db` on startup if it does not exist. The database SHALL use WAL mode for concurrent read/write performance. The schema SHALL include tables: `agents`, `agent_events`, `alert_rules`, `alert_history` — matching the existing Supabase schema but without `user_id` columns or RLS.
+The server SHALL create a SQLite database at `~/.agenttrace/data.db` on startup if it does not exist. The database SHALL use WAL mode for concurrent read/write performance. The schema SHALL include tables: `agents`, `agent_events`, `alert_rules`, `alert_history` — matching the existing Supabase schema but without `user_id` columns or RLS.
 
 #### Scenario: First startup creates database
-- **WHEN** the server starts and `~/.agentwatch/data.db` does not exist
+- **WHEN** the server starts and `~/.agenttrace/data.db` does not exist
 - **THEN** the server creates the database file with all tables and indexes
 
 #### Scenario: Subsequent startup reuses existing database
-- **WHEN** the server starts and `~/.agentwatch/data.db` already exists
+- **WHEN** the server starts and `~/.agenttrace/data.db` already exists
 - **THEN** the server opens the existing database without data loss
 
 ### Requirement: Event ingestion endpoint

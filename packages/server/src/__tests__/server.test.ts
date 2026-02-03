@@ -11,7 +11,7 @@ import { createServer } from "../server.js";
 // ---------------------------------------------------------------------------
 
 const TEST_TOKEN = "test-token-123";
-const tmpDbPath = path.join(os.tmpdir(), `agentwatch-test-${randomUUID()}.sqlite`);
+const tmpDbPath = path.join(os.tmpdir(), `agenttrace-test-${randomUUID()}.sqlite`);
 
 let server: http.Server;
 let base: string;

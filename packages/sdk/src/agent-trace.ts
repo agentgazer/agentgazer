@@ -1,12 +1,12 @@
-import type { AgentEvent } from "@agentwatch/shared";
-import type { AgentWatchOptions, TrackOptions } from "./types.js";
+import type { AgentEvent } from "@agenttrace/shared";
+import type { AgentTraceOptions, TrackOptions } from "./types.js";
 
 const DEFAULT_ENDPOINT =
   "https://your-project.supabase.co/functions/v1/ingest";
 const DEFAULT_FLUSH_INTERVAL = 5000;
 const DEFAULT_MAX_BUFFER_SIZE = 50;
 
-export class AgentWatch {
+export class AgentTrace {
   private readonly apiKey: string;
   private readonly agentId: string;
   private readonly endpoint: string;
@@ -14,7 +14,7 @@ export class AgentWatch {
   private buffer: AgentEvent[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  private constructor(options: AgentWatchOptions) {
+  private constructor(options: AgentTraceOptions) {
     this.apiKey = options.apiKey;
     this.agentId = options.agentId;
     this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
@@ -31,14 +31,14 @@ export class AgentWatch {
     }
   }
 
-  static init(options: AgentWatchOptions): AgentWatch {
+  static init(options: AgentTraceOptions): AgentTrace {
     if (!options.apiKey) {
-      throw new Error("[AgentWatch] apiKey is required");
+      throw new Error("[AgentTrace] apiKey is required");
     }
     if (!options.agentId) {
-      throw new Error("[AgentWatch] agentId is required");
+      throw new Error("[AgentTrace] agentId is required");
     }
-    return new AgentWatch(options);
+    return new AgentTrace(options);
   }
 
   // -------------------------------------------------------------------
@@ -131,7 +131,7 @@ export class AgentWatch {
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : String(error);
-      console.warn(`[AgentWatch] flush failed: ${message}`);
+      console.warn(`[AgentTrace] flush failed: ${message}`);
       // Buffer is already cleared — intentionally not re-queuing to
       // prevent unbounded growth.
     }

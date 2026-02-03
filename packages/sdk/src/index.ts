@@ -1,7 +1,7 @@
-export { AgentWatch } from "./agent-watch.js";
+export { AgentTrace } from "./agent-trace.js";
 
 export type {
-  AgentWatchOptions,
+  AgentTraceOptions,
   TrackOptions,
 } from "./types.js";
 

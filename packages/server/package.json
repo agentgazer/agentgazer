@@ -1,7 +1,8 @@
 {
-  "name": "@agentwatch/server",
+  "name": "@agenttrace/server",
   "version": "0.1.0",
-  "description": "AgentWatch local server with Express and SQLite",
+  "description": "AgentTrace local server with Express and SQLite",
+  "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -10,13 +11,42 @@
       "default": "./dist/index.js"
     }
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenttrace/agenttrace.git",
+    "directory": "packages/server"
+  },
+  "homepage": "https://github.com/agenttrace/agenttrace/tree/main/packages/server#readme",
+  "bugs": {
+    "url": "https://github.com/agenttrace/agenttrace/issues"
+  },
+  "keywords": [
+    "agenttrace",
+    "ai-agents",
+    "observability",
+    "server",
+    "express",
+    "sqlite"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentwatch/shared": "*",
+    "@agenttrace/shared": "^0.1.0",
     "express": "^4.21.0",
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",

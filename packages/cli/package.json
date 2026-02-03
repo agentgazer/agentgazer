@@ -1,27 +1,55 @@
 {
-  "name": "agentwatch",
+  "name": "agenttrace",
   "version": "0.1.0",
-  "description": "AgentWatch — AI Agent observability. One command to monitor your agents locally.",
+  "description": "AgentTrace — AI Agent observability. One command to monitor your agents locally.",
+  "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "bin": {
-    "agentwatch": "./dist/cli.js"
+    "agenttrace": "./dist/cli.js"
   },
   "files": [
     "dist/",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenttrace/agenttrace.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/agenttrace/agenttrace#readme",
+  "bugs": {
+    "url": "https://github.com/agenttrace/agenttrace/issues"
+  },
+  "keywords": [
+    "agenttrace",
+    "ai-agents",
+    "observability",
+    "monitoring",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentwatch/server": "*",
-    "@agentwatch/proxy": "*",
+    "@agenttrace/server": "^0.1.0",
+    "@agenttrace/proxy": "^0.1.0",
     "open": "^10.1.0"
   },
   "devDependencies": {

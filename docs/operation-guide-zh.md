@@ -1,4 +1,4 @@
-# AgentWatch 操作指南
+# AgentTrace 操作指南
 
 > AI Agent 可觀測性平台 — 完整部署與使用手冊
 
@@ -25,7 +25,7 @@
 
 ## 1. 平台概覽
 
-AgentWatch 是一個 **AI Agent 層級** 的可觀測性平台，專為監控 AI Agent 的健康狀態、行為模式和成本而設計。
+AgentTrace 是一個 **AI Agent 層級** 的可觀測性平台，專為監控 AI Agent 的健康狀態、行為模式和成本而設計。
 
 ### 核心功能
 
@@ -61,11 +61,11 @@ AgentWatch 是一個 **AI Agent 層級** 的可觀測性平台，專為監控 AI
 │                    使用者的機器                        │
 │                                                     │
 │  ┌──────────┐    ┌───────────────┐                  │
-│  │ AI Agent │───>│ AgentWatch SDK│──┐               │
+│  │ AI Agent │───>│ AgentTrace SDK│──┐               │
 │  └──────────┘    └───────────────┘  │               │
 │                                     │  HTTPS        │
 │  ┌──────────┐    ┌───────────────┐  │               │
-│  │ AI Agent │───>│ AgentWatch    │──┤               │
+│  │ AI Agent │───>│ AgentTrace    │──┤               │
 │  │          │<───│ Proxy         │  │               │
 │  └──────────┘    └───────────────┘  │               │
 │                  (prompt 不會外傳)    │               │
@@ -122,8 +122,8 @@ np1/
 │       └── lib/                       # Supabase client 工具
 ├── packages/
 │   ├── shared/             # 共用型別、Provider 偵測、定價計算
-│   ├── sdk/                # TypeScript SDK (@agentwatch/sdk)
-│   └── proxy/              # 本地代理伺服器 (@agentwatch/proxy)
+│   ├── sdk/                # TypeScript SDK (@agenttrace/sdk)
+│   └── proxy/              # 本地代理伺服器 (@agenttrace/proxy)
 ├── supabase/
 │   ├── config.toml         # Supabase 專案設定
 │   ├── functions/
@@ -311,15 +311,15 @@ Dashboard 預設啟動在 `http://localhost:3000`。
 ### 6.1 安裝
 
 ```bash
-npm install @agentwatch/sdk
+npm install @agenttrace/sdk
 ```
 
 ### 6.2 初始化
 
 ```typescript
-import { AgentWatch } from "@agentwatch/sdk";
+import { AgentTrace } from "@agenttrace/sdk";
 
-const watch = AgentWatch.init({
+const watch = AgentTrace.init({
   apiKey: "aw_your_api_key",   // 必填：在 Dashboard 的 Keys 頁面產生
   agentId: "my-agent",         // 必填：此 Agent 的唯一識別碼
   endpoint: "https://<project-id>.supabase.co/functions/v1/ingest",  // 選填
@@ -409,11 +409,11 @@ SDK 採用批次發送策略以提升效率：
 ### 6.9 完整範例
 
 ```typescript
-import { AgentWatch } from "@agentwatch/sdk";
+import { AgentTrace } from "@agenttrace/sdk";
 import OpenAI from "openai";
 
-const watch = AgentWatch.init({
-  apiKey: process.env.AGENTWATCH_API_KEY!,
+const watch = AgentTrace.init({
+  apiKey: process.env.AGENTTRACE_API_KEY!,
   agentId: "my-chatbot",
   endpoint: "https://your-project.supabase.co/functions/v1/ingest",
 });
@@ -466,7 +466,7 @@ Proxy 是一個本地 HTTP 代理，可以透明地攔截你的 AI Agent 對 LLM
 ### 7.1 安裝
 
 ```bash
-npm install -g @agentwatch/proxy
+npm install -g @agenttrace/proxy
 ```
 
 或在 monorepo 中直接使用。
@@ -474,7 +474,7 @@ npm install -g @agentwatch/proxy
 ### 7.2 啟動
 
 ```bash
-agentwatch-proxy \
+agenttrace-proxy \
   --api-key "aw_your_api_key" \
   --agent-id "my-agent" \
   --port 4000 \
@@ -483,10 +483,10 @@ agentwatch-proxy \
 
 | 參數 | 必填 | 預設值 | 說明 |
 |------|------|--------|------|
-| `--api-key` | 是 | — | AgentWatch API Key |
+| `--api-key` | 是 | — | AgentTrace API Key |
 | `--agent-id` | 是 | — | Agent 識別碼 |
 | `--port` | 否 | `4000` | 監聽埠號 |
-| `--endpoint` | 否 | AgentWatch Cloud | 事件接收 API URL |
+| `--endpoint` | 否 | AgentTrace Cloud | 事件接收 API URL |
 | `--help` | — | — | 顯示幫助訊息 |
 
 ### 7.3 使用方式
@@ -549,9 +549,9 @@ curl http://localhost:4000/health
 3. 將請求原樣轉發到目標 Provider（包括 Authorization header）
 4. 收到回應後，先將完整回應回傳給 Agent
 5. 非同步地解析回應 body，提取 token 用量、model、cost 等指標
-6. 將指標事件存入 buffer，定期批次發送到 AgentWatch 後端
+6. 將指標事件存入 buffer，定期批次發送到 AgentTrace 後端
 
-**隱私保證**：Proxy 只提取指標資料（token 數量、model 名稱、延遲等），**不會發送 prompt 內容或 API Key** 到 AgentWatch 伺服器。
+**隱私保證**：Proxy 只提取指標資料（token 數量、model 名稱、延遲等），**不會發送 prompt 內容或 API Key** 到 AgentTrace 伺服器。
 
 ### 7.6 事件緩衝
 
@@ -731,7 +731,7 @@ npm publish --access public
 發佈後，其他開發者可以用以下方式安裝：
 
 ```bash
-npm install @agentwatch/sdk
+npm install @agenttrace/sdk
 ```
 
 ### 10.3 發佈 Proxy 到 npm
@@ -745,8 +745,8 @@ npm publish --access public
 發佈後，使用者可以全域安裝並直接使用 CLI：
 
 ```bash
-npm install -g @agentwatch/proxy
-agentwatch-proxy --api-key "aw_xxx" --agent-id "my-agent"
+npm install -g @agenttrace/proxy
+agenttrace-proxy --api-key "aw_xxx" --agent-id "my-agent"
 ```
 
 ### 10.4 Edge Functions 部署
@@ -897,9 +897,9 @@ cd apps/dashboard && npm run test:e2e
 
 | 套件 | 測試框架 | 測試類型 |
 |------|---------|---------|
-| `@agentwatch/shared` | Vitest | 單元測試 |
-| `@agentwatch/sdk` | Vitest | 單元測試 |
-| `@agentwatch/proxy` | Vitest | 整合測試 |
+| `@agenttrace/shared` | Vitest | 單元測試 |
+| `@agenttrace/sdk` | Vitest | 單元測試 |
+| `@agenttrace/proxy` | Vitest | 整合測試 |
 | Dashboard | Playwright | E2E 測試 |
 
 ### 12.4 SDK 測試涵蓋範圍
@@ -1074,7 +1074,7 @@ cd apps/dashboard && npm run test:e2e
 
 ### 成本計算不正確
 
-1. **確認模型名稱**：成本計算依賴於 `@agentwatch/shared` 中的定價表，模型名稱必須與定價表匹配
+1. **確認模型名稱**：成本計算依賴於 `@agenttrace/shared` 中的定價表，模型名稱必須與定價表匹配
 2. **手動指定 cost_usd**：如果自動計算不準確，可以在 `track()` 中手動傳入 `cost_usd`
 
 ---

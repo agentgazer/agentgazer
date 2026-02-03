@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgentWatch Dashboard",
+  title: "AgentTrace Dashboard",
   description: "Monitor and manage your AI agents",
 };
 

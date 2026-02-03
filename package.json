@@ -1,5 +1,5 @@
 {
-  "name": "agentwatch",
+  "name": "agenttrace",
   "private": true,
   "workspaces": [
     "apps/*",

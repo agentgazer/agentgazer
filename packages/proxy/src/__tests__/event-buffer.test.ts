@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as http from "node:http";
 import { EventBuffer } from "../event-buffer.js";
-import type { AgentEvent } from "@agentwatch/shared";
+import type { AgentEvent } from "@agenttrace/shared";
 
 function makeEvent(overrides: Partial<AgentEvent> = {}): AgentEvent {
   return {

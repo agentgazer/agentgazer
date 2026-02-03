@@ -22,15 +22,15 @@ function parseArgs(argv: string[]): Record<string, string> {
 
 function printUsage(): void {
   console.log(`
-Usage: agentwatch-proxy --api-key <key> --agent-id <id> [options]
+Usage: agenttrace-proxy --api-key <key> --agent-id <id> [options]
 
 Required:
-  --api-key    AgentWatch API key
+  --api-key    AgentTrace API key
   --agent-id   Agent identifier
 
 Options:
   --port       Port to listen on (default: 4000)
-  --endpoint   AgentWatch ingest API URL
+  --endpoint   AgentTrace ingest API URL
   --help       Show this help message
 `);
 }
@@ -75,7 +75,7 @@ function main(): void {
 
   const listenPort = port ?? 4000;
   console.log(
-    `AgentWatch Proxy running on http://localhost:${listenPort}`
+    `AgentTrace Proxy running on http://localhost:${listenPort}`
   );
 
   let shuttingDown = false;
@@ -83,14 +83,14 @@ function main(): void {
   function handleShutdown(): void {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log("\n[agentwatch-proxy] Shutting down gracefully...");
+    console.log("\n[agenttrace-proxy] Shutting down gracefully...");
     shutdown()
       .then(() => {
-        console.log("[agentwatch-proxy] Shutdown complete.");
+        console.log("[agenttrace-proxy] Shutdown complete.");
         process.exit(0);
       })
       .catch((err) => {
-        console.error("[agentwatch-proxy] Error during shutdown:", err);
+        console.error("[agenttrace-proxy] Error during shutdown:", err);
         process.exit(1);
       });
   }

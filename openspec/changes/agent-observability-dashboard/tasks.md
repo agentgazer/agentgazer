@@ -26,7 +26,7 @@
 
 ## 4. TypeScript SDK
 
-- [x] 4.1 Implement AgentWatch.init({ apiKey, agentId, endpoint? }) initialization
+- [x] 4.1 Implement AgentTrace.init({ apiKey, agentId, endpoint? }) initialization
 - [x] 4.2 Implement watch.track({ provider, model, tokens, latency_ms, status, tags? })
 - [x] 4.3 Implement watch.heartbeat() for periodic heartbeat events
 - [x] 4.4 Implement watch.error(error) for error reporting
@@ -45,7 +45,7 @@
 - [x] 5.6 Implement metric reporting to ingest API (stats only, no prompt content)
 - [x] 5.7 Implement client-side event batching (buffer and flush every 5s or at 50 events)
 - [x] 5.8 Handle unrecognized providers gracefully (forward request, skip metric extraction, log warning)
-- [x] 5.9 Create CLI entry point: npx agentwatch-proxy --api-key <key> --agent-id <id> --port <port>
+- [x] 5.9 Create CLI entry point: npx agenttrace-proxy --api-key <key> --agent-id <id> --port <port>
 - [x] 5.10 Add proxy health check endpoint (GET /health)
 
 ## 6. Dashboard — Authentication & Layout
@@ -91,4 +91,4 @@
 - [x] 10.4 Add integration test for proxy end-to-end (mock provider, verify metrics reported)
 - [x] 10.5 Add end-to-end test for dashboard (login, view agents, verify real-time updates)
 - [x] 10.6 Configure Vercel deployment for dashboard
-- [x] 10.7 Configure npm publish for @agentwatch/sdk and @agentwatch/proxy packages
+- [x] 10.7 Configure npm publish for @agenttrace/sdk and @agenttrace/proxy packages

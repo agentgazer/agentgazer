@@ -1,7 +1,8 @@
 {
-  "name": "@agentwatch/proxy",
+  "name": "@agenttrace/proxy",
   "version": "0.1.0",
-  "description": "AgentWatch proxy server for buffering and forwarding agent events",
+  "description": "AgentTrace proxy server for buffering and forwarding agent events",
+  "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -11,7 +12,7 @@
     }
   },
   "bin": {
-    "agentwatch-proxy": "./dist/cli.js"
+    "agenttrace-proxy": "./dist/cli.js"
   },
   "files": [
     "dist/",
@@ -21,13 +22,33 @@
   "publishConfig": {
     "access": "public"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenttrace/agenttrace.git",
+    "directory": "packages/proxy"
+  },
+  "homepage": "https://github.com/agenttrace/agenttrace/tree/main/packages/proxy#readme",
+  "bugs": {
+    "url": "https://github.com/agenttrace/agenttrace/issues"
+  },
+  "keywords": [
+    "agenttrace",
+    "ai-agents",
+    "observability",
+    "proxy",
+    "events"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentwatch/shared": "*"
+    "@agenttrace/shared": "^0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

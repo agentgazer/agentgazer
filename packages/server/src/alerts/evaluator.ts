@@ -87,11 +87,11 @@ async function postWebhook(
     });
     if (!res.ok) {
       console.error(
-        `[agentwatch] Webhook POST to ${url} returned ${res.status}`,
+        `[agenttrace] Webhook POST to ${url} returned ${res.status}`,
       );
     }
   } catch (err) {
-    console.error(`[agentwatch] Webhook POST to ${url} failed:`, err);
+    console.error(`[agenttrace] Webhook POST to ${url} failed:`, err);
   }
 }
 
@@ -186,7 +186,7 @@ async function tick(db: Database.Database): Promise<void> {
   try {
     rules = db.prepare(SQL_ENABLED_RULES).all() as AlertRuleRow[];
   } catch (err) {
-    console.error("[agentwatch] Failed to query alert rules:", err);
+    console.error("[agenttrace] Failed to query alert rules:", err);
     return;
   }
 
@@ -207,7 +207,7 @@ async function tick(db: Database.Database): Promise<void> {
           break;
         default:
           console.warn(
-            `[agentwatch] Unknown rule_type "${rule.rule_type}" for rule ${rule.id}`,
+            `[agenttrace] Unknown rule_type "${rule.rule_type}" for rule ${rule.id}`,
           );
           continue;
       }
@@ -224,7 +224,7 @@ async function tick(db: Database.Database): Promise<void> {
 
       // -- Fire alert --------------------------------------------------------
 
-      console.log(`[agentwatch] Alert fired: ${message}`);
+      console.log(`[agenttrace] Alert fired: ${message}`);
 
       const timestamp = new Date().toISOString();
 
@@ -247,7 +247,7 @@ async function tick(db: Database.Database): Promise<void> {
       );
     } catch (err) {
       console.error(
-        `[agentwatch] Error evaluating rule ${rule.id} (${rule.rule_type}):`,
+        `[agenttrace] Error evaluating rule ${rule.id} (${rule.rule_type}):`,
         err,
       );
     }
@@ -264,12 +264,12 @@ export function startEvaluator(options: EvaluatorOptions): { stop: () => void } 
 
   // Run the first evaluation immediately (fire-and-forget).
   tick(db).catch((err) =>
-    console.error("[agentwatch] Evaluator tick failed:", err),
+    console.error("[agenttrace] Evaluator tick failed:", err),
   );
 
   const timer = setInterval(() => {
     tick(db).catch((err) =>
-      console.error("[agentwatch] Evaluator tick failed:", err),
+      console.error("[agenttrace] Evaluator tick failed:", err),
     );
   }, intervalMs);
 

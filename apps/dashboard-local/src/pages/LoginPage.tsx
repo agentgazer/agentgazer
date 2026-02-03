@@ -30,7 +30,7 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-lg border border-gray-800 bg-gray-900 p-8 shadow-xl"
       >
-        <h1 className="text-2xl font-bold text-gray-100">AgentWatch</h1>
+        <h1 className="text-2xl font-bold text-gray-100">AgentTrace</h1>
         <p className="mt-1 text-sm text-gray-400">Enter your token to continue</p>
 
         <label htmlFor="token" className="mt-6 block text-sm font-medium text-gray-300">

@@ -1,6 +1,6 @@
 [project]
-id = "agentwatch"
-name = "AgentWatch"
+id = "agenttrace"
+name = "AgentTrace"
 
 [auth]
 enabled = true

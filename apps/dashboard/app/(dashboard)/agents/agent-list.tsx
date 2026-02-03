@@ -43,12 +43,12 @@ export function AgentList({ initialAgents }: { initialAgents: Agent[] }) {
         </h2>
         <p className="mb-6 max-w-md text-center text-gray-400">
           Agents appear here automatically once they start sending events.
-          Install the AgentWatch SDK in your agent and configure your API key to
+          Install the AgentTrace SDK in your agent and configure your API key to
           get started.
         </p>
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <code className="text-sm text-green-400">
-            npm install @agentwatch/sdk
+            npm install @agenttrace/sdk
           </code>
         </div>
       </div>

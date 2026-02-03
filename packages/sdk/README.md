@@ -1,19 +1,19 @@
-# @agentwatch/sdk
+# @agenttrace/sdk
 
-TypeScript SDK for AgentWatch — agent-level observability for AI agents.
+TypeScript SDK for AgentTrace — agent-level observability for AI agents.
 
 ## Install
 
 ```bash
-npm install @agentwatch/sdk
+npm install @agenttrace/sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { AgentWatch } from "@agentwatch/sdk";
+import { AgentTrace } from "@agenttrace/sdk";
 
-const watch = AgentWatch.init({
+const watch = AgentTrace.init({
   apiKey: "aw_your_api_key",
   agentId: "my-agent",
 });
@@ -42,13 +42,13 @@ await watch.shutdown();
 
 ## API
 
-### `AgentWatch.init(options)`
+### `AgentTrace.init(options)`
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `apiKey` | `string` | required | Your AgentWatch API key |
+| `apiKey` | `string` | required | Your AgentTrace API key |
 | `agentId` | `string` | required | Unique identifier for this agent |
-| `endpoint` | `string` | AgentWatch cloud | Ingest API URL |
+| `endpoint` | `string` | AgentTrace cloud | Ingest API URL |
 | `flushInterval` | `number` | `5000` | Milliseconds between automatic flushes |
 | `maxBufferSize` | `number` | `50` | Flush when buffer reaches this size |
 

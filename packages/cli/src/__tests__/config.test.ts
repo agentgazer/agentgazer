@@ -37,7 +37,7 @@ async function loadConfigModule() {
 beforeEach(() => {
   // Create a fresh temp directory for each test
   tmpDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), "agentwatch-config-test-"),
+    path.join(os.tmpdir(), "agenttrace-config-test-"),
   );
   mockedHomedir.mockReturnValue(tmpDir);
   // Reset the module registry so config.ts re-evaluates its constants
@@ -60,7 +60,7 @@ describe("config", () => {
   describe("getConfigDir()", () => {
     it("returns a path under the home directory", async () => {
       const { getConfigDir } = await loadConfigModule();
-      expect(getConfigDir()).toBe(path.join(tmpDir, ".agentwatch"));
+      expect(getConfigDir()).toBe(path.join(tmpDir, ".agenttrace"));
     });
   });
 
@@ -68,7 +68,7 @@ describe("config", () => {
     it("returns the database file path under the config directory", async () => {
       const { getDbPath } = await loadConfigModule();
       expect(getDbPath()).toBe(
-        path.join(tmpDir, ".agentwatch", "data.db"),
+        path.join(tmpDir, ".agenttrace", "data.db"),
       );
     });
   });
@@ -83,7 +83,7 @@ describe("config", () => {
     });
 
     it("returns the config when a valid config file exists", async () => {
-      const configDir = path.join(tmpDir, ".agentwatch");
+      const configDir = path.join(tmpDir, ".agenttrace");
       fs.mkdirSync(configDir, { recursive: true });
       const token =
         "abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234abcd1234";
@@ -101,7 +101,7 @@ describe("config", () => {
     });
 
     it("returns null when config file contains invalid JSON", async () => {
-      const configDir = path.join(tmpDir, ".agentwatch");
+      const configDir = path.join(tmpDir, ".agenttrace");
       fs.mkdirSync(configDir, { recursive: true });
       fs.writeFileSync(
         path.join(configDir, "config.json"),
@@ -114,7 +114,7 @@ describe("config", () => {
     });
 
     it("returns null when config file has empty token", async () => {
-      const configDir = path.join(tmpDir, ".agentwatch");
+      const configDir = path.join(tmpDir, ".agenttrace");
       fs.mkdirSync(configDir, { recursive: true });
       fs.writeFileSync(
         path.join(configDir, "config.json"),
@@ -127,7 +127,7 @@ describe("config", () => {
     });
 
     it("returns null when config file has no token field", async () => {
-      const configDir = path.join(tmpDir, ".agentwatch");
+      const configDir = path.join(tmpDir, ".agenttrace");
       fs.mkdirSync(configDir, { recursive: true });
       fs.writeFileSync(
         path.join(configDir, "config.json"),
@@ -147,7 +147,7 @@ describe("config", () => {
     it("creates the config directory and file on first run", async () => {
       const { ensureConfig } = await loadConfigModule();
 
-      const configDir = path.join(tmpDir, ".agentwatch");
+      const configDir = path.join(tmpDir, ".agenttrace");
       const configFile = path.join(configDir, "config.json");
 
       // Directory and file should not exist yet
@@ -186,7 +186,7 @@ describe("config", () => {
 
       const config = ensureConfig();
 
-      const configFile = path.join(tmpDir, ".agentwatch", "config.json");
+      const configFile = path.join(tmpDir, ".agenttrace", "config.json");
       const raw = fs.readFileSync(configFile, "utf-8");
       const parsed = JSON.parse(raw);
 
@@ -194,7 +194,7 @@ describe("config", () => {
     });
 
     it("returns existing config if directory and file already exist", async () => {
-      const configDir = path.join(tmpDir, ".agentwatch");
+      const configDir = path.join(tmpDir, ".agenttrace");
       fs.mkdirSync(configDir, { recursive: true });
 
       const existingToken = "a".repeat(64);
@@ -247,7 +247,7 @@ describe("config", () => {
     it("creates directory if it does not exist", async () => {
       const { resetToken } = await loadConfigModule();
 
-      const configDir = path.join(tmpDir, ".agentwatch");
+      const configDir = path.join(tmpDir, ".agenttrace");
       expect(fs.existsSync(configDir)).toBe(false);
 
       const config = resetToken();

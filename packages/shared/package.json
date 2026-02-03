@@ -1,13 +1,48 @@
 {
-  "name": "@agentwatch/shared",
+  "name": "@agenttrace/shared",
   "version": "0.1.0",
-  "private": true,
+  "description": "Shared types, schemas, and utilities for AgentTrace packages",
+  "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agenttrace/agenttrace.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/agenttrace/agenttrace/tree/main/packages/shared#readme",
+  "bugs": {
+    "url": "https://github.com/agenttrace/agenttrace/issues"
+  },
+  "keywords": [
+    "agenttrace",
+    "ai-agents",
+    "observability",
+    "shared",
+    "types"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "zod": "^3.23.0"

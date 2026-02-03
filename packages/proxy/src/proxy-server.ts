@@ -5,7 +5,7 @@ import {
   parseProviderResponse,
   calculateCost,
   type AgentEvent,
-} from "@agentwatch/shared";
+} from "@agenttrace/shared";
 import { EventBuffer } from "./event-buffer.js";
 
 export interface ProxyOptions {
@@ -23,7 +23,7 @@ export interface ProxyServer {
 }
 
 const DEFAULT_PORT = 4000;
-const DEFAULT_ENDPOINT = "https://ingest.agentwatch.dev/v1/events";
+const DEFAULT_ENDPOINT = "https://ingest.agenttrace.dev/v1/events";
 const DEFAULT_FLUSH_INTERVAL = 5000;
 const DEFAULT_MAX_BUFFER_SIZE = 50;
 
@@ -161,7 +161,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       const message =
         error instanceof Error ? error.message : "Unknown fetch error";
       console.error(
-        `[agentwatch-proxy] Upstream request failed: ${message}`
+        `[agenttrace-proxy] Upstream request failed: ${message}`
       );
       sendJson(res, 502, { error: `Upstream request failed: ${message}` });
       return;
@@ -200,7 +200,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       );
     } catch (error) {
       console.error(
-        `[agentwatch-proxy] Metric extraction error:`,
+        `[agenttrace-proxy] Metric extraction error:`,
         error instanceof Error ? error.message : String(error)
       );
     }
@@ -216,7 +216,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     if (provider === "unknown") {
       console.warn(
-        `[agentwatch-proxy] Unrecognized provider for URL: ${targetUrl} - skipping metric extraction`
+        `[agenttrace-proxy] Unrecognized provider for URL: ${targetUrl} - skipping metric extraction`
       );
       return;
     }
@@ -227,7 +227,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       parsedBody = JSON.parse(responseBody.toString("utf-8"));
     } catch {
       console.warn(
-        `[agentwatch-proxy] Could not parse response body as JSON for ${provider} - skipping metric extraction`
+        `[agenttrace-proxy] Could not parse response body as JSON for ${provider} - skipping metric extraction`
       );
       return;
     }
@@ -235,7 +235,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const parsed = parseProviderResponse(provider, parsedBody, statusCode);
     if (!parsed) {
       console.warn(
-        `[agentwatch-proxy] No parser result for provider: ${provider}`
+        `[agenttrace-proxy] No parser result for provider: ${provider}`
       );
       return;
     }

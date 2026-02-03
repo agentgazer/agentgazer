@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@agentwatch/shared";
+import type { AgentEvent } from "@agenttrace/shared";
 
 export interface EventBufferOptions {
   apiKey: string;
@@ -59,14 +59,14 @@ export class EventBuffer {
 
       if (!response.ok) {
         console.error(
-          `[agentwatch-proxy] Failed to flush events: HTTP ${response.status}`
+          `[agenttrace-proxy] Failed to flush events: HTTP ${response.status}`
         );
         // Put events back at the front of the buffer for retry
         this.buffer.unshift(...events);
       }
     } catch (error) {
       console.error(
-        `[agentwatch-proxy] Failed to flush events:`,
+        `[agenttrace-proxy] Failed to flush events:`,
         error instanceof Error ? error.message : String(error)
       );
       // Put events back at the front of the buffer for retry

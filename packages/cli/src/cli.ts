@@ -2,8 +2,8 @@
 
 import * as path from "node:path";
 import { ensureConfig, resetToken, getDbPath } from "./config.js";
-import { startServer } from "@agentwatch/server";
-import { startProxy } from "@agentwatch/proxy";
+import { startServer } from "@agenttrace/server";
+import { startProxy } from "@agenttrace/proxy";
 
 function parseArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {};
@@ -25,9 +25,9 @@ function parseArgs(argv: string[]): Record<string, string> {
 
 function printUsage(): void {
   console.log(`
-AgentWatch — AI Agent Observability
+AgentTrace — AI Agent Observability
 
-Usage: agentwatch [options]
+Usage: agenttrace [options]
 
 Options:
   --port <number>        Server/dashboard port (default: 8080)
@@ -37,9 +37,9 @@ Options:
   --help                 Show this help message
 
 Examples:
-  agentwatch                          Start with defaults
-  agentwatch --port 9090              Use custom server port
-  agentwatch --no-open                Start without opening browser
+  agenttrace                          Start with defaults
+  agenttrace --port 9090              Use custom server port
+  agenttrace --no-open                Start without opening browser
 `);
 }
 
@@ -116,14 +116,14 @@ async function main(): Promise<void> {
 
   console.log(`
   ╔══════════════════════════════════════════╗
-  ║           AgentWatch running             ║
+  ║           AgentTrace running             ║
   ╠══════════════════════════════════════════╣
   ║                                          ║
   ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}      ║
   ║  Proxy:      http://localhost:${String(proxyPort).padEnd(5)}      ║
   ║                                          ║
   ║  Token:      ${config.token.slice(0, 16)}...      ║
-  ║  (full token in ~/.agentwatch/config.json)║
+  ║  (full token in ~/.agenttrace/config.json)║
   ║                                          ║
   ╚══════════════════════════════════════════╝
 `);

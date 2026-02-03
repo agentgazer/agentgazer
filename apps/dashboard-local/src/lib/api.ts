@@ -1,4 +1,4 @@
-const TOKEN_KEY = "agentwatch_token";
+const TOKEN_KEY = "agenttrace_token";
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
