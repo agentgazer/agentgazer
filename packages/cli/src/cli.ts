@@ -621,11 +621,25 @@ interface StatsResponse {
 async function cmdStats(flags: Record<string, string>): Promise<void> {
   const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
   const range = flags["range"] || "24h";
-  const agentId = process.argv[3];
+  let agentId = process.argv[3];
 
+  // Auto-select agent if not specified
   if (!agentId || agentId.startsWith("--")) {
-    console.error("Usage: agenttrace stats <agentId> [--range 24h] [--port 8080]");
-    process.exit(1);
+    const agents = (await apiGet("/api/agents", port)) as AgentRecord[];
+    if (!agents || agents.length === 0) {
+      console.log("No agents registered yet.");
+      return;
+    }
+    if (agents.length === 1) {
+      agentId = agents[0].id;
+    } else {
+      console.log("Multiple agents found. Please specify one:\n");
+      for (const a of agents) {
+        console.log(`  agenttrace stats ${a.id}`);
+      }
+      console.log();
+      process.exit(1);
+    }
   }
 
   let data: StatsResponse;
