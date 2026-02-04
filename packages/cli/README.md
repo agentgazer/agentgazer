@@ -57,11 +57,11 @@ If the client already provides its own auth header, the proxy does not override 
 ## Security
 
 Provider API keys are stored securely:
-- **macOS**: System Keychain
-- **Linux desktop**: libsecret / GNOME Keyring
-- **SSH / headless**: AES-256-GCM encrypted file
+- **macOS**: System Keychain (OS-managed encryption, per-app access control)
+- **Linux desktop**: libsecret / GNOME Keyring (OS-managed encryption, D-Bus session scoped)
+- **SSH / headless**: AES-256-GCM encrypted file (application-managed, machine-derived key)
 
-Keys are never stored as plaintext in config files.
+Keys are never stored as plaintext in config files. At runtime, keys are decrypted once at startup and held in memory only.
 
 ## Rate limiting
 

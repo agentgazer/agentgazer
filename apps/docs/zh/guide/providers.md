@@ -73,6 +73,20 @@ agenttrace doctor
 | `libsecret` | Linux libsecret |
 | `machine` | 加密檔案（機器衍生金鑰） |
 
+## 安全架構
+
+各後端的信任邊界不同：
+
+| 後端 | 誰負責加密 | 誰能解密 | 保護等級 |
+|------|-----------|---------|---------|
+| macOS 鑰匙圈 | 作業系統（Security framework） | 當前使用者登入階段 + 授權的應用程式 | 作業系統管理——最強 |
+| Linux libsecret | 桌面環境（GNOME Keyring / KDE Wallet） | 當前使用者的 D-Bus session | 作業系統管理——強 |
+| 加密檔案（`machine`） | AgentTrace（AES-256-GCM，透過 `crypto.scryptSync`） | 同一台機器上相同 OS 使用者的任何程序 | 應用程式管理——優於明文 |
+
+加密檔案後端（MachineKeyStore）從 `machine-id` 和 `username` 透過 scrypt 衍生金鑰。這些不是機密輸入，因此以相同使用者身分在同一台機器上執行的程序理論上可以推導出相同的金鑰。此後端定位為 SSH、無頭環境和 Docker 中「優於明文」的備用方案，而非作業系統鑰匙圈的替代品。
+
+**執行期生命週期：** 金鑰在 `agenttrace start` 啟動時解密一次，在程序存活期間保存於記憶體中，永遠不會寫回磁碟。更改金鑰需要重新啟動 `agenttrace start`。
+
 ## 速率限制
 
 每個 provider 可以設定可選的速率限制。設定後，代理會執行滑動視窗限制，超過時回傳 `429 Too Many Requests` 和 `Retry-After` header。

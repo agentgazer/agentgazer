@@ -73,6 +73,20 @@ Override the backend with the `AGENTTRACE_SECRET_BACKEND` environment variable:
 | `libsecret` | Linux libsecret |
 | `machine` | Encrypted file (machine-derived key) |
 
+## Security Architecture
+
+Each backend has different trust boundaries:
+
+| Backend | Who encrypts | Who can decrypt | Protection level |
+|---------|-------------|----------------|-----------------|
+| macOS Keychain | OS (Security framework) | Current user session + authorized apps | OS-managed — strongest |
+| Linux libsecret | Desktop environment (GNOME Keyring / KDE Wallet) | Current user's D-Bus session | OS-managed — strong |
+| Encrypted file (`machine`) | AgentTrace (AES-256-GCM via `crypto.scryptSync`) | Any process with same OS user + machine identity | Application-managed — better than plaintext |
+
+The encrypted file backend (MachineKeyStore) derives its key from `machine-id` and `username` via scrypt. These are not secret inputs, so a process running as the same user on the same machine could theoretically derive the same key. This backend is designed as a "better than plaintext" fallback for SSH, headless, and Docker environments — not as a replacement for OS keychain protection.
+
+**Runtime lifecycle:** Keys are decrypted once when `agenttrace start` runs and held in memory for the lifetime of the process. They are never written back to disk. Changing a key requires restarting `agenttrace start`.
+
 ## Rate Limiting
 
 Each provider can have an optional rate limit. When configured, the proxy enforces a sliding-window limit and returns `429 Too Many Requests` with a `Retry-After` header when the limit is exceeded.

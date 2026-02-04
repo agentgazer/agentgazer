@@ -70,6 +70,10 @@ encrypted file prevents casual reading, but a process running as the same user c
 theoretically derive the same encryption key. For maximum protection, use a desktop
 environment with OS keychain support.
 
+### Do keys stay in memory after startup?
+
+Yes. Keys are decrypted once when `agenttrace start` runs and held in memory for the proxy's lifetime. They are never written back to disk during operation. If you update a key with `agenttrace providers set`, you need to restart `agenttrace start` for the change to take effect.
+
 ## Data
 
 ### How long is data retained?
