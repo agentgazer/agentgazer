@@ -5,6 +5,8 @@ import type { AgentTraceOptions, TrackOptions, Trace, Span } from "./types.js";
 const DEFAULT_ENDPOINT = "http://localhost:8080/api/events";
 const DEFAULT_FLUSH_INTERVAL = 5000;
 const DEFAULT_MAX_BUFFER_SIZE = 50;
+const MAX_BUFFER_CAP = 5000; // Hard cap to prevent unbounded memory growth
+const FLUSH_TIMEOUT_MS = 30_000;
 
 export class AgentTrace {
   private readonly apiKey: string;
@@ -142,6 +144,7 @@ export class AgentTrace {
           "x-api-key": this.apiKey,
         },
         body: JSON.stringify({ events }),
+        signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS),
       });
     } catch (error: unknown) {
       const message =
@@ -170,6 +173,9 @@ export class AgentTrace {
   }
 
   private enqueue(event: AgentEvent): void {
+    if (this.buffer.length >= MAX_BUFFER_CAP) {
+      this.buffer.shift(); // drop oldest to prevent unbounded growth
+    }
     this.buffer.push(event);
     if (this.buffer.length >= this.maxBufferSize) {
       void this.flush();

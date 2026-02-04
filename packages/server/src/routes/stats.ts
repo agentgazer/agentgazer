@@ -62,7 +62,9 @@ router.get("/api/stats/:agentId", (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const { agentId } = req.params;
 
-  const range = (req.query.range as Range) || "24h";
+  const VALID_RANGES = new Set<string>(["1h", "24h", "7d", "30d", "custom"]);
+  const rangeParam = req.query.range as string | undefined;
+  const range: Range = (rangeParam && VALID_RANGES.has(rangeParam) ? rangeParam : "24h") as Range;
   const fromParam = req.query.from as string | undefined;
   const toParam = req.query.to as string | undefined;
 

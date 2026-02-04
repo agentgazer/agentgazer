@@ -9,6 +9,9 @@ export interface EventBufferOptions {
   maxBufferSize: number;
 }
 
+const MAX_BUFFER_CAP = 5000; // Hard cap to prevent unbounded memory growth
+const FLUSH_TIMEOUT_MS = 30_000; // 30 seconds
+
 export class EventBuffer {
   private buffer: AgentEvent[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -38,6 +41,12 @@ export class EventBuffer {
 
   add(event: AgentEvent): void {
     this.buffer.push(event);
+    // Drop oldest events if buffer exceeds hard cap
+    if (this.buffer.length > MAX_BUFFER_CAP) {
+      const dropped = this.buffer.length - MAX_BUFFER_CAP;
+      this.buffer.splice(0, dropped);
+      log.warn(`Buffer exceeded cap, dropped ${dropped} oldest events`);
+    }
     if (this.buffer.length >= this.maxBufferSize) {
       void this.flush();
     }
@@ -57,6 +66,7 @@ export class EventBuffer {
           Authorization: `Bearer ${this.apiKey}`,
         },
         body: JSON.stringify({ events }),
+        signal: AbortSignal.timeout(FLUSH_TIMEOUT_MS),
       });
 
       if (!response.ok) {

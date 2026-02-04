@@ -27,11 +27,26 @@ function getOrCreateBucket(key: string): Bucket {
 function refill(bucket: Bucket): void {
   const now = Date.now();
   const elapsed = now - bucket.lastRefill;
-  if (elapsed >= DEFAULT_REFILL_INTERVAL_MS) {
-    bucket.tokens = DEFAULT_MAX_TOKENS;
-    bucket.lastRefill = now;
+  if (elapsed > 0) {
+    const tokensToAdd = Math.floor(
+      (elapsed / DEFAULT_REFILL_INTERVAL_MS) * DEFAULT_MAX_TOKENS,
+    );
+    if (tokensToAdd > 0) {
+      bucket.tokens = Math.min(DEFAULT_MAX_TOKENS, bucket.tokens + tokensToAdd);
+      bucket.lastRefill = now;
+    }
   }
 }
+
+// Cleanup stale buckets every 5 minutes to prevent unbounded Map growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of buckets) {
+    if (now - bucket.lastRefill > 5 * 60_000) {
+      buckets.delete(key);
+    }
+  }
+}, 5 * 60_000).unref();
 
 /**
  * Rate-limiting middleware for the event ingestion endpoint.

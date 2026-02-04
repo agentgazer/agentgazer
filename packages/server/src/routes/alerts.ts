@@ -27,17 +27,25 @@ interface AlertHistoryRow {
 }
 
 function parseAlertRule(row: AlertRuleRow) {
+  let config: unknown = row.config;
+  if (typeof row.config === "string") {
+    try { config = JSON.parse(row.config); } catch { /* keep as string */ }
+  }
   return {
     ...row,
-    config: typeof row.config === "string" ? JSON.parse(row.config) : row.config,
+    config,
     enabled: row.enabled === 1,
   };
 }
 
 function parseAlertHistory(row: AlertHistoryRow & { data?: string }) {
+  let data: unknown = row.data;
+  if (row.data && typeof row.data === "string") {
+    try { data = JSON.parse(row.data); } catch { /* keep as string */ }
+  }
   return {
     ...row,
-    data: row.data && typeof row.data === "string" ? JSON.parse(row.data) : row.data,
+    data,
   };
 }
 
@@ -92,6 +100,20 @@ router.post("/api/alerts", (req, res) => {
     return;
   }
 
+  // Validate webhook_url format
+  if (body.webhook_url) {
+    try {
+      const parsed = new URL(body.webhook_url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        res.status(400).json({ error: "webhook_url must use http or https protocol" });
+        return;
+      }
+    } catch {
+      res.status(400).json({ error: "webhook_url must be a valid URL" });
+      return;
+    }
+  }
+
   const id = randomUUID();
   const now = new Date().toISOString();
   const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : 1;
@@ -142,6 +164,19 @@ router.put("/api/alerts/:id", (req, res) => {
   const ruleType = body.rule_type ?? existing.rule_type;
   const config = body.config !== undefined ? JSON.stringify(body.config) : existing.config;
   const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled;
+  // Validate webhook_url if provided
+  if (body.webhook_url !== undefined && body.webhook_url !== null) {
+    try {
+      const parsed = new URL(body.webhook_url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        res.status(400).json({ error: "webhook_url must use http or https protocol" });
+        return;
+      }
+    } catch {
+      res.status(400).json({ error: "webhook_url must be a valid URL" });
+      return;
+    }
+  }
   const webhookUrl = body.webhook_url !== undefined ? body.webhook_url : existing.webhook_url;
   const email = body.email !== undefined ? body.email : existing.email;
 
@@ -209,7 +244,7 @@ router.get("/api/alert-history", (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const limitStr = req.query.limit as string | undefined;
   const limit = limitStr ? parseInt(limitStr, 10) : 100;
-  const effectiveLimit = isNaN(limit) ? 100 : limit;
+  const effectiveLimit = isNaN(limit) ? 100 : Math.min(limit, 10_000);
 
   const rows = db
     .prepare("SELECT * FROM alert_history ORDER BY delivered_at DESC LIMIT ?")

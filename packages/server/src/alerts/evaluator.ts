@@ -98,6 +98,7 @@ async function postWebhookWithRetry(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10_000),
       });
       if (res.ok) return;
       log.error(`Webhook POST returned ${res.status}`, { url, attempt: attempt + 1, maxAttempts: MAX_RETRIES + 1 });
@@ -182,7 +183,11 @@ function evaluateAgentDown(
     return `Agent "${rule.agent_id}" has no recorded heartbeat`;
   }
 
-  const lastBeat = new Date(agent.last_heartbeat_at + "Z").getTime();
+  const lastBeat = new Date(
+    agent.last_heartbeat_at.endsWith("Z") || agent.last_heartbeat_at.includes("+")
+      ? agent.last_heartbeat_at
+      : agent.last_heartbeat_at + "Z",
+  ).getTime();
   const threshold = config.duration_minutes * 60 * 1000;
   const now = Date.now();
 

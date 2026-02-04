@@ -272,6 +272,13 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     process.exit(1);
   }
 
+  if (serverPort < 1024) {
+    console.warn("Warning: port %d may require elevated privileges on Unix systems.", serverPort);
+  }
+  if (proxyPort < 1024) {
+    console.warn("Warning: proxy port %d may require elevated privileges on Unix systems.", proxyPort);
+  }
+
   const retentionDays = flags["retention-days"]
     ? parseInt(flags["retention-days"], 10)
     : 30;

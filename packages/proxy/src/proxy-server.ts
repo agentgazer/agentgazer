@@ -8,6 +8,7 @@ import {
   createLogger,
   type AgentEvent,
   type ParsedResponse,
+  type ProviderName,
 } from "@agenttrace/shared";
 
 const log = createLogger("proxy");
@@ -34,11 +35,22 @@ const DEFAULT_PORT = 4000;
 const DEFAULT_ENDPOINT = "https://ingest.agenttrace.dev/v1/events";
 const DEFAULT_FLUSH_INTERVAL = 5000;
 const DEFAULT_MAX_BUFFER_SIZE = 50;
+const MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_SSE_BUFFER_SIZE = 50 * 1024 * 1024; // 50 MB
+const UPSTREAM_TIMEOUT_MS = 120_000; // 2 minutes
 
 function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    let totalSize = 0;
+    req.on("data", (chunk: Buffer) => {
+      totalSize += chunk.length;
+      if (totalSize > MAX_REQUEST_BODY_SIZE) {
+        req.destroy(new Error("Request body too large"));
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
@@ -287,6 +299,20 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     // provider from the Host header or request path.
     let targetBase = req.headers["x-target-url"] as string | undefined;
 
+    // Validate x-target-url to prevent SSRF
+    if (targetBase) {
+      try {
+        const parsed = new URL(targetBase);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          sendJson(res, 400, { error: "x-target-url must use http or https protocol" });
+          return;
+        }
+      } catch {
+        sendJson(res, 400, { error: "x-target-url must be a valid URL" });
+        return;
+      }
+    }
+
     if (!targetBase) {
       // Try to detect provider from the Host header (e.g. api.openai.com)
       const host = req.headers["host"] ?? "";
@@ -318,13 +344,22 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     let requestBody: Buffer;
     try {
       requestBody = await readRequestBody(req);
-    } catch {
-      sendJson(res, 502, { error: "Failed to read request body" });
+    } catch (err) {
+      if (err instanceof Error && err.message === "Request body too large") {
+        sendJson(res, 413, { error: `Request body too large (max ${MAX_REQUEST_BODY_SIZE / 1024 / 1024}MB)` });
+      } else {
+        sendJson(res, 502, { error: "Failed to read request body" });
+      }
       return;
     }
 
-    // Detect provider for rate limiting and key injection
-    const detectedProviderForAuth = detectProvider(targetUrl);
+    // Detect provider for rate limiting, key injection, and metric extraction.
+    // Fallback to path-based detection for localhost/test URLs where hostname
+    // doesn't match any known provider.
+    let detectedProviderForAuth = detectProvider(targetUrl);
+    if (detectedProviderForAuth === "unknown") {
+      detectedProviderForAuth = detectProvider(`https://placeholder${path}`);
+    }
 
     // Rate limiting: check before forwarding
     if (detectedProviderForAuth !== "unknown") {
@@ -409,6 +444,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           method !== "GET" && method !== "HEAD"
             ? new Uint8Array(requestBody)
             : undefined,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     } catch (error) {
       const message =
@@ -434,6 +470,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       res.writeHead(providerResponse.status, responseHeaders);
 
       const chunks: Buffer[] = [];
+      let accumulatedSize = 0;
       const reader = providerResponse.body.getReader();
 
       try {
@@ -441,8 +478,11 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           const { done, value } = await reader.read();
           if (done) break;
           const buf = Buffer.from(value);
-          chunks.push(buf);
           res.write(buf);
+          accumulatedSize += buf.length;
+          if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
+            chunks.push(buf);
+          }
         }
       } catch (error) {
         log.error("Stream read error", { err: error instanceof Error ? error.message : String(error) });
@@ -455,7 +495,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       try {
         extractStreamingMetrics(
-          targetUrl,
+          detectedProviderForAuth,
           providerResponse.status,
           fullBody,
           latencyMs
@@ -494,7 +534,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // After response is sent, extract metrics asynchronously
       try {
         extractAndQueueMetrics(
-          targetUrl,
+          detectedProviderForAuth,
           providerResponse.status,
           responseBodyBuffer,
           latencyMs
@@ -506,15 +546,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   }
 
   function extractStreamingMetrics(
-    targetUrl: string,
+    provider: ProviderName,
     statusCode: number,
     sseBody: Buffer,
     latencyMs: number
   ): void {
-    const provider = detectProvider(targetUrl);
-
     if (provider === "unknown") {
-      log.warn(`Unrecognized provider for URL: ${targetUrl} - skipping metric extraction`);
+      log.warn("Unrecognized provider - skipping streaming metric extraction");
       return;
     }
 
@@ -558,15 +596,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   }
 
   function extractAndQueueMetrics(
-    targetUrl: string,
+    provider: ProviderName,
     statusCode: number,
     responseBody: Buffer,
     latencyMs: number
   ): void {
-    const provider = detectProvider(targetUrl);
-
     if (provider === "unknown") {
-      log.warn(`Unrecognized provider for URL: ${targetUrl} - skipping metric extraction`);
+      log.warn("Unrecognized provider - skipping metric extraction");
       return;
     }
 

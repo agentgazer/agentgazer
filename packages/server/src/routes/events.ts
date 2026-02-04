@@ -8,6 +8,13 @@ const router = Router();
 const VALID_EVENT_TYPES = new Set(["llm_call", "completion", "heartbeat", "error", "custom"]);
 const VALID_SOURCES = new Set(["sdk", "proxy"]);
 
+const MAX_QUERY_LIMIT = 10_000;
+
+function safeParseTags(tags: unknown): unknown {
+  if (typeof tags !== "string") return tags;
+  try { return JSON.parse(tags); } catch { return tags; }
+}
+
 interface RawEvent {
   agent_id?: unknown;
   event_type?: unknown;
@@ -265,13 +272,13 @@ router.get("/api/events", (req, res) => {
     model,
     trace_id: traceId,
     search,
-    limit: limit && !isNaN(limit) ? limit : undefined,
+    limit: limit && !isNaN(limit) ? Math.min(limit, MAX_QUERY_LIMIT) : undefined,
   });
 
   // Parse tags from JSON string to object
   const events = rows.map((row) => ({
     ...row,
-    tags: typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags,
+    tags: safeParseTags(row.tags),
   }));
 
   res.json({ events });
@@ -342,7 +349,7 @@ router.get("/api/events/export", (req, res) => {
   } else {
     const events = rows.map((row) => ({
       ...row,
-      tags: typeof row.tags === "string" ? JSON.parse(row.tags) : row.tags,
+      tags: safeParseTags(row.tags),
     }));
 
     res.setHeader("Content-Type", "application/json");

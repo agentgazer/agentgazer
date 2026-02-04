@@ -195,11 +195,11 @@ describe("detectProvider", () => {
       );
     });
 
-    it("matches OpenAI host regex on subdomain (regex is not anchored)", () => {
-      // The regex /api\.openai\.com/ matches within "not-api.openai.com.evil.com"
-      // because the pattern is not anchored with ^ or $.
+    it("rejects spoofed hostname containing provider domain", () => {
+      // Host patterns are anchored with ^...$ and tested against extracted hostname,
+      // so "not-api.openai.com.evil.com" does not match "^api.openai.com$".
       expect(detectProvider("https://not-api.openai.com.evil.com/v1")).toBe(
-        "openai"
+        "unknown"
       );
     });
   });

@@ -36,62 +36,74 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
 const PROVIDER_PATTERNS: ProviderPattern[] = [
   {
     name: "openai",
-    hostPatterns: [/api\.openai\.com/],
+    hostPatterns: [/^api\.openai\.com$/],
     pathPatterns: [/\/v1\/chat\/completions/, /\/v1\/completions/],
   },
   {
     name: "anthropic",
-    hostPatterns: [/api\.anthropic\.com/],
+    hostPatterns: [/^api\.anthropic\.com$/],
     pathPatterns: [/\/v1\/messages/],
   },
   {
     name: "google",
-    hostPatterns: [/generativelanguage\.googleapis\.com/],
+    hostPatterns: [/^generativelanguage\.googleapis\.com$/],
   },
   {
     name: "mistral",
-    hostPatterns: [/api\.mistral\.ai/],
+    hostPatterns: [/^api\.mistral\.ai$/],
   },
   {
     name: "cohere",
-    hostPatterns: [/api\.cohere\.com/, /api\.cohere\.ai/],
+    hostPatterns: [/^api\.cohere\.com$/, /^api\.cohere\.ai$/],
   },
   {
     name: "deepseek",
-    hostPatterns: [/api\.deepseek\.com/],
+    hostPatterns: [/^api\.deepseek\.com$/],
   },
   {
     name: "moonshot",
-    hostPatterns: [/api\.moonshot\.cn/],
+    hostPatterns: [/^api\.moonshot\.cn$/],
   },
   {
     name: "zhipu",
-    hostPatterns: [/open\.bigmodel\.cn/, /api\.z\.ai/],
+    hostPatterns: [/^open\.bigmodel\.cn$/, /^api\.z\.ai$/],
   },
   {
     name: "minimax",
-    hostPatterns: [/api\.minimax\.chat/],
+    hostPatterns: [/^api\.minimax\.chat$/],
   },
   {
     name: "baichuan",
-    hostPatterns: [/api\.baichuan-ai\.com/],
+    hostPatterns: [/^api\.baichuan-ai\.com$/],
   },
   {
     name: "yi",
-    hostPatterns: [/api\.lingyiwanwu\.com/],
+    hostPatterns: [/^api\.lingyiwanwu\.com$/],
   },
 ];
 
 export function detectProvider(url: string): ProviderName {
+  let hostname = "";
+  let pathname = url;
+  try {
+    const parsed = new URL(url);
+    hostname = parsed.hostname;
+    pathname = parsed.pathname;
+  } catch {
+    // If URL can't be parsed, fall through to path-only matching
+  }
+
   for (const provider of PROVIDER_PATTERNS) {
-    for (const hostPattern of provider.hostPatterns) {
-      if (hostPattern.test(url)) {
-        return provider.name;
+    if (hostname) {
+      for (const hostPattern of provider.hostPatterns) {
+        if (hostPattern.test(hostname)) {
+          return provider.name;
+        }
       }
     }
     if (provider.pathPatterns) {
       for (const pathPattern of provider.pathPatterns) {
-        if (pathPattern.test(url)) {
+        if (pathPattern.test(pathname)) {
           return provider.name;
         }
       }

@@ -34,7 +34,9 @@ export function createServer(options: ServerOptions): { app: express.Express; db
   app.locals.startTime = Date.now();
 
   // Middleware
-  app.use(cors());
+  app.use(cors({
+    origin: /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
+  }));
   app.use(express.json({ limit: "5mb" }));
   app.use(authMiddleware);
 
@@ -76,6 +78,8 @@ export async function startServer(
   const retentionDays = options.retentionDays ?? 30;
   let retentionTimer: ReturnType<typeof setInterval> | null = null;
 
+  let retentionRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
   function runRetention(): void {
     try {
       const { eventsDeleted, historyDeleted } = purgeOldData(db, retentionDays);
@@ -83,7 +87,9 @@ export async function startServer(
         log.info("Retention cleanup complete", { eventsDeleted, historyDeleted, retentionDays });
       }
     } catch (err) {
-      log.error("Retention cleanup failed", { err: String(err) });
+      log.error("Retention cleanup failed, will retry in 1 hour", { err: String(err) });
+      retentionRetryTimer = setTimeout(runRetention, 60 * 60 * 1000);
+      retentionRetryTimer.unref();
     }
   }
 
@@ -101,9 +107,18 @@ export async function startServer(
   async function shutdown(): Promise<void> {
     evaluator.stop();
     if (retentionTimer) clearInterval(retentionTimer);
+    if (retentionRetryTimer) clearTimeout(retentionRetryTimer);
     return new Promise((resolve, reject) => {
+      const shutdownTimeout = setTimeout(() => {
+        log.warn("Shutdown timed out, forcing close");
+        try { db.close(); } catch { /* ignore */ }
+        resolve();
+      }, 10_000);
+      shutdownTimeout.unref();
+
       server.close((err) => {
-        db.close();
+        clearTimeout(shutdownTimeout);
+        try { db.close(); } catch { /* ignore */ }
         if (err) reject(err);
         else resolve();
       });
