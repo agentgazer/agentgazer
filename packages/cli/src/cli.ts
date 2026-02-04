@@ -68,7 +68,8 @@ Commands:
   version                     Show version
   doctor                      Check system health
   agents                      List registered agents
-  stats <agentId>             Show agent statistics
+  stats [agentId]             Show agent statistics (auto-selects if only one agent)
+  help                        Show this help message
 
 Options (for start):
   --port <number>            Server/dashboard port (default: 8080)
@@ -76,12 +77,21 @@ Options (for start):
   --retention-days <number>  Data retention period in days (default: 30)
   --no-open                  Don't auto-open browser
 
+Options (for doctor, stats, agents):
+  --port <number>            Server port to check (default: 8080)
+  --proxy-port <number>      Proxy port to check (default: 4000)
+
+Options (for stats):
+  --range <period>           Time range (default: 24h)
+
 Examples:
   agenttrace onboard                           First-time setup
   agenttrace start                             Start with defaults
   agenttrace start --port 9090                 Use custom server port
   agenttrace providers set openai sk-xxx       Set OpenAI API key
   agenttrace providers list                    List configured providers
+  agenttrace stats                             Show stats (auto-selects agent)
+  agenttrace stats my-agent --range 7d         Show stats for specific agent
 `);
 }
 
