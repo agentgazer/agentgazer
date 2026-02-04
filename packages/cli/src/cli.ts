@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import * as fs from "node:fs";
 import * as path from "node:path";
 import * as readline from "node:readline";
 import {
@@ -19,7 +20,6 @@ import {
   migrateFromPlaintextConfig,
   loadProviderKeys,
   PROVIDER_SERVICE,
-  type SecretStore,
 } from "./secret-store.js";
 import { startServer } from "@agenttrace/server";
 import { startProxy } from "@agenttrace/proxy";
@@ -65,6 +65,10 @@ Commands:
   providers list              List configured providers
   providers set <name> <key>  Set/update a provider API key
   providers remove <name>     Remove a provider
+  version                     Show version
+  doctor                      Check system health
+  agents                      List registered agents
+  stats <agentId>             Show agent statistics
 
 Options (for start):
   --port <number>            Server/dashboard port (default: 8080)
@@ -109,7 +113,7 @@ async function cmdOnboard(): Promise<void> {
   ───────────────────────────────────────
 `);
 
-  // Initialize secret store (may prompt for passphrase creation)
+  // Initialize secret store
   const { store, backendName } = await detectSecretStore(getConfigDir());
   console.log(`  Secret backend: ${backendName}\n`);
 
@@ -197,28 +201,25 @@ async function cmdOnboard(): Promise<void> {
 
 async function cmdProviders(args: string[]): Promise<void> {
   const action = args[0];
-  const { store, backendName } = await detectSecretStore(getConfigDir());
 
   switch (action) {
     case "list": {
-      const accounts = await store.list(PROVIDER_SERVICE);
-      const configProviders = listProviders();
-      if (accounts.length === 0) {
+      // List reads from config.json only — no secret store access needed.
+      const providers = listProviders();
+      const names = Object.keys(providers);
+      if (names.length === 0) {
         console.log("No providers configured. Use \"agenttrace providers set <name> <key>\" to add one.");
         return;
       }
-      console.log(`\n  Configured providers (backend: ${backendName}):`);
+      console.log("\n  Configured providers:");
       console.log("  ───────────────────────────────────────");
-      for (const name of accounts) {
-        const key = await store.get(PROVIDER_SERVICE, name);
-        const maskedKey = key
-          ? key.slice(0, 8) + "..." + key.slice(-4)
-          : "(stored)";
-        const configEntry = configProviders[name];
-        const rateInfo = configEntry?.rateLimit
-          ? ` (rate limit: ${configEntry.rateLimit.maxRequests} req / ${configEntry.rateLimit.windowSeconds}s)`
+      for (const name of names) {
+        const p = providers[name];
+        const keyStatus = p.apiKey ? "(plaintext — run \"agenttrace start\" to migrate)" : "(secured)";
+        const rateInfo = p.rateLimit
+          ? ` (rate limit: ${p.rateLimit.maxRequests} req / ${p.rateLimit.windowSeconds}s)`
           : "";
-        console.log(`  ${name}: ${maskedKey}${rateInfo}`);
+        console.log(`  ${name}: ${keyStatus}${rateInfo}`);
       }
       console.log();
       break;
@@ -230,6 +231,7 @@ async function cmdProviders(args: string[]): Promise<void> {
         console.error("Usage: agenttrace providers set <provider-name> <api-key>");
         process.exit(1);
       }
+      const { store, backendName } = await detectSecretStore(getConfigDir());
       // Store API key in secret store
       await store.set(PROVIDER_SERVICE, name, key);
       // Ensure provider entry exists in config.json (for rate limits etc.)
@@ -250,6 +252,7 @@ async function cmdProviders(args: string[]): Promise<void> {
         console.error("Usage: agenttrace providers remove <provider-name>");
         process.exit(1);
       }
+      const { store } = await detectSecretStore(getConfigDir());
       // Delete from secret store
       await store.delete(PROVIDER_SERVICE, name);
       // Remove from config.json
@@ -353,13 +356,14 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   // Initialize secret store
   const configDir = getConfigDir();
   const configPath = path.join(configDir, "config.json");
+
   const { store, backendName } = await detectSecretStore(configDir);
   console.log(`  Secret backend: ${backendName}`);
 
-  // Auto-migrate plaintext keys from config.json
+  // Auto-migrate plaintext keys from config.json to secret store
   const migratedCount = await migrateFromPlaintextConfig(configPath, store);
   if (migratedCount > 0) {
-    console.log(`  Migrated ${migratedCount} provider key(s) to secure storage.`);
+    console.log(`  Migrated ${migratedCount} provider key(s) from config.json to secret store.`);
   }
 
   // Load provider keys from secret store
@@ -432,6 +436,242 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Formatting helpers
+// ---------------------------------------------------------------------------
+
+function formatNumber(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+function timeAgo(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 0) return "just now";
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return `${seconds} seconds ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+// ---------------------------------------------------------------------------
+// API helper
+// ---------------------------------------------------------------------------
+
+async function apiGet(urlPath: string, port: number): Promise<unknown> {
+  const config = readConfig();
+  const token = config?.token ?? "";
+  try {
+    const res = await fetch(`http://localhost:${port}${urlPath}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) {
+      console.error(`Server responded with ${res.status} ${res.statusText}`);
+      process.exit(1);
+    }
+    return await res.json();
+  } catch (err: unknown) {
+    if (
+      err instanceof TypeError &&
+      (err as NodeJS.ErrnoException & { cause?: { code?: string } }).cause
+        ?.code === "ECONNREFUSED"
+    ) {
+      console.error('Server not running. Run "agenttrace start" first.');
+      process.exit(1);
+    }
+    throw err;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// New subcommands
+// ---------------------------------------------------------------------------
+
+function cmdVersion(): void {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const pkg = require(path.resolve(__dirname, "../package.json")) as { version: string };
+  console.log(`agenttrace ${pkg.version}`);
+}
+
+async function cmdDoctor(flags: Record<string, string>): Promise<void> {
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  const proxyPort = flags["proxy-port"]
+    ? parseInt(flags["proxy-port"], 10)
+    : 4000;
+
+  console.log(`
+  AgentTrace — Doctor
+  ───────────────────────────────────────
+`);
+
+  let passed = 0;
+  const total = 6;
+
+  // 1. Config file exists
+  const config = readConfig();
+  if (config) {
+    console.log("  ✓ Config file exists");
+    passed++;
+  } else {
+    console.log("  ✗ Config file missing");
+  }
+
+  // 2. Auth token set
+  if (config?.token) {
+    console.log("  ✓ Auth token set");
+    passed++;
+  } else {
+    console.log("  ✗ Auth token not set");
+  }
+
+  // 3. Database file exists
+  if (fs.existsSync(getDbPath())) {
+    console.log("  ✓ Database file exists");
+    passed++;
+  } else {
+    console.log("  ✗ Database file missing");
+  }
+
+  // 4. Secret store accessible
+  try {
+    const { store } = await detectSecretStore(getConfigDir());
+    if (await store.isAvailable()) {
+      console.log("  ✓ Secret store accessible");
+      passed++;
+    } else {
+      console.log("  ✗ Secret store not accessible");
+    }
+  } catch {
+    console.log("  ✗ Secret store not accessible");
+  }
+
+  // 5. Server responding
+  try {
+    const res = await fetch(`http://localhost:${port}/api/health`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) {
+      console.log(`  ✓ Server responding (http://localhost:${port})`);
+      passed++;
+    } else {
+      console.log(`  ✗ Server not responding (http://localhost:${port})`);
+    }
+  } catch {
+    console.log(`  ✗ Server not responding (http://localhost:${port})`);
+  }
+
+  // 6. Proxy responding
+  try {
+    await fetch(`http://localhost:${proxyPort}/`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    // Any response (even 4xx) means it's up
+    console.log(`  ✓ Proxy responding (http://localhost:${proxyPort})`);
+    passed++;
+  } catch {
+    console.log(`  ✗ Proxy not responding (http://localhost:${proxyPort})`);
+  }
+
+  console.log(`\n  ${passed}/${total} checks passed.`);
+}
+
+interface AgentRecord {
+  id: string;
+  status: string;
+  event_count: number;
+  last_heartbeat: string | null;
+}
+
+async function cmdAgents(flags: Record<string, string>): Promise<void> {
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  const agents = (await apiGet("/api/agents", port)) as AgentRecord[];
+
+  if (!agents || agents.length === 0) {
+    console.log("No agents registered yet.");
+    return;
+  }
+
+  const header = `  ${"Agent ID".padEnd(18)}${"Status".padEnd(11)}${"Events".padStart(8)}   Last Heartbeat`;
+  console.log(header);
+  console.log("  " + "─".repeat(header.trimStart().length));
+
+  for (const a of agents) {
+    const id = (a.id ?? "").padEnd(18);
+    const status = (a.status ?? "unknown").padEnd(11);
+    const events = formatNumber(a.event_count ?? 0).padStart(8);
+    const heartbeat = timeAgo(a.last_heartbeat);
+    console.log(`  ${id}${status}${events}   ${heartbeat}`);
+  }
+}
+
+interface StatsResponse {
+  requests: number;
+  errors: number;
+  cost: number;
+  tokens: number;
+  latency_p50: number;
+  latency_p99: number;
+  cost_by_model: { model: string; cost: number; calls: number }[];
+}
+
+async function cmdStats(flags: Record<string, string>): Promise<void> {
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  const range = flags["range"] || "24h";
+  const agentId = process.argv[3];
+
+  if (!agentId || agentId.startsWith("--")) {
+    console.error("Usage: agenttrace stats <agentId> [--range 24h] [--port 8080]");
+    process.exit(1);
+  }
+
+  let data: StatsResponse;
+  try {
+    data = (await apiGet(
+      `/api/stats/${encodeURIComponent(agentId)}?range=${encodeURIComponent(range)}`,
+      port,
+    )) as StatsResponse;
+  } catch (err: unknown) {
+    if (err && typeof err === "object" && "message" in err) {
+      console.error(`Error fetching stats for "${agentId}": ${(err as Error).message}`);
+    } else {
+      console.error(`Error fetching stats for "${agentId}".`);
+    }
+    process.exit(1);
+  }
+
+  const errorPct =
+    data.requests > 0
+      ? ((data.errors / data.requests) * 100).toFixed(2)
+      : "0.00";
+
+  console.log(`
+  AgentTrace — Stats for "${agentId}" (last ${range})
+  ───────────────────────────────────────
+
+  Requests:   ${formatNumber(data.requests)}
+  Errors:     ${formatNumber(data.errors)} (${errorPct}%)
+  Cost:       $${data.cost.toFixed(2)}
+  Tokens:     ${formatNumber(data.tokens)}
+
+  Latency:    p50 = ${formatNumber(data.latency_p50)}ms   p99 = ${formatNumber(data.latency_p99)}ms`);
+
+  if (data.cost_by_model && data.cost_by_model.length > 0) {
+    console.log("\n  Cost by model:");
+    for (const m of data.cost_by_model) {
+      const model = m.model.padEnd(16);
+      const cost = `$${m.cost.toFixed(2)}`;
+      console.log(`    ${model}${cost}  (${formatNumber(m.calls)} calls)`);
+    }
+  }
+
+  console.log();
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -454,6 +694,18 @@ async function main(): Promise<void> {
       break;
     case "providers":
       await cmdProviders(process.argv.slice(3));
+      break;
+    case "version":
+      cmdVersion();
+      break;
+    case "doctor":
+      await cmdDoctor(flags);
+      break;
+    case "agents":
+      await cmdAgents(flags);
+      break;
+    case "stats":
+      await cmdStats(flags);
       break;
     case "--help":
     case "-h":
