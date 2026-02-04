@@ -8,6 +8,8 @@ services:
       - "4000:4000"
     volumes:
       - agenttrace-data:/root/.agenttrace
+    # environment:
+    #   AGENTTRACE_SECRET_BACKEND: machine  # default; uses encrypted file with machine-derived key
 
 volumes:
   agenttrace-data:

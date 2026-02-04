@@ -364,6 +364,18 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       detectedProviderForMetrics = detectProvider(`https://placeholder${path}`);
     }
 
+    // Warn when path matches a provider but hostname doesn't — key will NOT be injected.
+    if (detectedProviderStrict === "unknown" && detectedProviderForMetrics !== "unknown") {
+      const providerKey = providerKeys[detectedProviderForMetrics];
+      if (providerKey) {
+        const expectedBase = getProviderBaseUrl(detectedProviderForMetrics) ?? detectedProviderForMetrics;
+        log.warn(
+          `Path matches "${detectedProviderForMetrics}" but hostname does not — ` +
+            `API key NOT injected. Use x-target-url=${expectedBase} for key injection.`
+        );
+      }
+    }
+
     // Rate limiting: check before forwarding (strict match only)
     if (detectedProviderStrict !== "unknown") {
       const rateLimitResult = rateLimiter.check(detectedProviderStrict);

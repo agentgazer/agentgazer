@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as os from "node:os";
 import * as crypto from "node:crypto";
 import { execSync } from "node:child_process";
 
@@ -16,131 +17,63 @@ export interface SecretStore {
 }
 
 // ---------------------------------------------------------------------------
-// Passphrase acquisition
+// MachineKeyStore — AES-256-GCM encrypted file with machine-derived key
 // ---------------------------------------------------------------------------
-
-export async function acquirePassphrase(opts?: { confirm?: boolean }): Promise<string> {
-  // 1. Environment variable
-  const envPassphrase = process.env.AGENTTRACE_PASSPHRASE;
-  if (envPassphrase) {
-    return envPassphrase;
-  }
-
-  // 2. Interactive stdin prompt
-  if (process.stdin.isTTY) {
-    const passphrase = await promptPassphrase(
-      "Enter passphrase to unlock provider keys: "
-    );
-    if (opts?.confirm) {
-      const confirm = await promptPassphrase("Confirm passphrase: ");
-      if (passphrase !== confirm) {
-        throw new Error("Passphrases do not match.");
-      }
-    }
-    return passphrase;
-  }
-
-  // 3. Error
-  throw new Error(
-    "No passphrase available. Set AGENTTRACE_PASSPHRASE environment variable " +
-      "or run in an interactive terminal."
-  );
-}
-
-function promptPassphrase(prompt: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // Write prompt to stderr directly
-    process.stderr.write(prompt);
-
-    // Read from stdin without echoing
-    const stdin = process.stdin;
-    const wasPaused = stdin.isPaused();
-    const wasRaw = stdin.isRaw;
-
-    stdin.setRawMode?.(true);
-    stdin.resume();
-    stdin.setEncoding("utf-8");
-
-    let input = "";
-
-    const onData = (ch: string): void => {
-      const c = ch.toString();
-      switch (c) {
-        case "\n":
-        case "\r":
-        case "\u0004": // Ctrl+D
-          stdin.setRawMode?.(wasRaw);
-          stdin.removeListener("data", onData);
-          if (wasPaused) stdin.pause();
-          process.stderr.write("\n");
-          if (!input) {
-            reject(new Error("Passphrase cannot be empty."));
-          } else {
-            resolve(input);
-          }
-          break;
-        case "\u0003": // Ctrl+C
-          stdin.setRawMode?.(wasRaw);
-          stdin.removeListener("data", onData);
-          if (wasPaused) stdin.pause();
-          process.stderr.write("\n");
-          reject(new Error("Aborted."));
-          break;
-        case "\u007F": // Backspace
-          if (input.length > 0) {
-            input = input.slice(0, -1);
-          }
-          break;
-        default:
-          input += c;
-          break;
-      }
-    };
-
-    stdin.on("data", onData);
-  });
-}
-
-// ---------------------------------------------------------------------------
-// EncryptedFileStore
-// ---------------------------------------------------------------------------
-
-const SCRYPT_N = 16384;
-const SCRYPT_R = 8;
-const SCRYPT_P = 1;
-const SCRYPT_KEYLEN = 32;
-const SALT_LENGTH = 16;
-const IV_LENGTH = 12;
-const FILE_VERSION = 1;
-
-interface EncryptedFileData {
-  version: number;
-  salt: string;
-  iv: string;
-  tag: string;
-  ciphertext: string;
-}
 
 interface SecretsData {
   [service: string]: { [account: string]: string };
 }
 
-function deriveKey(passphrase: string, salt: Buffer): Buffer {
-  return crypto.scryptSync(passphrase, salt, SCRYPT_KEYLEN, {
-    N: SCRYPT_N,
-    r: SCRYPT_R,
-    p: SCRYPT_P,
-  });
+interface EncryptedEnvelope {
+  version: number;
+  iv: string;      // hex
+  tag: string;     // hex
+  ciphertext: string; // hex
 }
 
-export class EncryptedFileStore implements SecretStore {
+function getMachineId(): string {
+  // macOS: IOPlatformUUID
+  if (process.platform === "darwin") {
+    try {
+      const out = execSync(
+        "ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/{print $3}'",
+        { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }
+      );
+      const id = out.trim().replace(/"/g, "");
+      if (id) return id;
+    } catch { /* fall through */ }
+  }
+
+  // Linux: /etc/machine-id or /var/lib/dbus/machine-id
+  if (process.platform === "linux") {
+    for (const p of ["/etc/machine-id", "/var/lib/dbus/machine-id"]) {
+      try {
+        const id = fs.readFileSync(p, "utf-8").trim();
+        if (id) return id;
+      } catch { /* continue */ }
+    }
+  }
+
+  // Fallback: hostname (stable enough for local dev tool)
+  return os.hostname();
+}
+
+export class MachineKeyStore implements SecretStore {
   private filePath: string;
-  private passphrase: string;
+  private key: Buffer;
   private cache: SecretsData | null = null;
 
-  constructor(filePath: string, passphrase: string) {
+  constructor(filePath: string) {
     this.filePath = filePath;
-    this.passphrase = passphrase;
+    const machineId = getMachineId();
+    const username = os.userInfo().username;
+    const salt = Buffer.from("agenttrace-machine-key-v1");
+    this.key = crypto.scryptSync(
+      `${machineId}:${username}`,
+      salt,
+      32,
+      { N: 16384, r: 8, p: 1 }
+    );
   }
 
   async isAvailable(): Promise<boolean> {
@@ -148,36 +81,36 @@ export class EncryptedFileStore implements SecretStore {
   }
 
   async get(service: string, account: string): Promise<string | null> {
-    const data = await this.load();
+    const data = this.load();
     return data[service]?.[account] ?? null;
   }
 
   async set(service: string, account: string, value: string): Promise<void> {
-    const data = await this.load();
+    const data = this.load();
     if (!data[service]) {
       data[service] = {};
     }
     data[service][account] = value;
-    await this.save(data);
+    this.save(data);
   }
 
   async delete(service: string, account: string): Promise<void> {
-    const data = await this.load();
+    const data = this.load();
     if (data[service]) {
       delete data[service][account];
       if (Object.keys(data[service]).length === 0) {
         delete data[service];
       }
     }
-    await this.save(data);
+    this.save(data);
   }
 
   async list(service: string): Promise<string[]> {
-    const data = await this.load();
+    const data = this.load();
     return Object.keys(data[service] ?? {});
   }
 
-  private async load(): Promise<SecretsData> {
+  private load(): SecretsData {
     if (this.cache) return this.cache;
 
     if (!fs.existsSync(this.filePath)) {
@@ -186,65 +119,40 @@ export class EncryptedFileStore implements SecretStore {
     }
 
     const raw = fs.readFileSync(this.filePath, "utf-8");
-    let fileData: EncryptedFileData;
+    let envelope: EncryptedEnvelope;
     try {
-      fileData = JSON.parse(raw);
+      envelope = JSON.parse(raw) as EncryptedEnvelope;
     } catch {
-      throw new Error("Corrupted secrets file: invalid JSON.");
+      throw new Error("Corrupted secrets file: invalid JSON envelope.");
     }
 
-    if (fileData.version !== FILE_VERSION) {
+    if (!envelope.iv || !envelope.tag || !envelope.ciphertext) {
+      throw new Error("Corrupted secrets file: missing encryption fields.");
+    }
+
+    try {
+      const iv = Buffer.from(envelope.iv, "hex");
+      const tag = Buffer.from(envelope.tag, "hex");
+      const ciphertext = Buffer.from(envelope.ciphertext, "hex");
+
+      const decipher = crypto.createDecipheriv("aes-256-gcm", this.key, iv);
+      decipher.setAuthTag(tag);
+      const decrypted = Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final(),
+      ]);
+      this.cache = JSON.parse(decrypted.toString("utf-8")) as SecretsData;
+    } catch {
       throw new Error(
-        `Unsupported secrets file version: ${fileData.version}. Expected ${FILE_VERSION}.`
+        "Failed to decrypt secrets file. The machine identity or user may have changed."
       );
     }
 
-    const salt = Buffer.from(fileData.salt, "base64");
-    const iv = Buffer.from(fileData.iv, "base64");
-    const tag = Buffer.from(fileData.tag, "base64");
-    const ciphertext = Buffer.from(fileData.ciphertext, "base64");
-
-    const key = deriveKey(this.passphrase, salt);
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-
-    let plaintext: string;
-    try {
-      plaintext =
-        decipher.update(ciphertext, undefined, "utf-8") +
-        decipher.final("utf-8");
-    } catch {
-      throw new Error(
-        "Failed to decrypt secrets. Wrong passphrase or file has been tampered with."
-      );
-    }
-
-    this.cache = JSON.parse(plaintext) as SecretsData;
     return this.cache;
   }
 
-  private async save(data: SecretsData): Promise<void> {
+  private save(data: SecretsData): void {
     this.cache = data;
-
-    const salt = crypto.randomBytes(SALT_LENGTH);
-    const iv = crypto.randomBytes(IV_LENGTH);
-    const key = deriveKey(this.passphrase, salt);
-
-    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-    const plaintext = JSON.stringify(data);
-    const encrypted = Buffer.concat([
-      cipher.update(plaintext, "utf-8"),
-      cipher.final(),
-    ]);
-    const tag = cipher.getAuthTag();
-
-    const fileData: EncryptedFileData = {
-      version: FILE_VERSION,
-      salt: salt.toString("base64"),
-      iv: iv.toString("base64"),
-      tag: tag.toString("base64"),
-      ciphertext: encrypted.toString("base64"),
-    };
 
     // Ensure directory exists
     const dir = path.dirname(this.filePath);
@@ -252,7 +160,23 @@ export class EncryptedFileStore implements SecretStore {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(this.filePath, JSON.stringify(fileData, null, 2), {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv("aes-256-gcm", this.key, iv);
+    const plaintext = Buffer.from(JSON.stringify(data), "utf-8");
+    const ciphertext = Buffer.concat([
+      cipher.update(plaintext),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+
+    const envelope: EncryptedEnvelope = {
+      version: 1,
+      iv: iv.toString("hex"),
+      tag: tag.toString("hex"),
+      ciphertext: ciphertext.toString("hex"),
+    };
+
+    fs.writeFileSync(this.filePath, JSON.stringify(envelope, null, 2), {
       encoding: "utf-8",
       mode: 0o600,
     });
@@ -343,10 +267,17 @@ export class LibsecretStore implements SecretStore {
   async isAvailable(): Promise<boolean> {
     if (process.platform !== "linux") return false;
     try {
-      execSync("which secret-tool", { stdio: "pipe" });
+      // Actually attempt a lookup — will fail without D-Bus session
+      execSync(
+        "secret-tool lookup service com.agenttrace.probe 2>/dev/null",
+        { stdio: "pipe", timeout: 3000 }
+      );
       return true;
-    } catch {
-      return false;
+    } catch (err: unknown) {
+      // Exit code 1 = "not found" (but D-Bus works) → available
+      // Other errors (no D-Bus, timeout) → not available
+      const exitCode = (err as { status?: number }).status;
+      return exitCode === 1;
     }
   }
 
@@ -431,37 +362,36 @@ export async function detectSecretStore(
     }
   }
 
-  // 4. Encrypted file fallback (requires passphrase acquisition at usage time)
-  return createEncryptedFileBackend(configDir);
+  // 4. Machine-key encrypted file (SSH, headless, Docker, tty)
+  return createMachineKeyBackend(configDir);
 }
 
-async function createBackend(
+function createBackend(
   name: string,
   configDir: string
-): Promise<{ store: SecretStore; backendName: string }> {
+): { store: SecretStore; backendName: string } {
   switch (name) {
     case "keychain":
       return { store: new KeychainStore(), backendName: "keychain" };
     case "libsecret":
       return { store: new LibsecretStore(), backendName: "libsecret" };
-    case "encrypted-file":
-      return createEncryptedFileBackend(configDir);
+    case "machine":
+    case "file": // backwards compat alias
+      return createMachineKeyBackend(configDir);
     default:
       throw new Error(
-        `Unknown secret backend: "${name}". Valid values: keychain, libsecret, encrypted-file`
+        `Unknown secret backend: "${name}". Valid values: keychain, libsecret, machine`
       );
   }
 }
 
-async function createEncryptedFileBackend(
+function createMachineKeyBackend(
   configDir: string
-): Promise<{ store: SecretStore; backendName: string }> {
+): { store: SecretStore; backendName: string } {
   const filePath = path.join(configDir, "secrets.enc");
-  const isNew = !fs.existsSync(filePath);
-  const passphrase = await acquirePassphrase({ confirm: isNew });
   return {
-    store: new EncryptedFileStore(filePath, passphrase),
-    backendName: "encrypted-file",
+    store: new MachineKeyStore(filePath),
+    backendName: "machine-key",
   };
 }
 

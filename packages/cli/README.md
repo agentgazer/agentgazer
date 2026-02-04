@@ -54,6 +54,15 @@ When a request goes through the proxy, the correct auth header is injected autom
 
 If the client already provides its own auth header, the proxy does not override it.
 
+## Security
+
+Provider API keys are stored securely:
+- **macOS**: System Keychain
+- **Linux desktop**: libsecret / GNOME Keyring
+- **SSH / headless**: AES-256-GCM encrypted file
+
+Keys are never stored as plaintext in config files.
+
 ## Rate limiting
 
 You can set per-provider rate limits during `onboard`, or edit `~/.agenttrace/config.json` directly:
@@ -63,7 +72,6 @@ You can set per-provider rate limits during `onboard`, or edit `~/.agenttrace/co
   "token": "...",
   "providers": {
     "openai": {
-      "apiKey": "sk-...",
       "rateLimit": { "maxRequests": 100, "windowSeconds": 60 }
     }
   }

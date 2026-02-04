@@ -55,6 +55,21 @@ Use the proxy for zero-effort tracking. Use the SDK when you need heartbeats, cu
 
 Yes. The proxy tracks LLM call metrics automatically. The SDK can add heartbeats, custom events, and trace context on top of that.
 
+## Security
+
+### How are provider API keys stored?
+
+Keys are stored using your OS keychain when available (macOS Keychain, Linux libsecret).
+In SSH, headless, or Docker environments, keys are encrypted with AES-256-GCM using a
+machine-derived key. They are never stored as plaintext.
+
+### Can another process on my machine read my API keys?
+
+If your OS keychain is available, keys are protected by the OS. In headless mode, the
+encrypted file prevents casual reading, but a process running as the same user could
+theoretically derive the same encryption key. For maximum protection, use a desktop
+environment with OS keychain support.
+
 ## Data
 
 ### How long is data retained?

@@ -37,8 +37,11 @@ agenttrace providers remove openai
 ## 運作原理
 
 1. 透過 `agenttrace providers set` 或 `agenttrace onboard` 設定 API key
-2. 金鑰存在 `~/.agenttrace/config.json`
-3. `agenttrace start` 啟動時，金鑰傳給代理
+2. 金鑰安全存放——永遠不會以明文寫入設定檔：
+   - **macOS**：系統鑰匙圈（需有 GUI 登入階段）
+   - **Linux 桌面**：libsecret / GNOME Keyring
+   - **SSH / 無頭環境 / Docker**：AES-256-GCM 加密檔案（`~/.agenttrace/secrets.enc`）
+3. `agenttrace start` 啟動時，金鑰在記憶體中載入並傳給代理
 4. 每次請求，代理偵測 provider 後注入對應的 auth header
 5. 如果 client 已經帶了自己的 auth header，代理**不會**覆蓋
 
@@ -52,27 +55,23 @@ curl http://localhost:4000/v1/chat/completions \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-## 設定檔格式
+## 金鑰存放方式
 
-金鑰存在 `~/.agenttrace/config.json`：
+API 金鑰**永遠不會**存在 `config.json` 中。它們由作業系統鑰匙圈保護或以加密方式靜態存放。
 
-```json
-{
-  "token": "at_...",
-  "providers": {
-    "openai": {
-      "apiKey": "sk-proj-...",
-      "rateLimit": {
-        "maxRequests": 100,
-        "windowSeconds": 60
-      }
-    },
-    "anthropic": {
-      "apiKey": "sk-ant-..."
-    }
-  }
-}
+你可以檢查目前使用的後端：
+
+```bash
+agenttrace doctor
 ```
+
+用 `AGENTTRACE_SECRET_BACKEND` 環境變數覆寫後端：
+
+| 值 | 後端 |
+|----|------|
+| `keychain` | macOS 鑰匙圈 |
+| `libsecret` | Linux libsecret |
+| `machine` | 加密檔案（機器衍生金鑰） |
 
 ## 速率限制
 

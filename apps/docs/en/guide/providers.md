@@ -37,8 +37,11 @@ agenttrace providers remove openai
 ## How It Works
 
 1. You configure API keys via `agenttrace providers set` or during `agenttrace onboard`
-2. Keys are stored in `~/.agenttrace/config.json`
-3. When `agenttrace start` runs, keys are passed to the proxy
+2. Keys are stored securely — never in plaintext config files:
+   - **macOS**: System Keychain (when GUI session is active)
+   - **Linux desktop**: libsecret / GNOME Keyring
+   - **SSH / headless / Docker**: AES-256-GCM encrypted file (`~/.agenttrace/secrets.enc`)
+3. When `agenttrace start` runs, keys are loaded and passed to the proxy in memory
 4. For each request, the proxy detects the provider and injects the matching auth header
 5. If the client already sends its own auth header, the proxy does **not** override it
 
@@ -52,27 +55,23 @@ curl http://localhost:4000/v1/chat/completions \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}'
 ```
 
-## Config File Format
+## Key Storage
 
-Keys are stored in `~/.agenttrace/config.json`:
+API keys are **never** stored in `config.json`. They are secured by your OS keychain or encrypted at rest.
 
-```json
-{
-  "token": "at_...",
-  "providers": {
-    "openai": {
-      "apiKey": "sk-proj-...",
-      "rateLimit": {
-        "maxRequests": 100,
-        "windowSeconds": 60
-      }
-    },
-    "anthropic": {
-      "apiKey": "sk-ant-..."
-    }
-  }
-}
+You can check which backend is active:
+
+```bash
+agenttrace doctor
 ```
+
+Override the backend with the `AGENTTRACE_SECRET_BACKEND` environment variable:
+
+| Value | Backend |
+|-------|---------|
+| `keychain` | macOS Keychain |
+| `libsecret` | Linux libsecret |
+| `machine` | Encrypted file (machine-derived key) |
 
 ## Rate Limiting
 
