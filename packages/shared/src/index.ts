@@ -16,6 +16,7 @@ export {
 
 export {
   detectProvider,
+  detectProviderByHostname,
   getProviderBaseUrl,
   getProviderAuthHeader,
   KNOWN_PROVIDER_NAMES,

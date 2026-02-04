@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectProvider, getProviderBaseUrl, getProviderAuthHeader } from "../providers.js";
+import { detectProvider, detectProviderByHostname, getProviderBaseUrl, getProviderAuthHeader } from "../providers.js";
 
 describe("detectProvider", () => {
   describe("OpenAI", () => {
@@ -202,6 +202,25 @@ describe("detectProvider", () => {
         "unknown"
       );
     });
+  });
+});
+
+describe("detectProviderByHostname", () => {
+  it("detects provider by hostname for known hosts", () => {
+    expect(detectProviderByHostname("https://api.openai.com/v1/chat/completions")).toBe("openai");
+    expect(detectProviderByHostname("https://api.anthropic.com/v1/messages")).toBe("anthropic");
+  });
+
+  it("returns unknown for localhost even with matching path", () => {
+    expect(detectProviderByHostname("http://localhost:8000/v1/chat/completions")).toBe("unknown");
+  });
+
+  it("returns unknown for non-provider hostname with matching path", () => {
+    expect(detectProviderByHostname("https://evil.com/v1/chat/completions")).toBe("unknown");
+  });
+
+  it("returns unknown for invalid URL", () => {
+    expect(detectProviderByHostname("not-a-url")).toBe("unknown");
   });
 });
 

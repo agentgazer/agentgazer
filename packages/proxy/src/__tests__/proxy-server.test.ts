@@ -1014,7 +1014,16 @@ describe("Proxy Server Integration", () => {
     providerServer = await createMockProviderServer();
     ingestServer = await createMockIngestServer();
 
-    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+    // Mock fetch to redirect actual provider URLs to local mock server
+    const originalFetch = global.fetch;
+    vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes("api.openai.com")) {
+        const redirectUrl = url.replace(/https:\/\/api\.openai\.com/, providerServer!.url);
+        return originalFetch(redirectUrl, init);
+      }
+      return originalFetch(input, init);
+    });
 
     proxy = startProxy({
       port: 0,
@@ -1031,7 +1040,7 @@ describe("Proxy Server Integration", () => {
     const proxyPort = (proxy.server.address() as { port: number }).port;
     await waitForServer(proxyPort);
 
-    // Send request WITHOUT Authorization header
+    // Send request WITHOUT Authorization header, targeting actual provider hostname
     await httpRequest({
       hostname: "127.0.0.1",
       port: proxyPort,
@@ -1039,7 +1048,7 @@ describe("Proxy Server Integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-target-url": fakeOpenAIUrl,
+        "x-target-url": "https://api.openai.com",
       },
       body: JSON.stringify({ model: "gpt-4o", messages: [] }),
     });
@@ -1049,13 +1058,24 @@ describe("Proxy Server Integration", () => {
     expect(providerServer.receivedRequests[0].headers["authorization"]).toBe(
       "Bearer sk-injected-key-12345"
     );
+
+    vi.restoreAllMocks();
   });
 
   it("does not override existing Authorization header from client", async () => {
     providerServer = await createMockProviderServer();
     ingestServer = await createMockIngestServer();
 
-    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+    // Mock fetch to redirect actual provider URLs to local mock server
+    const originalFetch = global.fetch;
+    vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes("api.openai.com")) {
+        const redirectUrl = url.replace(/https:\/\/api\.openai\.com/, providerServer!.url);
+        return originalFetch(redirectUrl, init);
+      }
+      return originalFetch(input, init);
+    });
 
     proxy = startProxy({
       port: 0,
@@ -1080,7 +1100,7 @@ describe("Proxy Server Integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-target-url": fakeOpenAIUrl,
+        "x-target-url": "https://api.openai.com",
         Authorization: "Bearer sk-client-own-key",
       },
       body: JSON.stringify({ model: "gpt-4o", messages: [] }),
@@ -1091,6 +1111,8 @@ describe("Proxy Server Integration", () => {
     expect(providerServer.receivedRequests[0].headers["authorization"]).toBe(
       "Bearer sk-client-own-key"
     );
+
+    vi.restoreAllMocks();
   });
 
   it("injects x-api-key header for Anthropic when providerKeys is set", async () => {
@@ -1105,7 +1127,16 @@ describe("Proxy Server Integration", () => {
       content: [{ type: "text", text: "Hi" }],
     };
 
-    const fakeAnthropicUrl = `${providerServer.url}?host=api.anthropic.com`;
+    // Mock fetch to redirect actual provider URLs to local mock server
+    const originalFetch = global.fetch;
+    vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes("api.anthropic.com")) {
+        const redirectUrl = url.replace(/https:\/\/api\.anthropic\.com/, providerServer!.url);
+        return originalFetch(redirectUrl, init);
+      }
+      return originalFetch(input, init);
+    });
 
     proxy = startProxy({
       port: 0,
@@ -1129,7 +1160,7 @@ describe("Proxy Server Integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-target-url": fakeAnthropicUrl,
+        "x-target-url": "https://api.anthropic.com",
       },
       body: JSON.stringify({ model: "claude-sonnet-4-20250514", messages: [] }),
     });
@@ -1138,6 +1169,8 @@ describe("Proxy Server Integration", () => {
     expect(providerServer.receivedRequests[0].headers["x-api-key"]).toBe(
       "sk-ant-injected-key"
     );
+
+    vi.restoreAllMocks();
   });
 
   // -----------------------------------------------------------------------
@@ -1148,7 +1181,16 @@ describe("Proxy Server Integration", () => {
     providerServer = await createMockProviderServer();
     ingestServer = await createMockIngestServer();
 
-    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+    // Mock fetch to redirect actual provider URLs to local mock server
+    const originalFetch = global.fetch;
+    vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes("api.openai.com")) {
+        const redirectUrl = url.replace(/https:\/\/api\.openai\.com/, providerServer!.url);
+        return originalFetch(redirectUrl, init);
+      }
+      return originalFetch(input, init);
+    });
 
     proxy = startProxy({
       port: 0,
@@ -1173,7 +1215,7 @@ describe("Proxy Server Integration", () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-target-url": fakeOpenAIUrl,
+          "x-target-url": "https://api.openai.com",
         },
         body: JSON.stringify({ model: "gpt-4o", messages: [] }),
       });
@@ -1193,14 +1235,26 @@ describe("Proxy Server Integration", () => {
     const body = JSON.parse(res3.body);
     expect(body.error).toContain("Rate limit exceeded");
     expect(body.retry_after_seconds).toBeGreaterThanOrEqual(1);
+
+    vi.restoreAllMocks();
   });
 
   it("rate limiting is per-provider — other providers are unaffected", async () => {
     providerServer = await createMockProviderServer();
     ingestServer = await createMockIngestServer();
 
-    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
-    const fakeAnthropicUrl = `${providerServer.url}?host=api.anthropic.com`;
+    // Mock fetch to redirect actual provider URLs to local mock server
+    const originalFetch = global.fetch;
+    vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes("api.openai.com") || url.includes("api.anthropic.com")) {
+        const redirectUrl = url
+          .replace(/https:\/\/api\.openai\.com/, providerServer!.url)
+          .replace(/https:\/\/api\.anthropic\.com/, providerServer!.url);
+        return originalFetch(redirectUrl, init);
+      }
+      return originalFetch(input, init);
+    });
 
     proxy = startProxy({
       port: 0,
@@ -1225,7 +1279,7 @@ describe("Proxy Server Integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-target-url": fakeOpenAIUrl,
+        "x-target-url": "https://api.openai.com",
       },
       body: JSON.stringify({ model: "gpt-4o", messages: [] }),
     });
@@ -1239,7 +1293,7 @@ describe("Proxy Server Integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-target-url": fakeOpenAIUrl,
+        "x-target-url": "https://api.openai.com",
       },
       body: JSON.stringify({ model: "gpt-4o", messages: [] }),
     });
@@ -1261,10 +1315,53 @@ describe("Proxy Server Integration", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-target-url": fakeAnthropicUrl,
+        "x-target-url": "https://api.anthropic.com",
       },
       body: JSON.stringify({ model: "claude-sonnet-4-20250514", messages: [] }),
     });
     expect(res3.status).toBe(200);
+
+    vi.restoreAllMocks();
+  });
+
+  // -----------------------------------------------------------------------
+  // Hostname-only key injection security
+  // -----------------------------------------------------------------------
+
+  it("does NOT inject key when x-target-url has non-provider hostname but matching path", async () => {
+    providerServer = await createMockProviderServer();
+    ingestServer = await createMockIngestServer();
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "agent-no-inject",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 100,
+      providerKeys: {
+        openai: "sk-should-not-leak",
+      },
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    // Target a non-provider server with an OpenAI-matching path
+    await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": providerServer.url,
+      },
+      body: JSON.stringify({ model: "gpt-4o", messages: [] }),
+    });
+
+    expect(providerServer.receivedRequests).toHaveLength(1);
+    // No authorization header should be injected for non-provider hostname
+    expect(providerServer.receivedRequests[0].headers["authorization"]).toBeUndefined();
   });
 });

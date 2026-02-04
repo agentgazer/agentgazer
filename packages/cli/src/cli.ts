@@ -11,8 +11,16 @@ import {
   setProvider,
   removeProvider,
   listProviders,
+  saveConfig,
   type ProviderConfig,
 } from "./config.js";
+import {
+  detectSecretStore,
+  migrateFromPlaintextConfig,
+  loadProviderKeys,
+  PROVIDER_SERVICE,
+  type SecretStore,
+} from "./secret-store.js";
 import { startServer } from "@agenttrace/server";
 import { startProxy } from "@agenttrace/proxy";
 import { KNOWN_PROVIDER_NAMES } from "@agenttrace/shared";
@@ -101,10 +109,16 @@ async function cmdOnboard(): Promise<void> {
   ───────────────────────────────────────
 `);
 
+  // Initialize secret store (may prompt for passphrase creation)
+  const { store, backendName } = await detectSecretStore(getConfigDir());
+  console.log(`  Secret backend: ${backendName}\n`);
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
   });
+
+  let providerCount = 0;
 
   try {
     console.log("  Configure provider API keys (the proxy will inject these for you).");
@@ -119,8 +133,11 @@ async function cmdOnboard(): Promise<void> {
         `  Set rate limit for ${provider}? (e.g. "100/60" for 100 req per 60s, Enter to skip): `
       );
 
-      const providerConfig: ProviderConfig = { apiKey: key };
+      // Store API key in secret store
+      await store.set(PROVIDER_SERVICE, provider, key);
 
+      // Store non-secret config (rate limits) in config.json
+      const providerConfig: ProviderConfig = { apiKey: "" };
       if (rateLimitAnswer) {
         const parts = rateLimitAnswer.split("/");
         if (parts.length === 2) {
@@ -132,18 +149,17 @@ async function cmdOnboard(): Promise<void> {
         }
       }
 
-      setProvider(provider, providerConfig);
+      // Only store rate limit config in config.json (no apiKey)
+      if (providerConfig.rateLimit) {
+        setProvider(provider, providerConfig);
+      }
+
+      providerCount++;
       console.log(`  ✓ ${provider} configured.\n`);
     }
   } finally {
     rl.close();
   }
-
-  // Re-read to show final state
-  const finalConfig = readConfig() ?? saved;
-  const providerCount = finalConfig.providers
-    ? Object.keys(finalConfig.providers).length
-    : 0;
 
   console.log(`
   ───────────────────────────────────────
@@ -179,24 +195,28 @@ async function cmdOnboard(): Promise<void> {
 `);
 }
 
-function cmdProviders(args: string[]): void {
+async function cmdProviders(args: string[]): Promise<void> {
   const action = args[0];
+  const { store, backendName } = await detectSecretStore(getConfigDir());
 
   switch (action) {
     case "list": {
-      const providers = listProviders();
-      const names = Object.keys(providers);
-      if (names.length === 0) {
+      const accounts = await store.list(PROVIDER_SERVICE);
+      const configProviders = listProviders();
+      if (accounts.length === 0) {
         console.log("No providers configured. Use \"agenttrace providers set <name> <key>\" to add one.");
         return;
       }
-      console.log("\n  Configured providers:");
+      console.log(`\n  Configured providers (backend: ${backendName}):`);
       console.log("  ───────────────────────────────────────");
-      for (const name of names) {
-        const p = providers[name];
-        const maskedKey = p.apiKey.slice(0, 8) + "..." + p.apiKey.slice(-4);
-        const rateInfo = p.rateLimit
-          ? ` (rate limit: ${p.rateLimit.maxRequests} req / ${p.rateLimit.windowSeconds}s)`
+      for (const name of accounts) {
+        const key = await store.get(PROVIDER_SERVICE, name);
+        const maskedKey = key
+          ? key.slice(0, 8) + "..." + key.slice(-4)
+          : "(stored)";
+        const configEntry = configProviders[name];
+        const rateInfo = configEntry?.rateLimit
+          ? ` (rate limit: ${configEntry.rateLimit.maxRequests} req / ${configEntry.rateLimit.windowSeconds}s)`
           : "";
         console.log(`  ${name}: ${maskedKey}${rateInfo}`);
       }
@@ -210,8 +230,18 @@ function cmdProviders(args: string[]): void {
         console.error("Usage: agenttrace providers set <provider-name> <api-key>");
         process.exit(1);
       }
-      setProvider(name, { apiKey: key });
-      console.log(`Provider "${name}" configured.`);
+      // Store API key in secret store
+      await store.set(PROVIDER_SERVICE, name, key);
+      // Ensure provider entry exists in config.json (for rate limits etc.)
+      const config = ensureConfig();
+      if (!config.providers) config.providers = {};
+      if (!config.providers[name]) {
+        config.providers[name] = { apiKey: "" };
+      }
+      // Remove any plaintext apiKey that might be in config
+      config.providers[name].apiKey = "";
+      saveConfig(config);
+      console.log(`Provider "${name}" configured (secret stored in ${backendName}).`);
       break;
     }
     case "remove": {
@@ -220,6 +250,9 @@ function cmdProviders(args: string[]): void {
         console.error("Usage: agenttrace providers remove <provider-name>");
         process.exit(1);
       }
+      // Delete from secret store
+      await store.delete(PROVIDER_SERVICE, name);
+      // Remove from config.json
       removeProvider(name);
       console.log(`Provider "${name}" removed.`);
       break;
@@ -317,12 +350,25 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     retentionDays,
   });
 
-  // Build provider keys and rate limits from config
-  const providerKeys: Record<string, string> = {};
+  // Initialize secret store
+  const configDir = getConfigDir();
+  const configPath = path.join(configDir, "config.json");
+  const { store, backendName } = await detectSecretStore(configDir);
+  console.log(`  Secret backend: ${backendName}`);
+
+  // Auto-migrate plaintext keys from config.json
+  const migratedCount = await migrateFromPlaintextConfig(configPath, store);
+  if (migratedCount > 0) {
+    console.log(`  Migrated ${migratedCount} provider key(s) to secure storage.`);
+  }
+
+  // Load provider keys from secret store
+  const providerKeys = await loadProviderKeys(store);
+
+  // Load rate limits from config.json (non-secret config)
   const rateLimits: Record<string, { maxRequests: number; windowSeconds: number }> = {};
   if (config.providers) {
     for (const [name, pConfig] of Object.entries(config.providers)) {
-      providerKeys[name] = pConfig.apiKey;
       if (pConfig.rateLimit) {
         rateLimits[name] = pConfig.rateLimit;
       }
@@ -407,7 +453,7 @@ async function main(): Promise<void> {
       cmdResetToken();
       break;
     case "providers":
-      cmdProviders(process.argv.slice(3));
+      await cmdProviders(process.argv.slice(3));
       break;
     case "--help":
     case "-h":

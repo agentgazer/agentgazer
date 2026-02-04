@@ -112,6 +112,31 @@ export function detectProvider(url: string): ProviderName {
   return "unknown";
 }
 
+/**
+ * Detect provider by hostname only. Returns "unknown" for path-only matches.
+ * Used for key injection and rate limiting where hostname trust is required.
+ */
+export function detectProviderByHostname(url: string): ProviderName {
+  let hostname = "";
+  try {
+    const parsed = new URL(url);
+    hostname = parsed.hostname;
+  } catch {
+    return "unknown";
+  }
+
+  if (!hostname) return "unknown";
+
+  for (const provider of PROVIDER_PATTERNS) {
+    for (const hostPattern of provider.hostPatterns) {
+      if (hostPattern.test(hostname)) {
+        return provider.name;
+      }
+    }
+  }
+  return "unknown";
+}
+
 export function getProviderBaseUrl(provider: ProviderName): string | null {
   const urls: Record<string, string> = {
     openai: "https://api.openai.com",

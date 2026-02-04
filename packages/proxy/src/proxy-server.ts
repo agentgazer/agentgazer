@@ -1,6 +1,7 @@
 import * as http from "node:http";
 import {
   detectProvider,
+  detectProviderByHostname,
   getProviderBaseUrl,
   getProviderAuthHeader,
   parseProviderResponse,
@@ -353,17 +354,19 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
-    // Detect provider for rate limiting, key injection, and metric extraction.
-    // Fallback to path-based detection for localhost/test URLs where hostname
-    // doesn't match any known provider.
-    let detectedProviderForAuth = detectProvider(targetUrl);
-    if (detectedProviderForAuth === "unknown") {
-      detectedProviderForAuth = detectProvider(`https://placeholder${path}`);
+    // Strict detection (hostname-only): used for key injection and rate limiting.
+    // Prevents key leakage when x-target-url points to a non-provider hostname.
+    const detectedProviderStrict = detectProviderByHostname(targetUrl);
+
+    // Lenient detection (hostname + path fallback): used for metric extraction.
+    let detectedProviderForMetrics = detectProvider(targetUrl);
+    if (detectedProviderForMetrics === "unknown") {
+      detectedProviderForMetrics = detectProvider(`https://placeholder${path}`);
     }
 
-    // Rate limiting: check before forwarding
-    if (detectedProviderForAuth !== "unknown") {
-      const rateLimitResult = rateLimiter.check(detectedProviderForAuth);
+    // Rate limiting: check before forwarding (strict match only)
+    if (detectedProviderStrict !== "unknown") {
+      const rateLimitResult = rateLimiter.check(detectedProviderStrict);
       if (!rateLimitResult.allowed) {
         res.writeHead(429, {
           "Content-Type": "application/json",
@@ -371,7 +374,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         });
         res.end(
           JSON.stringify({
-            error: `Rate limit exceeded for provider: ${detectedProviderForAuth}`,
+            error: `Rate limit exceeded for provider: ${detectedProviderStrict}`,
             retry_after_seconds: rateLimitResult.retryAfterSeconds,
           })
         );
@@ -380,7 +383,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         const event: AgentEvent = {
           agent_id: agentId,
           event_type: "error",
-          provider: detectedProviderForAuth,
+          provider: detectedProviderStrict,
           model: null,
           tokens_in: null,
           tokens_out: null,
@@ -413,12 +416,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
-    // Inject provider API key if configured and no auth header is present
-    if (detectedProviderForAuth !== "unknown") {
-      const providerKey = providerKeys[detectedProviderForAuth];
+    // Inject provider API key only for hostname-matched providers (strict).
+    // Path-only matches are NOT trusted for key injection to prevent leakage.
+    if (detectedProviderStrict !== "unknown") {
+      const providerKey = providerKeys[detectedProviderStrict];
       if (providerKey) {
         const authHeader = getProviderAuthHeader(
-          detectedProviderForAuth,
+          detectedProviderStrict,
           providerKey
         );
         if (authHeader) {
@@ -495,7 +499,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       try {
         extractStreamingMetrics(
-          detectedProviderForAuth,
+          detectedProviderForMetrics,
           providerResponse.status,
           fullBody,
           latencyMs
@@ -534,7 +538,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // After response is sent, extract metrics asynchronously
       try {
         extractAndQueueMetrics(
-          detectedProviderForAuth,
+          detectedProviderForMetrics,
           providerResponse.status,
           responseBodyBuffer,
           latencyMs
