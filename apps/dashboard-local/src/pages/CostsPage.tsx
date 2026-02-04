@@ -1,99 +1,62 @@
-import { useCallback, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useState, useCallback } from "react";
 import { api } from "../lib/api";
+import { formatCost, formatNumber } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
+import TimeRangeSelector from "../components/TimeRangeSelector";
+import FilterDropdown from "../components/FilterDropdown";
+import CostAreaChart from "../components/charts/CostAreaChart";
 
-interface Agent {
-  agent_id: string;
-  status: string;
-  last_heartbeat: string;
+type Range = "1h" | "24h" | "7d" | "30d";
+
+interface CostByModel {
+  model: string;
+  provider: string;
+  cost: number;
+  count: number;
 }
 
-interface AgentsResponse {
-  agents: Agent[];
+interface CostSeriesEntry {
+  timestamp: string;
+  cost: number;
+  tokens: number;
 }
 
-interface StatsResponse {
-  total_requests: number;
+interface OverviewResponse {
   total_cost: number;
   total_tokens: number;
-}
-
-interface AgentCost {
-  agent_id: string;
-  total_cost: number;
   total_requests: number;
-}
-
-interface CostsData {
-  agent_costs: AgentCost[];
-  grand_total: number;
-  grand_requests: number;
-}
-
-function formatCost(n: number): string {
-  return `$${n.toFixed(4)}`;
-}
-
-function formatNumber(n: number): string {
-  return n.toLocaleString("en-US");
-}
-
-async function fetchCostsData(): Promise<CostsData> {
-  const { agents } = await api.get<AgentsResponse>("/api/agents");
-  const top = agents.slice(0, 10);
-
-  const results = await Promise.allSettled(
-    top.map((a) =>
-      api.get<StatsResponse>(
-        `/api/stats/${encodeURIComponent(a.agent_id)}?range=30d`,
-      ),
-    ),
-  );
-
-  const agent_costs: AgentCost[] = [];
-  let grand_total = 0;
-  let grand_requests = 0;
-
-  results.forEach((result, i) => {
-    if (result.status === "fulfilled") {
-      const stats = result.value;
-      agent_costs.push({
-        agent_id: top[i].agent_id,
-        total_cost: stats.total_cost,
-        total_requests: stats.total_requests,
-      });
-      grand_total += stats.total_cost;
-      grand_requests += stats.total_requests;
-    } else {
-      agent_costs.push({
-        agent_id: top[i].agent_id,
-        total_cost: 0,
-        total_requests: 0,
-      });
-    }
-  });
-
-  // Sort by cost descending
-  agent_costs.sort((a, b) => b.total_cost - a.total_cost);
-
-  return { agent_costs, grand_total, grand_requests };
+  avg_cost_per_request: number;
+  active_models: number;
+  cost_by_model: CostByModel[];
+  cost_series: CostSeriesEntry[];
+  available_models: string[];
 }
 
 export default function CostsPage() {
-  const fetcher = useCallback(() => fetchCostsData(), []);
+  const [range, setRange] = useState<Range>("24h");
+  const [modelFilter, setModelFilter] = useState("");
+
+  const fetcher = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set("range", range);
+    if (modelFilter) params.set("model", modelFilter);
+    return api.get<OverviewResponse>(`/api/stats/overview?${params.toString()}`);
+  }, [range, modelFilter]);
+
   const { data, error, loading } = usePolling(fetcher, 10000);
 
-  const sortedCosts = useMemo(() => data?.agent_costs ?? [], [data]);
+  const modelOptions = (data?.available_models ?? []).map((m) => ({
+    value: m,
+    label: m,
+  }));
 
   if (loading && !data) return <LoadingSpinner />;
 
   return (
     <div>
       <h1 className="text-2xl font-bold text-white">Costs</h1>
-      <p className="mt-1 text-sm text-gray-400">Last 30 days</p>
 
       {error && (
         <div className="mt-4">
@@ -101,68 +64,93 @@ export default function CostsPage() {
         </div>
       )}
 
+      {/* Controls */}
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <TimeRangeSelector
+          value={range}
+          onChange={(r) => setRange(r as Range)}
+          showCustom={false}
+        />
+        {modelOptions.length > 0 && (
+          <FilterDropdown
+            value={modelFilter}
+            onChange={setModelFilter}
+            options={modelOptions}
+            label="Models"
+          />
+        )}
+      </div>
+
       {data && (
         <>
-          {/* Summary cards */}
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {/* KPI Cards */}
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
-              <p className="text-xs text-gray-400">Total Cost (30d)</p>
+              <p className="text-xs text-gray-400">Total Cost</p>
               <p className="mt-1 text-2xl font-bold text-white">
-                {formatCost(data.grand_total)}
+                {formatCost(data.total_cost)}
               </p>
             </div>
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
-              <p className="text-xs text-gray-400">Total Requests (30d)</p>
+              <p className="text-xs text-gray-400">Avg Cost / Request</p>
               <p className="mt-1 text-2xl font-bold text-white">
-                {formatNumber(data.grand_requests)}
+                {formatCost(data.avg_cost_per_request)}
               </p>
             </div>
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
-              <p className="text-xs text-gray-400">Agents Tracked</p>
+              <p className="text-xs text-gray-400">Total Tokens</p>
               <p className="mt-1 text-2xl font-bold text-white">
-                {data.agent_costs.length}
+                {formatNumber(data.total_tokens)}
+              </p>
+            </div>
+            <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
+              <p className="text-xs text-gray-400">Active Models</p>
+              <p className="mt-1 text-2xl font-bold text-white">
+                {data.active_models}
               </p>
             </div>
           </div>
 
-          {/* Per-agent table */}
-          {sortedCosts.length > 0 && (
+          {/* Cost Trend Chart */}
+          <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 p-4">
+            <h2 className="mb-4 text-sm font-semibold text-gray-300">
+              Cost Trend
+            </h2>
+            <CostAreaChart series={data.cost_series} />
+          </div>
+
+          {/* Cost by Model Table */}
+          {data.cost_by_model.length > 0 && (
             <div className="mt-8 overflow-hidden rounded-lg border border-gray-700">
+              <h2 className="bg-gray-800 px-4 py-3 text-sm font-semibold text-gray-300">
+                Cost by Model
+              </h2>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="bg-gray-800 text-xs uppercase text-gray-400">
-                    <th className="px-4 py-3 font-medium">Agent ID</th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Total Cost
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Requests
-                    </th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
+                    <th className="px-4 py-3 font-medium">Model</th>
+                    <th className="px-4 py-3 font-medium">Provider</th>
+                    <th className="px-4 py-3 font-medium text-right">Cost</th>
+                    <th className="px-4 py-3 font-medium text-right">Requests</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {sortedCosts.map((row) => (
+                  {data.cost_by_model.map((row, i) => (
                     <tr
-                      key={row.agent_id}
+                      key={i}
                       className="bg-gray-900 transition-colors hover:bg-gray-800"
                     >
                       <td className="px-4 py-3 font-medium text-white">
-                        {row.agent_id}
+                        {row.model}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300">
+                        {row.provider}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-300">
-                        {formatCost(row.total_cost)}
+                        {formatCost(row.cost)}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-300">
-                        {formatNumber(row.total_requests)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          to={`/agents/${encodeURIComponent(row.agent_id)}`}
-                          className="text-sm font-medium text-blue-400 hover:text-blue-300"
-                        >
-                          View
-                        </Link>
+                        {formatNumber(row.count)}
                       </td>
                     </tr>
                   ))}
@@ -171,9 +159,9 @@ export default function CostsPage() {
             </div>
           )}
 
-          {sortedCosts.length === 0 && (
+          {data.cost_by_model.length === 0 && (
             <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
-              <p className="text-gray-400">No cost data available.</p>
+              <p className="text-gray-400">No cost data available for this period.</p>
             </div>
           )}
         </>

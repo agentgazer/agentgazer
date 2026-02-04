@@ -49,15 +49,55 @@ function parseAlertHistory(row: AlertHistoryRow & { data?: string }) {
   };
 }
 
-// GET /api/alerts - List all alert rules
+// GET /api/alerts - List all alert rules (with optional pagination + filters)
 router.get("/api/alerts", (req, res) => {
   const db = req.app.locals.db as Database.Database;
+
+  const limitStr = req.query.limit as string | undefined;
+  const offsetStr = req.query.offset as string | undefined;
+  const agentId = req.query.agent_id as string | undefined;
+  const ruleType = req.query.rule_type as string | undefined;
+
+  const hasPagination = limitStr || offsetStr || agentId || ruleType;
+
+  if (!hasPagination) {
+    // Backwards compatible
+    const rows = db
+      .prepare("SELECT * FROM alert_rules ORDER BY created_at DESC")
+      .all() as AlertRuleRow[];
+    const alerts = rows.map(parseAlertRule);
+    res.json({ alerts });
+    return;
+  }
+
+  const limit = limitStr ? Math.min(Math.max(1, parseInt(limitStr, 10) || 20), 100) : 20;
+  const offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10) || 0) : 0;
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (agentId) {
+    conditions.push("agent_id = ?");
+    params.push(agentId);
+  }
+
+  if (ruleType) {
+    conditions.push("rule_type = ?");
+    params.push(ruleType);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const countRow = db
+    .prepare(`SELECT COUNT(*) AS total FROM alert_rules ${where}`)
+    .get(...params) as { total: number };
+
   const rows = db
-    .prepare("SELECT * FROM alert_rules ORDER BY created_at DESC")
-    .all() as AlertRuleRow[];
+    .prepare(`SELECT * FROM alert_rules ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset) as AlertRuleRow[];
 
   const alerts = rows.map(parseAlertRule);
-  res.json({ alerts });
+  res.json({ alerts, total: countRow.total });
 });
 
 // POST /api/alerts - Create a new alert rule
@@ -94,24 +134,22 @@ router.post("/api/alerts", (req, res) => {
     return;
   }
 
-  // At least one of webhook_url or email must be provided
-  if (!body.webhook_url && !body.email) {
-    res.status(400).json({ error: "At least one of webhook_url or email is required" });
+  // webhook_url is required (email removed for local mode — no SMTP)
+  if (!body.webhook_url) {
+    res.status(400).json({ error: "webhook_url is required" });
     return;
   }
 
   // Validate webhook_url format
-  if (body.webhook_url) {
-    try {
-      const parsed = new URL(body.webhook_url);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        res.status(400).json({ error: "webhook_url must use http or https protocol" });
-        return;
-      }
-    } catch {
-      res.status(400).json({ error: "webhook_url must be a valid URL" });
+  try {
+    const parsed = new URL(body.webhook_url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      res.status(400).json({ error: "webhook_url must use http or https protocol" });
       return;
     }
+  } catch {
+    res.status(400).json({ error: "webhook_url must be a valid URL" });
+    return;
   }
 
   const id = randomUUID();
@@ -127,7 +165,7 @@ router.post("/api/alerts", (req, res) => {
     body.rule_type,
     JSON.stringify(body.config),
     enabled,
-    body.webhook_url ?? null,
+    body.webhook_url,
     body.email ?? null,
     now,
     now,
@@ -239,19 +277,56 @@ router.patch("/api/alerts/:id/toggle", (req, res) => {
   res.json(parseAlertRule(row));
 });
 
-// GET /api/alert-history - List alert history
+// GET /api/alert-history - List alert history (with optional pagination + filters)
 router.get("/api/alert-history", (req, res) => {
   const db = req.app.locals.db as Database.Database;
+
   const limitStr = req.query.limit as string | undefined;
-  const limit = limitStr ? parseInt(limitStr, 10) : 100;
-  const effectiveLimit = isNaN(limit) ? 100 : Math.min(limit, 10_000);
+  const offsetStr = req.query.offset as string | undefined;
+  const agentId = req.query.agent_id as string | undefined;
+  const ruleType = req.query.rule_type as string | undefined;
+
+  const limit = limitStr ? Math.min(Math.max(1, parseInt(limitStr, 10) || 100), 10_000) : 100;
+
+  const hasPagination = offsetStr || agentId || ruleType;
+
+  if (!hasPagination) {
+    // Backwards compatible
+    const rows = db
+      .prepare("SELECT * FROM alert_history ORDER BY delivered_at DESC LIMIT ?")
+      .all(limit) as AlertHistoryRow[];
+    const history = rows.map(parseAlertHistory);
+    res.json({ history });
+    return;
+  }
+
+  const offset = offsetStr ? Math.max(0, parseInt(offsetStr, 10) || 0) : 0;
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (agentId) {
+    conditions.push("agent_id = ?");
+    params.push(agentId);
+  }
+
+  if (ruleType) {
+    conditions.push("rule_type = ?");
+    params.push(ruleType);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const countRow = db
+    .prepare(`SELECT COUNT(*) AS total FROM alert_history ${where}`)
+    .get(...params) as { total: number };
 
   const rows = db
-    .prepare("SELECT * FROM alert_history ORDER BY delivered_at DESC LIMIT ?")
-    .all(effectiveLimit) as AlertHistoryRow[];
+    .prepare(`SELECT * FROM alert_history ${where} ORDER BY delivered_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset) as AlertHistoryRow[];
 
   const history = rows.map(parseAlertHistory);
-  res.json({ history });
+  res.json({ history, total: countRow.total });
 });
 
 export default router;

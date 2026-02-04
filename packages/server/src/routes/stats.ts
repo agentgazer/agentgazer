@@ -58,6 +58,107 @@ interface TokenSeriesEntry {
   tokens_out: number | null;
 }
 
+// GET /api/stats/overview — aggregate stats across ALL agents
+// Must be registered BEFORE /api/stats/:agentId
+router.get("/api/stats/overview", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+
+  const VALID_RANGES = new Set<string>(["1h", "24h", "7d", "30d"]);
+  const rangeParam = req.query.range as string | undefined;
+  const range: Range = (rangeParam && VALID_RANGES.has(rangeParam) ? rangeParam : "24h") as Range;
+  const modelFilter = req.query.model as string | undefined;
+
+  const timeRange = computeFromTime(range);
+
+  // Build query conditions
+  const conditions: string[] = [
+    "timestamp >= ?",
+    "timestamp <= ?",
+    "(event_type = 'llm_call' OR event_type = 'completion')",
+  ];
+  const params: unknown[] = [timeRange.from, timeRange.to];
+
+  if (modelFilter) {
+    conditions.push("model = ?");
+    params.push(modelFilter);
+  }
+
+  const where = `WHERE ${conditions.join(" AND ")}`;
+
+  // Aggregate totals
+  const totals = db
+    .prepare(
+      `SELECT
+         COALESCE(SUM(cost_usd), 0) AS total_cost,
+         COALESCE(SUM(tokens_total), 0) AS total_tokens,
+         COUNT(*) AS total_requests
+       FROM agent_events
+       ${where}`,
+    )
+    .get(...params) as { total_cost: number; total_tokens: number; total_requests: number };
+
+  const avgCostPerRequest =
+    totals.total_requests > 0 ? totals.total_cost / totals.total_requests : 0;
+
+  // Cost by model
+  const costByModelRows = db
+    .prepare(
+      `SELECT
+         COALESCE(model, 'unknown') AS model,
+         COALESCE(provider, 'unknown') AS provider,
+         COALESCE(SUM(cost_usd), 0) AS cost,
+         COUNT(*) AS count
+       FROM agent_events
+       ${where}
+       GROUP BY model, provider
+       ORDER BY cost DESC`,
+    )
+    .all(...params) as CostByModel[];
+
+  // Available models (unfiltered — always show all models in the time range)
+  const availableModelsRows = db
+    .prepare(
+      `SELECT DISTINCT model FROM agent_events
+       WHERE timestamp >= ? AND timestamp <= ?
+         AND (event_type = 'llm_call' OR event_type = 'completion')
+         AND model IS NOT NULL
+       ORDER BY model`,
+    )
+    .all(timeRange.from, timeRange.to) as { model: string }[];
+
+  const availableModels = availableModelsRows.map((r) => r.model);
+
+  // Active models count
+  const activeModels = costByModelRows.length;
+
+  // Cost time series — bucket by hour for 1h, by day for others
+  const bucketFormat = range === "1h" ? "%Y-%m-%dT%H:00:00Z" : "%Y-%m-%dT00:00:00Z";
+
+  const costSeries = db
+    .prepare(
+      `SELECT
+         strftime('${bucketFormat}', timestamp) AS timestamp,
+         COALESCE(SUM(cost_usd), 0) AS cost,
+         COALESCE(SUM(tokens_total), 0) AS tokens
+       FROM agent_events
+       ${where}
+       GROUP BY strftime('${bucketFormat}', timestamp)
+       ORDER BY timestamp ASC`,
+    )
+    .all(...params) as { timestamp: string; cost: number; tokens: number }[];
+
+  res.json({
+    total_cost: totals.total_cost,
+    total_tokens: totals.total_tokens,
+    total_requests: totals.total_requests,
+    avg_cost_per_request: avgCostPerRequest,
+    active_models: activeModels,
+    cost_by_model: costByModelRows,
+    cost_series: costSeries,
+    available_models: availableModels,
+  });
+});
+
 router.get("/api/stats/:agentId", (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const { agentId } = req.params;

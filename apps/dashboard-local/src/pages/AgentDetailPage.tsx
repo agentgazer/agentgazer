@@ -1,9 +1,12 @@
 import { useState, useCallback, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { formatCost, formatNumber } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
+import TimeRangeSelector from "../components/TimeRangeSelector";
+import TokenBarChart from "../components/charts/TokenBarChart";
 
 interface StatsResponse {
   total_requests: number;
@@ -28,16 +31,6 @@ interface StatsResponse {
 
 type Range = "1h" | "24h" | "7d" | "30d" | "custom";
 
-const PRESET_RANGES: Range[] = ["1h", "24h", "7d", "30d"];
-
-function formatCost(n: number): string {
-  return `$${n.toFixed(4)}`;
-}
-
-function formatNumber(n: number): string {
-  return n.toLocaleString("en-US");
-}
-
 function formatLatency(n: number | null): string {
   if (n === null) return "--";
   return `${n.toFixed(1)}`;
@@ -46,150 +39,6 @@ function formatLatency(n: number | null): string {
 function formatPercent(n: number): string {
   return `${n.toFixed(2)}`;
 }
-
-/* ---------- Simple SVG Bar Chart ---------- */
-
-function TokenChart({
-  series,
-}: {
-  series: StatsResponse["token_series"];
-}) {
-  const data = series.slice(-50);
-
-  if (data.length === 0) {
-    return (
-      <div className="flex h-48 items-center justify-center text-sm text-gray-500">
-        No token data available
-      </div>
-    );
-  }
-
-  const maxVal = Math.max(
-    ...data.map((d) => Math.max(d.tokens_in ?? 0, d.tokens_out ?? 0)),
-    1,
-  );
-
-  const chartWidth = 600;
-  const chartHeight = 180;
-  const barGroupWidth = chartWidth / data.length;
-  const barWidth = Math.max(1, barGroupWidth * 0.35);
-  const gap = Math.max(0.5, barGroupWidth * 0.05);
-
-  return (
-    <div className="overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${chartWidth} ${chartHeight + 24}`}
-        className="w-full"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {/* Horizontal grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
-          const y = chartHeight - frac * chartHeight;
-          return (
-            <line
-              key={frac}
-              x1={0}
-              y1={y}
-              x2={chartWidth}
-              y2={y}
-              stroke="#374151"
-              strokeWidth={0.5}
-            />
-          );
-        })}
-
-        {data.map((d, i) => {
-          const x = i * barGroupWidth;
-          const inH =
-            ((d.tokens_in ?? 0) / maxVal) * chartHeight;
-          const outH =
-            ((d.tokens_out ?? 0) / maxVal) * chartHeight;
-
-          return (
-            <g key={i}>
-              {/* tokens_in bar */}
-              <rect
-                x={x + gap}
-                y={chartHeight - inH}
-                width={barWidth}
-                height={inH}
-                rx={1}
-                fill="#3b82f6"
-                opacity={0.85}
-              >
-                <title>
-                  In: {formatNumber(d.tokens_in ?? 0)}
-                </title>
-              </rect>
-              {/* tokens_out bar */}
-              <rect
-                x={x + barWidth + gap * 2}
-                y={chartHeight - outH}
-                width={barWidth}
-                height={outH}
-                rx={1}
-                fill="#8b5cf6"
-                opacity={0.85}
-              >
-                <title>
-                  Out: {formatNumber(d.tokens_out ?? 0)}
-                </title>
-              </rect>
-            </g>
-          );
-        })}
-
-        {/* X-axis labels (show a few) */}
-        {data
-          .filter((_, i) => {
-            if (data.length <= 10) return true;
-            const step = Math.ceil(data.length / 6);
-            return i % step === 0 || i === data.length - 1;
-          })
-          .map((d, _, arr) => {
-            const origIdx = data.indexOf(d);
-            const x = origIdx * barGroupWidth + barGroupWidth / 2;
-            const date = new Date(d.timestamp);
-            const label =
-              arr.length <= 10
-                ? date.toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })
-                : date.toLocaleDateString([], {
-                    month: "short",
-                    day: "numeric",
-                  });
-            return (
-              <text
-                key={origIdx}
-                x={x}
-                y={chartHeight + 16}
-                textAnchor="middle"
-                className="fill-gray-500 text-[8px]"
-              >
-                {label}
-              </text>
-            );
-          })}
-      </svg>
-
-      {/* Legend */}
-      <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-blue-500" />
-          Tokens In
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-violet-500" />
-          Tokens Out
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- Main Page ---------- */
 
 export default function AgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -251,47 +100,15 @@ export default function AgentDetailPage() {
       )}
 
       {/* Range selector */}
-      <div className="mt-6 flex flex-wrap items-center gap-2">
-        {PRESET_RANGES.map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              r === range
-                ? "bg-blue-600 text-white"
-                : "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white"
-            }`}
-          >
-            {r}
-          </button>
-        ))}
-        <button
-          onClick={() => setRange("custom")}
-          className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-            range === "custom"
-              ? "bg-blue-600 text-white"
-              : "bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white"
-          }`}
-        >
-          Custom
-        </button>
-        {range === "custom" && (
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={customFrom}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              className="rounded-md border border-gray-600 bg-gray-700 px-2 py-1 text-sm text-gray-200"
-            />
-            <span className="text-sm text-gray-400">to</span>
-            <input
-              type="date"
-              value={customTo}
-              onChange={(e) => setCustomTo(e.target.value)}
-              className="rounded-md border border-gray-600 bg-gray-700 px-2 py-1 text-sm text-gray-200"
-            />
-          </div>
-        )}
+      <div className="mt-6">
+        <TimeRangeSelector
+          value={range}
+          onChange={setRange}
+          customFrom={customFrom}
+          customTo={customTo}
+          onCustomFromChange={setCustomFrom}
+          onCustomToChange={setCustomTo}
+        />
       </div>
 
       {data && (
@@ -316,7 +133,7 @@ export default function AgentDetailPage() {
             <h2 className="mb-4 text-sm font-semibold text-gray-300">
               Token Usage Over Time
             </h2>
-            <TokenChart series={data.token_series} />
+            <TokenBarChart series={data.token_series} />
           </div>
 
           {/* Cost breakdown */}

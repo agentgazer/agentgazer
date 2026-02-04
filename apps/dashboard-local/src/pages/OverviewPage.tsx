@@ -1,10 +1,12 @@
-import { useCallback } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { relativeTime } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 import StatusBadge from "../components/StatusBadge";
+import Pagination from "../components/Pagination";
 
 interface Agent {
   agent_id: string;
@@ -15,25 +17,24 @@ interface Agent {
 
 interface AgentsResponse {
   agents: Agent[];
+  total?: number;
 }
 
-function relativeTime(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  const diff = Math.max(0, now - then);
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
+const PAGE_SIZE = 12;
 
 export default function OverviewPage() {
-  const fetcher = useCallback(() => api.get<AgentsResponse>("/api/agents"), []);
+  const [page, setPage] = useState(1);
+
+  const fetcher = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String((page - 1) * PAGE_SIZE));
+    return api.get<AgentsResponse>(`/api/agents?${params.toString()}`);
+  }, [page]);
+
   const { data, error, loading } = usePolling(fetcher, 3000);
+
+  const totalPages = data?.total != null ? Math.ceil(data.total / PAGE_SIZE) : 1;
 
   if (loading && !data) return <LoadingSpinner />;
 
@@ -56,36 +57,43 @@ export default function OverviewPage() {
       )}
 
       {data && data.agents.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {data.agents.map((agent) => (
-            <Link
-              key={agent.agent_id}
-              to={`/agents/${encodeURIComponent(agent.agent_id)}`}
-              className="rounded-lg border border-gray-700 bg-gray-800 px-5 py-4 transition-colors hover:border-gray-600 hover:bg-gray-750"
-            >
-              <div className="flex items-start justify-between">
-                <h2 className="truncate text-sm font-semibold text-white">
-                  {agent.agent_id}
-                </h2>
-                <StatusBadge status={agent.status} />
-              </div>
-              <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
-                <span>
-                  Last heartbeat:{" "}
-                  <span className="text-gray-300">
-                    {relativeTime(agent.last_heartbeat)}
+        <>
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {data.agents.map((agent) => (
+              <Link
+                key={agent.agent_id}
+                to={`/agents/${encodeURIComponent(agent.agent_id)}`}
+                className="rounded-lg border border-gray-700 bg-gray-800 px-5 py-4 transition-colors hover:border-gray-600 hover:bg-gray-750"
+              >
+                <div className="flex items-start justify-between">
+                  <h2 className="truncate text-sm font-semibold text-white">
+                    {agent.agent_id}
+                  </h2>
+                  <StatusBadge status={agent.status} />
+                </div>
+                <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
+                  <span>
+                    Last heartbeat:{" "}
+                    <span className="text-gray-300">
+                      {relativeTime(agent.last_heartbeat)}
+                    </span>
                   </span>
-                </span>
-                <span>
-                  Events:{" "}
-                  <span className="text-gray-300">
-                    {agent.total_events.toLocaleString()}
+                  <span>
+                    Events:{" "}
+                    <span className="text-gray-300">
+                      {agent.total_events.toLocaleString()}
+                    </span>
                   </span>
-                </span>
-              </div>
-            </Link>
-          ))}
-        </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+          />
+        </>
       )}
     </div>
   );

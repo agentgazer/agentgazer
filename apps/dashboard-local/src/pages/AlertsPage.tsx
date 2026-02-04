@@ -1,8 +1,11 @@
 import { useState, useCallback } from "react";
 import { api } from "../lib/api";
+import { relativeTime } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
+import Pagination from "../components/Pagination";
+import FilterDropdown from "../components/FilterDropdown";
 
 /* ---------- Types ---------- */
 
@@ -12,12 +15,12 @@ interface AlertRule {
   rule_type: "agent_down" | "error_rate" | "budget";
   config: Record<string, number>;
   webhook_url?: string;
-  email?: string;
   enabled: boolean;
 }
 
 interface AlertsResponse {
   alerts: AlertRule[];
+  total?: number;
 }
 
 interface HistoryEntry {
@@ -31,6 +34,7 @@ interface HistoryEntry {
 
 interface HistoryResponse {
   history: HistoryEntry[];
+  total?: number;
 }
 
 type Tab = "rules" | "history";
@@ -45,20 +49,6 @@ interface FormState {
 }
 
 /* ---------- Helpers ---------- */
-
-function relativeTime(iso: string): string {
-  const now = Date.now();
-  const then = new Date(iso).getTime();
-  const diff = Math.max(0, now - then);
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 function configSummary(
   rule_type: string,
@@ -106,6 +96,17 @@ function RuleTypeBadge({ type }: { type: string }) {
     </span>
   );
 }
+
+/* ---------- Constants ---------- */
+
+const RULE_TYPE_OPTIONS = [
+  { value: "agent_down", label: "agent_down" },
+  { value: "error_rate", label: "error_rate" },
+  { value: "budget", label: "budget" },
+];
+
+const RULES_PAGE_SIZE = 20;
+const HISTORY_PAGE_SIZE = 20;
 
 /* ---------- Alert Form ---------- */
 
@@ -348,11 +349,23 @@ export default function AlertsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
 
+  // Rules pagination + filter
+  const [rulesPage, setRulesPage] = useState(1);
+  const [rulesTypeFilter, setRulesTypeFilter] = useState("");
+
+  // History pagination + filter
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTypeFilter, setHistoryTypeFilter] = useState("");
+
   /* Rules data */
-  const rulesFetcher = useCallback(
-    () => api.get<AlertsResponse>("/api/alerts"),
-    [],
-  );
+  const rulesFetcher = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set("limit", String(RULES_PAGE_SIZE));
+    params.set("offset", String((rulesPage - 1) * RULES_PAGE_SIZE));
+    if (rulesTypeFilter) params.set("rule_type", rulesTypeFilter);
+    return api.get<AlertsResponse>(`/api/alerts?${params.toString()}`);
+  }, [rulesPage, rulesTypeFilter]);
+
   const {
     data: rulesData,
     error: rulesError,
@@ -361,15 +374,24 @@ export default function AlertsPage() {
   } = usePolling(rulesFetcher, 5000);
 
   /* History data */
-  const historyFetcher = useCallback(
-    () => api.get<HistoryResponse>("/api/alert-history"),
-    [],
-  );
+  const historyFetcher = useCallback(() => {
+    const params = new URLSearchParams();
+    params.set("limit", String(HISTORY_PAGE_SIZE));
+    params.set("offset", String((historyPage - 1) * HISTORY_PAGE_SIZE));
+    if (historyTypeFilter) params.set("rule_type", historyTypeFilter);
+    return api.get<HistoryResponse>(`/api/alert-history?${params.toString()}`);
+  }, [historyPage, historyTypeFilter]);
+
   const {
     data: historyData,
     error: historyError,
     loading: historyLoading,
   } = usePolling(historyFetcher, 5000);
+
+  const rulesTotalPages =
+    rulesData?.total != null ? Math.ceil(rulesData.total / RULES_PAGE_SIZE) : 1;
+  const historyTotalPages =
+    historyData?.total != null ? Math.ceil(historyData.total / HISTORY_PAGE_SIZE) : 1;
 
   /* Handlers */
   async function handleToggle(rule: AlertRule) {
@@ -407,6 +429,16 @@ export default function AlertsPage() {
     setEditingRule(null);
   }
 
+  function handleRulesTypeChange(v: string) {
+    setRulesTypeFilter(v);
+    setRulesPage(1);
+  }
+
+  function handleHistoryTypeChange(v: string) {
+    setHistoryTypeFilter(v);
+    setHistoryPage(1);
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-white">Alerts</h1>
@@ -440,18 +472,26 @@ export default function AlertsPage() {
         <div className="mt-6">
           {rulesError && <ErrorBanner message={rulesError} />}
 
-          {/* New rule button */}
-          {!showForm && (
-            <button
-              onClick={() => {
-                setEditingRule(null);
-                setShowForm(true);
-              }}
-              className="mb-4 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-            >
-              New Alert Rule
-            </button>
-          )}
+          {/* New rule button + filter */}
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            {!showForm && (
+              <button
+                onClick={() => {
+                  setEditingRule(null);
+                  setShowForm(true);
+                }}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                New Alert Rule
+              </button>
+            )}
+            <FilterDropdown
+              value={rulesTypeFilter}
+              onChange={handleRulesTypeChange}
+              options={RULE_TYPE_OPTIONS}
+              label="Types"
+            />
+          </div>
 
           {/* Inline form */}
           {showForm && (
@@ -476,95 +516,84 @@ export default function AlertsPage() {
           )}
 
           {rulesData && rulesData.alerts.length > 0 && (
-            <div className="space-y-3">
-              {rulesData.alerts.map((rule) => (
-                <div
-                  key={rule.id}
-                  className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-700 bg-gray-800 px-5 py-4"
-                >
-                  {/* Left section */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="text-sm font-medium text-white">
-                      {rule.agent_id}
-                    </span>
-                    <RuleTypeBadge type={rule.rule_type} />
-                    <span className="text-xs text-gray-400">
-                      {configSummary(rule.rule_type, rule.config)}
-                    </span>
-
-                    {/* Delivery indicators */}
-                    {rule.webhook_url && (
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                        <svg
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={1.5}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"
-                          />
-                        </svg>
-                        webhook
+            <>
+              <div className="space-y-3">
+                {rulesData.alerts.map((rule) => (
+                  <div
+                    key={rule.id}
+                    className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-gray-700 bg-gray-800 px-5 py-4"
+                  >
+                    {/* Left section */}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-sm font-medium text-white">
+                        {rule.agent_id}
                       </span>
-                    )}
-                    {rule.email && (
-                      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                        <svg
-                          className="h-3.5 w-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={1.5}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75"
-                          />
-                        </svg>
-                        email
+                      <RuleTypeBadge type={rule.rule_type} />
+                      <span className="text-xs text-gray-400">
+                        {configSummary(rule.rule_type, rule.config)}
                       </span>
-                    )}
-                  </div>
 
-                  {/* Right section: actions */}
-                  <div className="flex items-center gap-3">
-                    {/* Toggle switch */}
-                    <button
-                      onClick={() => handleToggle(rule)}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-                        rule.enabled ? "bg-blue-600" : "bg-gray-600"
-                      }`}
-                      role="switch"
-                      aria-checked={rule.enabled}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
-                          rule.enabled ? "translate-x-5" : "translate-x-0"
+                      {/* Webhook indicator */}
+                      {rule.webhook_url && (
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                          <svg
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={1.5}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244"
+                            />
+                          </svg>
+                          webhook
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Right section: actions */}
+                    <div className="flex items-center gap-3">
+                      {/* Toggle switch */}
+                      <button
+                        onClick={() => handleToggle(rule)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                          rule.enabled ? "bg-blue-600" : "bg-gray-600"
                         }`}
-                      />
-                    </button>
+                        role="switch"
+                        aria-checked={rule.enabled}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
+                            rule.enabled ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
 
-                    <button
-                      onClick={() => handleEdit(rule)}
-                      className="rounded-md bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(rule)}
-                      className="rounded-md bg-red-900/50 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-800 hover:text-red-200"
-                    >
-                      Delete
-                    </button>
+                      <button
+                        onClick={() => handleEdit(rule)}
+                        className="rounded-md bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rule)}
+                        className="rounded-md bg-red-900/50 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-800 hover:text-red-200"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+              <Pagination
+                currentPage={rulesPage}
+                totalPages={rulesTotalPages}
+                onPageChange={setRulesPage}
+              />
+            </>
           )}
         </div>
       )}
@@ -573,6 +602,16 @@ export default function AlertsPage() {
       {tab === "history" && (
         <div className="mt-6">
           {historyError && <ErrorBanner message={historyError} />}
+
+          {/* Filter */}
+          <div className="mb-4">
+            <FilterDropdown
+              value={historyTypeFilter}
+              onChange={handleHistoryTypeChange}
+              options={RULE_TYPE_OPTIONS}
+              label="Types"
+            />
+          </div>
 
           {historyLoading && !historyData && <LoadingSpinner />}
 
@@ -583,43 +622,50 @@ export default function AlertsPage() {
           )}
 
           {historyData && historyData.history.length > 0 && (
-            <div className="overflow-hidden rounded-lg border border-gray-700">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="bg-gray-800 text-xs uppercase text-gray-400">
-                    <th className="px-4 py-3 font-medium">Timestamp</th>
-                    <th className="px-4 py-3 font-medium">Agent</th>
-                    <th className="px-4 py-3 font-medium">Type</th>
-                    <th className="px-4 py-3 font-medium">Message</th>
-                    <th className="px-4 py-3 font-medium">Delivered Via</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {historyData.history.map((entry) => (
-                    <tr
-                      key={entry.id}
-                      className="bg-gray-900 transition-colors hover:bg-gray-800"
-                    >
-                      <td className="whitespace-nowrap px-4 py-3 text-gray-300">
-                        {relativeTime(entry.timestamp)}
-                      </td>
-                      <td className="px-4 py-3 font-medium text-white">
-                        {entry.agent_id}
-                      </td>
-                      <td className="px-4 py-3">
-                        <RuleTypeBadge type={entry.rule_type} />
-                      </td>
-                      <td className="max-w-xs truncate px-4 py-3 text-gray-300">
-                        {entry.message}
-                      </td>
-                      <td className="px-4 py-3 text-gray-400">
-                        {entry.delivered_via}
-                      </td>
+            <>
+              <div className="overflow-hidden rounded-lg border border-gray-700">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-gray-800 text-xs uppercase text-gray-400">
+                      <th className="px-4 py-3 font-medium">Timestamp</th>
+                      <th className="px-4 py-3 font-medium">Agent</th>
+                      <th className="px-4 py-3 font-medium">Type</th>
+                      <th className="px-4 py-3 font-medium">Message</th>
+                      <th className="px-4 py-3 font-medium">Delivered Via</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-700">
+                    {historyData.history.map((entry) => (
+                      <tr
+                        key={entry.id}
+                        className="bg-gray-900 transition-colors hover:bg-gray-800"
+                      >
+                        <td className="whitespace-nowrap px-4 py-3 text-gray-300">
+                          {relativeTime(entry.timestamp)}
+                        </td>
+                        <td className="px-4 py-3 font-medium text-white">
+                          {entry.agent_id}
+                        </td>
+                        <td className="px-4 py-3">
+                          <RuleTypeBadge type={entry.rule_type} />
+                        </td>
+                        <td className="max-w-xs truncate px-4 py-3 text-gray-300">
+                          {entry.message}
+                        </td>
+                        <td className="px-4 py-3 text-gray-400">
+                          {entry.delivered_via}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Pagination
+                currentPage={historyPage}
+                totalPages={historyTotalPages}
+                onPageChange={setHistoryPage}
+              />
+            </>
           )}
         </div>
       )}
