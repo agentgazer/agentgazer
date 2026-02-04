@@ -181,3 +181,21 @@ export function getProviderAuthHeader(
       return null;
   }
 }
+
+/**
+ * Parse a URL path to extract a provider name prefix.
+ * Given "/openai/v1/chat/completions" returns { provider: "openai", remainingPath: "/v1/chat/completions" }.
+ * Returns null for unknown prefixes, allowing fallthrough to existing detection.
+ */
+export function parsePathPrefix(
+  path: string
+): { provider: ProviderName; remainingPath: string } | null {
+  const match = path.match(/^\/([^/]+)(\/.*)?$/);
+  if (!match) return null;
+  const segment = match[1].toLowerCase();
+  const rest = match[2] ?? "/";
+  if (KNOWN_PROVIDER_NAMES.includes(segment as ProviderName)) {
+    return { provider: segment as ProviderName, remainingPath: rest };
+  }
+  return null;
+}

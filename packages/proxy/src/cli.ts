@@ -2,6 +2,7 @@
 
 import { startProxy } from "./proxy-server.js";
 import type { RateLimitConfig } from "./rate-limiter.js";
+import { KNOWN_PROVIDER_NAMES } from "@agenttrace/shared";
 
 function parseArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {};
@@ -112,6 +113,8 @@ function main(): void {
       console.log(`Rate limits configured: ${names.join(", ")}`);
     }
   }
+  console.log(`Path prefix routing: http://localhost:${listenPort}/{provider}/...`);
+  console.log(`Providers: ${KNOWN_PROVIDER_NAMES.join(", ")}`);
 
   let shuttingDown = false;
 

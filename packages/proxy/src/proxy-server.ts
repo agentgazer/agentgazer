@@ -4,6 +4,7 @@ import {
   detectProviderByHostname,
   getProviderBaseUrl,
   getProviderAuthHeader,
+  parsePathPrefix,
   parseProviderResponse,
   calculateCost,
   createLogger,
@@ -314,17 +315,33 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
+    // Path prefix routing: /{provider}/... -> provider base URL + remaining path
+    let pathPrefixProvider: ProviderName | null = null;
+    let effectivePath = path;
+
+    if (!targetBase) {
+      const prefixResult = parsePathPrefix(path);
+      if (prefixResult) {
+        const baseUrl = getProviderBaseUrl(prefixResult.provider);
+        if (baseUrl) {
+          targetBase = baseUrl;
+          effectivePath = prefixResult.remainingPath;
+          pathPrefixProvider = prefixResult.provider;
+        }
+      }
+    }
+
     if (!targetBase) {
       // Try to detect provider from the Host header (e.g. api.openai.com)
       const host = req.headers["host"] ?? "";
-      const hostUrl = `https://${host}${path}`;
+      const hostUrl = `https://${host}${effectivePath}`;
       const detectedProvider = detectProvider(hostUrl);
       if (detectedProvider !== "unknown") {
         targetBase = getProviderBaseUrl(detectedProvider) ?? undefined;
       }
       // Fallback: try to detect from path patterns alone
       if (!targetBase) {
-        const pathProvider = detectProvider(`https://placeholder${path}`);
+        const pathProvider = detectProvider(`https://placeholder${effectivePath}`);
         if (pathProvider !== "unknown") {
           targetBase = getProviderBaseUrl(pathProvider) ?? undefined;
         }
@@ -332,14 +349,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       if (!targetBase) {
         sendJson(res, 400, {
           error:
-            "Could not determine upstream provider. Set the Host header to a known provider (e.g. api.openai.com) or provide x-target-url header.",
+            "Could not determine upstream provider. Use path prefix routing (e.g. /openai/v1/...), set the Host header to a known provider (e.g. api.openai.com), or provide x-target-url header.",
         });
         return;
       }
     }
 
-    // Build target URL: combine base with the request path
-    const targetUrl = targetBase.replace(/\/+$/, "") + path;
+    // Build target URL: combine base with the effective path (prefix stripped if used)
+    const targetUrl = targetBase.replace(/\/+$/, "") + effectivePath;
 
     // Read the full request body
     let requestBody: Buffer;
@@ -355,17 +372,20 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     }
 
     // Strict detection (hostname-only): used for key injection and rate limiting.
-    // Prevents key leakage when x-target-url points to a non-provider hostname.
-    const detectedProviderStrict = detectProviderByHostname(targetUrl);
+    // Path prefix is definitively trusted (we resolved the provider ourselves).
+    const detectedProviderStrict: ProviderName = pathPrefixProvider
+      ?? detectProviderByHostname(targetUrl);
 
     // Lenient detection (hostname + path fallback): used for metric extraction.
-    let detectedProviderForMetrics = detectProvider(targetUrl);
+    let detectedProviderForMetrics: ProviderName = pathPrefixProvider
+      ?? detectProvider(targetUrl);
     if (detectedProviderForMetrics === "unknown") {
-      detectedProviderForMetrics = detectProvider(`https://placeholder${path}`);
+      detectedProviderForMetrics = detectProvider(`https://placeholder${effectivePath}`);
     }
 
     // Warn when path matches a provider but hostname doesn't — key will NOT be injected.
-    if (detectedProviderStrict === "unknown" && detectedProviderForMetrics !== "unknown") {
+    // Skip when path prefix was used (provider is already trusted).
+    if (!pathPrefixProvider && detectedProviderStrict === "unknown" && detectedProviderForMetrics !== "unknown") {
       const providerKey = providerKeys[detectedProviderForMetrics];
       if (providerKey) {
         const expectedBase = getProviderBaseUrl(detectedProviderForMetrics) ?? detectedProviderForMetrics;

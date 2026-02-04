@@ -410,6 +410,9 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   ║  Token:      ${config.token.slice(0, 16)}...      ║
   ║                                          ║
   ╚══════════════════════════════════════════╝
+
+  Proxy routes:  http://localhost:${proxyPort}/{provider}/...
+  Providers:     ${KNOWN_PROVIDER_NAMES.join(", ")}
 `);
 
   // Auto-open browser unless --no-open
