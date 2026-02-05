@@ -3,8 +3,11 @@ layout: home
 
 hero:
   name: AgentTrace
-  text: AI Agent 可觀測性平台
+  text: Keep a pulse on your agents.
   tagline: 一個指令，在本機監控你的 AI Agent。追蹤 LLM 呼叫、成本、延遲與錯誤。
+  image:
+    src: /logo.svg
+    alt: AgentTrace
   actions:
     - theme: brand
       text: 快速開始

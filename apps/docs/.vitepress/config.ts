@@ -4,6 +4,24 @@ export default defineConfig({
   title: "AgentTrace",
   description: "AI Agent Observability",
 
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+  ],
+
+  themeConfig: {
+    logo: {
+      light: "/logo.svg",
+      dark: "/logo.svg",
+    },
+    siteTitle: "AgentTrace",
+    socialLinks: [
+      { icon: "github", link: "https://github.com/agenttrace/agenttrace" },
+    ],
+    search: {
+      provider: "local",
+    },
+  },
+
   locales: {
     en: {
       label: "English",
@@ -20,6 +38,7 @@ export default defineConfig({
               text: "Introduction",
               items: [
                 { text: "Getting Started", link: "/en/guide/getting-started" },
+                { text: "CLI Reference", link: "/en/guide/cli" },
               ],
             },
             {
@@ -27,8 +46,21 @@ export default defineConfig({
               items: [
                 { text: "Proxy", link: "/en/guide/proxy" },
                 { text: "SDK", link: "/en/guide/sdk" },
+                { text: "Dashboard", link: "/en/guide/dashboard" },
                 { text: "Provider Keys", link: "/en/guide/providers" },
                 { text: "Alerts", link: "/en/guide/alerts" },
+              ],
+            },
+            {
+              text: "Deployment",
+              items: [
+                { text: "Docker", link: "/en/guide/docker" },
+              ],
+            },
+            {
+              text: "Integration",
+              items: [
+                { text: "OpenClaw", link: "/en/guide/openclaw" },
               ],
             },
             {
@@ -60,6 +92,7 @@ export default defineConfig({
               text: "介紹",
               items: [
                 { text: "快速開始", link: "/zh/guide/getting-started" },
+                { text: "CLI 指令參考", link: "/zh/guide/cli" },
               ],
             },
             {
@@ -67,8 +100,21 @@ export default defineConfig({
               items: [
                 { text: "代理伺服器", link: "/zh/guide/proxy" },
                 { text: "SDK", link: "/zh/guide/sdk" },
+                { text: "儀表板", link: "/zh/guide/dashboard" },
                 { text: "Provider 金鑰管理", link: "/zh/guide/providers" },
                 { text: "告警系統", link: "/zh/guide/alerts" },
+              ],
+            },
+            {
+              text: "部署",
+              items: [
+                { text: "Docker", link: "/zh/guide/docker" },
+              ],
+            },
+            {
+              text: "整合指南",
+              items: [
+                { text: "OpenClaw", link: "/zh/guide/openclaw" },
               ],
             },
             {
@@ -84,15 +130,6 @@ export default defineConfig({
           ],
         },
       },
-    },
-  },
-
-  themeConfig: {
-    socialLinks: [
-      { icon: "github", link: "https://github.com/agenttrace/agenttrace" },
-    ],
-    search: {
-      provider: "local",
     },
   },
 });

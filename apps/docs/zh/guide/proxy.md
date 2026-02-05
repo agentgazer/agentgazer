@@ -1,124 +1,112 @@
 # 代理伺服器
 
-AgentTrace 代理是一個透明的 HTTP proxy，位於你的應用程式和 LLM provider 之間。它將請求轉送到上游 API，即時串流回應，並擷取使用量指標（token 數、成本、延遲），不會修改任何內容。
+Proxy 是一個本地 HTTP 代理，透明地攔截你的 AI Agent 對 LLM Provider 的請求，自動提取 token 用量、延遲、成本等指標，**無需修改任何現有程式碼**。
 
-## 運作原理
+## 路徑前綴路由（推薦）
 
-1. 你的 LLM client 將請求送到 `http://localhost:4000`，而非直接送到 provider
-2. 代理從 `Host` header 或請求路徑偵測 provider
-3. 如有設定，自動注入 provider 的 API key
-4. 如有設定，執行 per-provider 的速率限制
-5. 請求被轉送到真正的上游 API
-6. 回應即時串流回你的 client
-7. Token 數、模型、延遲、成本被擷取並暫存
-8. 暫存的事件定期送到 AgentTrace server
+Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 
-同時支援標準 JSON 回應和 SSE 串流回應。
+| 路徑前綴 | 目標 |
+|----------|------|
+| `/openai/...` | `https://api.openai.com` |
+| `/anthropic/...` | `https://api.anthropic.com` |
+| `/google/...` | `https://generativelanguage.googleapis.com` |
+| `/cohere/...` | `https://api.cohere.ai` |
+| `/mistral/...` | `https://api.mistral.ai` |
+| `/deepseek/...` | `https://api.deepseek.com` |
 
-## 支援的 Provider
+### OpenAI SDK 整合範例
 
-| Provider | Host | 偵測方式 |
-|----------|------|---------|
-| OpenAI | `api.openai.com` | 路徑 `/v1/chat/completions` 或 Host |
-| Anthropic | `api.anthropic.com` | 路徑 `/v1/messages` 或 Host |
-| Google | `generativelanguage.googleapis.com` | Host |
-| Mistral | `api.mistral.ai` | Host |
-| Cohere | `api.cohere.com` | Host |
-| DeepSeek | `api.deepseek.com` | Host |
-| Moonshot | `api.moonshot.cn` | Host |
-| Zhipu (GLM) | `open.bigmodel.cn` | Host |
-| MiniMax | `api.minimax.chat` | Host |
-| Baichuan | `api.baichuan-ai.com` | Host |
-| Yi (01.AI) | `api.lingyiwanwu.com` | Host |
+最簡單的方式是設定 `OPENAI_BASE_URL` 環境變數：
 
-## Provider 偵測
+```bash
+export OPENAI_BASE_URL=http://localhost:4000/v1
+```
 
-代理從 `Host` header 自動偵測目標 provider。將 LLM client 的 base URL 設為 `http://localhost:4000`，代理會處理路由。
+或在程式碼中指定：
 
-如果自動偵測失敗，設定 `x-target-url` header 來明確指定上游 base URL：
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/v1",  // 指向 Proxy
+  // API Key 正常設定，Proxy 會透傳
+});
+
+// 正常使用，完全不需要其他改動
+const response = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+Proxy 會自動從路徑 `/v1/chat/completions` 偵測到是 OpenAI 請求。
+
+### Anthropic SDK 整合範例
+
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  baseURL: "http://localhost:4000/anthropic",
+});
+
+const message = await anthropic.messages.create({
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+## 使用 x-target-url Header
+
+若路徑前綴路由無法滿足需求，可使用 `x-target-url` header 明確指定目標：
 
 ```bash
 curl http://localhost:4000/v1/chat/completions \
   -H "x-target-url: https://api.openai.com" \
-  -H "Authorization: Bearer sk-..." \
-  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}'
+  -H "Authorization: Bearer sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
-## API Key 注入
+## Provider 偵測優先順序
 
-設定 provider key 後（透過 `agenttrace onboard` 或 `agenttrace providers set`），代理會自動注入正確的 auth header：
+Proxy 使用以下順序偵測目標 Provider：
 
-| Provider | Header |
-|----------|--------|
-| OpenAI, Mistral, Cohere, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan, Yi | `Authorization: Bearer <key>` |
-| Anthropic | `x-api-key: <key>` |
-| Google | `x-goog-api-key: <key>` |
+1. **路徑前綴** — 如 `/openai/...`、`/anthropic/...`
+2. **Host Header** — 如 `Host: api.openai.com`
+3. **路徑模式** — 如 `/v1/chat/completions` 對應 OpenAI
+4. **x-target-url Header** — 手動指定目標 URL
 
-如果 client 已經提供 auth header，代理**不會**覆蓋它。
+## 串流支援
 
-## 速率限制
-
-設定速率限制後，代理會對每個 provider 執行滑動視窗速率限制。超過限制的請求會收到 `429` 回應和 `Retry-After` header。
-
-在 onboard 時設定，或直接編輯 `~/.agenttrace/config.json`：
-
-```json
-{
-  "providers": {
-    "openai": {
-      "apiKey": "sk-...",
-      "rateLimit": { "maxRequests": 100, "windowSeconds": 60 }
-    }
-  }
-}
-```
+Proxy 同時支援串流（SSE, Server-Sent Events）與非串流回應。串流模式下，Proxy 會在串流結束後非同步地解析並擷取指標。
 
 ## 健康檢查
 
-```
-GET http://localhost:4000/health
+```bash
+curl http://localhost:4000/health
 ```
 
-回應：
+回傳：
 
 ```json
-{ "status": "ok", "agent_id": "proxy", "uptime_ms": 12345 }
+{
+  "status": "ok",
+  "agent_id": "my-agent",
+  "uptime_ms": 123456
+}
 ```
 
-## 獨立使用
+## 隱私保證
 
-代理可以獨立於 CLI 運行：
+Proxy 只提取以下指標資料：
 
-```bash
-agenttrace-proxy --api-key <token> --agent-id proxy \
-  --provider-keys '{"openai":"sk-..."}' \
-  --rate-limits '{"openai":{"maxRequests":100,"windowSeconds":60}}'
-```
+- Token 數量（輸入/輸出/合計）
+- 模型名稱
+- 延遲（毫秒）
+- 成本（USD）
+- HTTP 狀態碼
 
-或以程式方式：
-
-```typescript
-import { startProxy } from "@agenttrace/proxy";
-
-const { server, shutdown } = startProxy({
-  port: 4000,
-  apiKey: "your-token",
-  agentId: "proxy",
-  endpoint: "http://localhost:8080/api/events",
-  providerKeys: { openai: "sk-..." },
-  rateLimits: { openai: { maxRequests: 100, windowSeconds: 60 } },
-});
-```
-
-## 設定選項
-
-| 選項 | 型別 | 預設值 | 說明 |
-|------|------|--------|------|
-| `port` | `number` | `4000` | 代理監聽 port |
-| `apiKey` | `string` | 必填 | AgentTrace server 的認證 token |
-| `agentId` | `string` | 必填 | 記錄事件用的 Agent ID |
-| `endpoint` | `string` | — | 事件接收 URL |
-| `flushInterval` | `number` | `5000` | 暫存區刷新間隔（毫秒） |
-| `maxBufferSize` | `number` | `50` | 自動刷新前的最大暫存事件數 |
-| `providerKeys` | `Record<string, string>` | — | 要注入的 provider API key |
-| `rateLimits` | `Record<string, RateLimitConfig>` | — | Per-provider 速率限制 |
+**Prompt 內容和 API Key 永遠不會傳送到 AgentTrace 伺服器。**

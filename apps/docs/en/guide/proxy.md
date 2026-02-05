@@ -1,124 +1,112 @@
 # Proxy
 
-The AgentTrace proxy is a transparent HTTP proxy that sits between your application and LLM providers. It forwards requests to the upstream API, streams responses back, and extracts usage metrics (tokens, cost, latency) without modifying the payload.
+The Proxy is a local HTTP proxy that transparently intercepts your AI Agent's requests to LLM Providers, automatically extracting metrics such as token usage, latency, and cost — **without modifying any existing code**.
 
-## How It Works
+## Path Prefix Routing (Recommended)
 
-1. Your LLM client sends requests to `http://localhost:4000` instead of the provider
-2. The proxy detects the provider from the `Host` header or request path
-3. If configured, a provider API key is injected into the request headers
-4. If configured, a per-provider rate limit is enforced
-5. The request is forwarded to the real upstream API
-6. The response is streamed back to your client in real-time
-7. Token counts, model, latency, and cost are extracted and buffered
-8. Buffered events are flushed to the AgentTrace server periodically
+The Proxy supports path prefix routing, which automatically forwards requests to the corresponding Provider:
 
-Both standard JSON responses and SSE streaming responses are supported.
+| Path Prefix | Target |
+|-------------|--------|
+| `/openai/...` | `https://api.openai.com` |
+| `/anthropic/...` | `https://api.anthropic.com` |
+| `/google/...` | `https://generativelanguage.googleapis.com` |
+| `/cohere/...` | `https://api.cohere.ai` |
+| `/mistral/...` | `https://api.mistral.ai` |
+| `/deepseek/...` | `https://api.deepseek.com` |
 
-## Supported Providers
+### OpenAI SDK Integration Example
 
-| Provider | Host | Detection |
-|----------|------|-----------|
-| OpenAI | `api.openai.com` | Path `/v1/chat/completions` or Host |
-| Anthropic | `api.anthropic.com` | Path `/v1/messages` or Host |
-| Google | `generativelanguage.googleapis.com` | Host |
-| Mistral | `api.mistral.ai` | Host |
-| Cohere | `api.cohere.com` | Host |
-| DeepSeek | `api.deepseek.com` | Host |
-| Moonshot | `api.moonshot.cn` | Host |
-| Zhipu (GLM) | `open.bigmodel.cn` | Host |
-| MiniMax | `api.minimax.chat` | Host |
-| Baichuan | `api.baichuan-ai.com` | Host |
-| Yi (01.AI) | `api.lingyiwanwu.com` | Host |
+The simplest approach is to set the `OPENAI_BASE_URL` environment variable:
 
-## Provider Detection
+```bash
+export OPENAI_BASE_URL=http://localhost:4000/v1
+```
 
-The proxy auto-detects the target provider from the `Host` header. Set your LLM client's base URL to `http://localhost:4000` and the proxy handles routing.
+Or specify it in your code:
 
-If auto-detection fails, set the `x-target-url` header to specify the upstream base URL explicitly:
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/v1",  // Point to the Proxy
+  // API Key is configured normally; the Proxy passes it through
+});
+
+// Use as usual — no other changes needed
+const response = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+The Proxy automatically detects this as an OpenAI request from the path `/v1/chat/completions`.
+
+### Anthropic SDK Integration Example
+
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  baseURL: "http://localhost:4000/anthropic",
+});
+
+const message = await anthropic.messages.create({
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+## Using the x-target-url Header
+
+If path prefix routing does not meet your needs, you can use the `x-target-url` header to explicitly specify the target:
 
 ```bash
 curl http://localhost:4000/v1/chat/completions \
   -H "x-target-url: https://api.openai.com" \
-  -H "Authorization: Bearer sk-..." \
-  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}'
+  -H "Authorization: Bearer sk-xxx" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
-## API Key Injection
+## Provider Detection Priority
 
-When provider keys are configured (via `agenttrace onboard` or `agenttrace providers set`), the proxy injects the correct auth header automatically:
+The Proxy detects the target Provider in the following order:
 
-| Provider | Header |
-|----------|--------|
-| OpenAI, Mistral, Cohere, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan, Yi | `Authorization: Bearer <key>` |
-| Anthropic | `x-api-key: <key>` |
-| Google | `x-goog-api-key: <key>` |
+1. **Path prefix** — e.g., `/openai/...`, `/anthropic/...`
+2. **Host header** — e.g., `Host: api.openai.com`
+3. **Path pattern** — e.g., `/v1/chat/completions` maps to OpenAI
+4. **x-target-url header** — manually specified target URL
 
-If the client already provides the auth header, the proxy does **not** override it.
+## Streaming Support
 
-## Rate Limiting
-
-When rate limits are configured, the proxy enforces a sliding-window rate limit per provider. Requests exceeding the limit receive a `429` response with a `Retry-After` header.
-
-Configure rate limits during onboard or in `~/.agenttrace/config.json`:
-
-```json
-{
-  "providers": {
-    "openai": {
-      "apiKey": "sk-...",
-      "rateLimit": { "maxRequests": 100, "windowSeconds": 60 }
-    }
-  }
-}
-```
+The Proxy supports both streaming (SSE, Server-Sent Events) and non-streaming responses. In streaming mode, the Proxy asynchronously parses and extracts metrics after the stream ends.
 
 ## Health Check
 
-```
-GET http://localhost:4000/health
+```bash
+curl http://localhost:4000/health
 ```
 
-Returns:
+Response:
 
 ```json
-{ "status": "ok", "agent_id": "proxy", "uptime_ms": 12345 }
+{
+  "status": "ok",
+  "agent_id": "my-agent",
+  "uptime_ms": 123456
+}
 ```
 
-## Standalone Usage
+## Privacy Guarantee
 
-The proxy can run independently of the CLI:
+The Proxy only extracts the following metric data:
 
-```bash
-agenttrace-proxy --api-key <token> --agent-id proxy \
-  --provider-keys '{"openai":"sk-..."}' \
-  --rate-limits '{"openai":{"maxRequests":100,"windowSeconds":60}}'
-```
+- Token counts (input / output / total)
+- Model name
+- Latency (milliseconds)
+- Cost (USD)
+- HTTP status code
 
-Or programmatically:
-
-```typescript
-import { startProxy } from "@agenttrace/proxy";
-
-const { server, shutdown } = startProxy({
-  port: 4000,
-  apiKey: "your-token",
-  agentId: "proxy",
-  endpoint: "http://localhost:8080/api/events",
-  providerKeys: { openai: "sk-..." },
-  rateLimits: { openai: { maxRequests: 100, windowSeconds: 60 } },
-});
-```
-
-## Configuration
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `port` | `number` | `4000` | Proxy listen port |
-| `apiKey` | `string` | required | Auth token for the AgentTrace server |
-| `agentId` | `string` | required | Agent ID for recorded events |
-| `endpoint` | `string` | — | Event ingestion URL |
-| `flushInterval` | `number` | `5000` | Buffer flush interval in ms |
-| `maxBufferSize` | `number` | `50` | Max buffered events before auto-flush |
-| `providerKeys` | `Record<string, string>` | — | Provider API keys to inject |
-| `rateLimits` | `Record<string, RateLimitConfig>` | — | Per-provider rate limits |
+**Prompt content and API keys are never sent to the AgentTrace server.**

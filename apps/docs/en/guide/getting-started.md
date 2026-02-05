@@ -1,112 +1,178 @@
 # Getting Started
 
-## Install
+> Local-first AI Agent observability platform — Complete installation, configuration, and usage manual
+
+## Platform Overview
+
+AgentTrace is a **local-first** AI Agent observability platform. With a single command `npx agenttrace`, you can launch everything: an Express server, an LLM proxy, and a React dashboard — all data stored locally in SQLite with zero cloud dependencies.
+
+### Core Features
+
+- **LLM Call Monitoring**: Track every Agent's LLM requests, latency, and token usage
+- **Cost Tracking**: Spend analysis by Provider / Model with daily budget alerts
+- **Health Detection**: Automatic Agent status assessment (healthy / degraded / down) based on heartbeat mechanism
+- **Alert Notifications**: Rules for Agent down, error rate threshold, budget overrun, delivered via Webhook or Email
+- **Privacy First**: Prompt content and API keys never leave the user's machine
+
+### Data Collection Methods
+
+| Method | Description | Use Case |
+|--------|-------------|----------|
+| **Proxy** (Recommended) | Transparent proxy intercepts LLM requests with zero code changes | No modifications to existing code needed; automatically captures all LLM calls |
+| **SDK** | Manual instrumentation in your code | When you need precise control over which calls to track, or custom events |
+
+### Supported LLM Providers
+
+| Provider | Host Pattern | Path Detection |
+|----------|-------------|----------------|
+| OpenAI | `api.openai.com` | `/v1/chat/completions`, `/v1/completions` |
+| Anthropic | `api.anthropic.com` | `/v1/messages` |
+| Google | `generativelanguage.googleapis.com` | Host matching |
+| Mistral | `api.mistral.ai` | Host matching |
+| Cohere | `api.cohere.com` | Host matching |
+| DeepSeek | `api.deepseek.com` | Host matching |
+
+## System Architecture
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        User's Machine                           │
+│                                                                 │
+│  ┌──────────┐    ┌────────────────────┐                         │
+│  │ AI Agent │───>│ AgentTrace Proxy   │──> LLM Provider         │
+│  │          │<───│ (:4000 default)    │<── (OpenAI, Anthropic   │
+│  └──────────┘    └────────┬───────────┘    Google, Mistral...)   │
+│       │                   │                                     │
+│       │ SDK               │ Metrics Data                        │
+│       │ (optional)        │ (tokens, model, latency, cost)      │
+│       │                   │                                     │
+│       ▼                   ▼                                     │
+│  ┌─────────────────────────────────────┐                        │
+│  │     Express Server (:8080 default)  │                        │
+│  │                                     │                        │
+│  │  ┌───────────┐  ┌────────────────┐  │                        │
+│  │  │ REST API  │  │ React Dashboard│  │                        │
+│  │  │ /api/*    │  │ (Vite build)   │  │                        │
+│  │  └─────┬─────┘  └────────────────┘  │                        │
+│  │        │                            │                        │
+│  │  ┌─────▼─────────────────────────┐  │                        │
+│  │  │      SQLite Database          │  │                        │
+│  │  │  ~/.agenttrace/data.db        │  │                        │
+│  │  └───────────────────────────────┘  │                        │
+│  └─────────────────────────────────────┘                        │
+│                                                                 │
+│  Config file: ~/.agenttrace/config.json                         │
+│  Encrypted keystore: AES-256-GCM encrypted storage              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Design Principles
+
+- **Single Command Startup**: `agenttrace start` launches the Express server, LLM Proxy, and React dashboard simultaneously
+- **Local SQLite**: All data is stored in `~/.agenttrace/data.db` with no external database required
+- **Privacy Guarantee**: The Proxy only extracts metric data (token counts, model name, latency, cost) — prompt content and API keys never leave the local machine
+
+### Project Structure (Turborepo Monorepo)
+
+```
+agenttrace/
+├── packages/
+│   ├── cli/               # CLI entry point (agenttrace command)
+│   ├── server/            # Express API + SQLite database
+│   ├── proxy/             # LLM Proxy with metrics extraction
+│   ├── sdk/               # TypeScript SDK (@agenttrace/sdk)
+│   └── shared/            # Shared types, pricing calculations, Provider detection
+├── apps/
+│   └── dashboard-local/   # React + Vite dashboard
+├── package.json           # Monorepo root config
+└── turbo.json             # Turborepo config
+```
+
+## Installation and Quick Start
+
+### Prerequisites
+
+| Tool | Version | Description |
+|------|---------|-------------|
+| Node.js | >= 18 | JavaScript runtime |
+| npm | >= 10 | Package manager |
+
+No cloud accounts or external services required.
+
+### Installation
+
+**Option A: Direct execution (Recommended)**
+
+```bash
+npx agenttrace
+```
+
+**Option B: Global installation**
 
 ```bash
 npm install -g agenttrace
 ```
 
-Requires Node.js 18 or later.
+### Initial Setup
 
-## First-Time Setup
-
-Run the onboard command to generate an auth token and configure provider API keys:
+On first use, run the setup wizard:
 
 ```bash
 agenttrace onboard
 ```
 
-This will:
+This command will:
 
-1. Create `~/.agenttrace/config.json` with a generated token
-2. Create a SQLite database at `~/.agenttrace/agenttrace.db`
-3. Walk you through configuring API keys for each provider (optional)
+1. Create a `config.json` configuration file in the `~/.agenttrace/` directory
+2. Generate an authentication Token (used for API access and dashboard login)
+3. Guide you through setting up LLM Provider API keys
 
-## Start
+### Starting the Service
 
 ```bash
 agenttrace start
 ```
 
-This launches three services:
+After startup, a browser window automatically opens to the dashboard:
 
-| Service | Default Port | Description |
-|---------|-------------|-------------|
-| API Server | 8080 | REST API + dashboard |
-| LLM Proxy | 4000 | Transparent proxy for LLM calls |
-| Dashboard | 8080 | Web UI (served by the API server) |
+```
+http://localhost:8080
+```
 
-Open `http://localhost:8080` to view the dashboard.
+Default ports:
 
-### Options
+| Service | Port | Description |
+|---------|------|-------------|
+| Express Server + Dashboard | 8080 | REST API and React dashboard |
+| LLM Proxy | 4000 | Proxies LLM requests and extracts metrics |
+
+### Quick Verification
+
+After startup, use the following methods to verify the system is running properly:
 
 ```bash
-agenttrace start --port 9090          # Custom server port
-agenttrace start --proxy-port 5000    # Custom proxy port
-agenttrace start --retention-days 7   # Keep data for 7 days
-agenttrace start --no-open            # Don't auto-open browser
+# Check server health
+curl http://localhost:8080/api/health
+
+# Check Proxy health
+curl http://localhost:4000/health
+
+# Use the built-in diagnostic tool
+agenttrace doctor
 ```
 
-## Connect Your Agent
+## Appendix: Quick Start Checklist
 
-There are two ways to send data to AgentTrace:
-
-### Option A: Use the Proxy (recommended)
-
-Point your LLM client at the proxy instead of the provider directly:
-
-```bash
-export OPENAI_BASE_URL=http://localhost:4000/v1
-```
-
-The proxy automatically detects the provider, forwards the request, and records usage metrics. No code changes needed.
-
-### Option B: Use the SDK
-
-```typescript
-import { AgentTrace } from "@agenttrace/sdk";
-
-const at = AgentTrace.init({
-  apiKey: "your-token",     // from ~/.agenttrace/config.json
-  agentId: "my-agent",
-});
-
-// Track an LLM call
-at.track({
-  provider: "openai",
-  model: "gpt-4o",
-  tokens: { input: 150, output: 50 },
-  latency_ms: 1200,
-  status: 200,
-});
-
-// Graceful shutdown
-await at.shutdown();
-```
-
-Install the SDK:
-
-```bash
-npm install @agenttrace/sdk
-```
-
-## Check Status
-
-```bash
-agenttrace status            # Show current config
-agenttrace providers list    # List configured providers
-```
-
-## Architecture
-
-```
-Your App ──> AgentTrace Proxy ──> LLM Provider (OpenAI, Anthropic, DeepSeek, etc.)
-                  │
-                  ▼
-            AgentTrace Server (Express + SQLite)
-                  │
-                  ▼
-             Dashboard (React)
-```
-
-All components run locally on your machine. The proxy intercepts LLM traffic, extracts usage data (tokens, cost, latency), and sends it to the local server. The dashboard reads from the same SQLite database.
+- [ ] Install Node.js >= 18
+- [ ] Run `npx agenttrace` or `npm install -g agenttrace`
+- [ ] Run `agenttrace onboard` to complete initial setup
+- [ ] Note down the authentication Token
+- [ ] Use `agenttrace providers set` to configure LLM Provider API keys
+- [ ] Run `agenttrace start` to launch all services
+- [ ] Open `http://localhost:8080` in a browser to log into the dashboard
+- [ ] Configure the Proxy in your AI Agent (point the base URL to `http://localhost:4000`) or integrate the SDK
+- [ ] Verify that event data appears correctly in the dashboard
+- [ ] Set up alert rules (agent_down / error_rate / budget)
+- [ ] Run `agenttrace doctor` to confirm system health

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" fill="none">
+  <!-- Pulse line with sharp A-shaped spike -->
+  <polyline
+    points="0,75 55,75 100,10 145,75 200,75"
+    stroke="#4F46E5"
+    stroke-width="6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+  <!-- Dot as A crossbar -->
+  <circle cx="100" cy="50" r="5.5" fill="#818CF8" />
+</svg>

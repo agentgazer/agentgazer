@@ -1,120 +1,48 @@
 # Alerts
 
-AgentTrace supports configurable alert rules that notify you when your agents encounter problems. Alerts can be delivered via webhook or email.
+## Alert Rule Types
 
-## Alert Types
-
-### Agent Down
-
-Triggers when an agent stops sending heartbeats for a specified duration.
-
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "agent_down",
-  "config": { "duration_minutes": 5 },
-  "webhook_url": "https://hooks.slack.com/..."
-}
-```
-
-### Error Rate
-
-Triggers when the error rate exceeds a threshold within a time window.
-
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "error_rate",
-  "config": {
-    "window_minutes": 60,
-    "threshold": 10
-  },
-  "webhook_url": "https://hooks.slack.com/..."
-}
-```
-
-`threshold` is a percentage (10 = 10% error rate).
-
-### Budget
-
-Triggers when an agent's daily cost exceeds a threshold.
-
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "budget",
-  "config": { "threshold": 50.0 },
-  "email": "ops@example.com"
-}
-```
-
-`threshold` is in USD.
-
-## Managing Alerts
-
-Alerts are managed via the REST API:
-
-```bash
-TOKEN="your-token"
-
-# List all alerts
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/alerts
-
-# Create an alert
-curl -X POST http://localhost:8080/api/alerts \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "my-agent",
-    "rule_type": "error_rate",
-    "config": { "window_minutes": 60, "threshold": 10 },
-    "webhook_url": "https://hooks.slack.com/..."
-  }'
-
-# Toggle an alert on/off
-curl -X PATCH http://localhost:8080/api/alerts/<id>/toggle \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": false}'
-
-# Delete an alert
-curl -X DELETE http://localhost:8080/api/alerts/<id> \
-  -H "Authorization: Bearer $TOKEN"
-
-# View alert history
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/alert-history
-```
+| Type | Description | Configurable Parameters | Default |
+|------|-------------|------------------------|---------|
+| **agent_down** | Agent has not sent a heartbeat for an extended period | `duration_minutes`: minutes before considered down | 10 minutes |
+| **error_rate** | Error rate exceeds threshold | `threshold`: percentage; `window_minutes`: rolling window | 20%, 5 minutes |
+| **budget** | Daily spend exceeds budget | `threshold`: amount limit in USD | — |
 
 ## Notification Channels
 
-### Webhook
+Each alert rule can be configured with the following notification methods:
 
-Sends a POST request with JSON payload:
+**Webhook**
 
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "error_rate",
-  "message": "Error rate for my-agent exceeded 10% in the last 60 minutes",
-  "timestamp": "2025-01-15T10:30:00Z"
-}
-```
+- Sends a JSON payload via POST to a specified URL
+- Automatically retries up to 3 times on failure with exponential backoff (1s, 4s, 16s)
 
-Failed deliveries are retried up to 3 times with exponential backoff.
+**Email (SMTP)**
 
-### Email
+- Sends alert notifications via an SMTP server
+- Requires SMTP environment variables to be configured (see the [Deployment](/en/guide/docker) section)
 
-Requires SMTP configuration via environment variables:
+## Cooldown Mechanism
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SMTP_HOST` | — | SMTP server hostname (required) |
-| `SMTP_PORT` | `587` | SMTP port |
-| `SMTP_SECURE` | `false` | Use TLS |
-| `SMTP_USER` | — | SMTP username |
-| `SMTP_PASS` | — | SMTP password |
-| `SMTP_FROM` | `alerts@agenttrace.dev` | Sender address |
+After a rule fires, it enters a **15-minute** cooldown period during which the same rule will not fire again. This prevents alert fatigue.
 
-## Cooldown
+## Management Methods
 
-To prevent alert storms, there is a 15-minute cooldown between alert deliveries for the same rule. During cooldown, the alert condition is still checked but notifications are suppressed.
+Alert rules can be managed in two ways:
+
+1. **Dashboard UI**: Create, edit, enable/disable, and delete rules on the Alerts page, and view alert history
+2. **REST API**: Manage programmatically via the `/api/alerts` endpoint (see the [API Reference](/en/reference/api) section)
+
+## Creating Alert Rules (Dashboard)
+
+1. Navigate to the Alerts page
+2. Click "New Alert Rule"
+3. Select the target Agent
+4. Choose the rule type (agent_down / error_rate / budget)
+5. Configure the relevant parameters
+6. Enter a Webhook URL and/or Email address
+7. Save the rule
+
+## Alert History
+
+Switch to the "History" tab to view all triggered alert records, including trigger time, target Agent, rule type, alert message, and delivery method.

@@ -1,120 +1,48 @@
 # 告警系統
 
-AgentTrace 支援可設定的告警規則，在 agent 出問題時通知你。告警可透過 webhook 或 email 發送。
+## 告警規則類型
 
-## 告警類型
-
-### Agent 離線（agent_down）
-
-當 agent 停止送出心跳超過指定時間時觸發。
-
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "agent_down",
-  "config": { "duration_minutes": 5 },
-  "webhook_url": "https://hooks.slack.com/..."
-}
-```
-
-### 錯誤率（error_rate）
-
-當錯誤率在時間視窗內超過閾值時觸發。
-
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "error_rate",
-  "config": {
-    "window_minutes": 60,
-    "threshold": 10
-  },
-  "webhook_url": "https://hooks.slack.com/..."
-}
-```
-
-`threshold` 是百分比（10 = 10% 錯誤率）。
-
-### 預算（budget）
-
-當 agent 的每日成本超過閾值時觸發。
-
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "budget",
-  "config": { "threshold": 50.0 },
-  "email": "ops@example.com"
-}
-```
-
-`threshold` 的單位是美元。
-
-## 管理告警
-
-透過 REST API 管理告警：
-
-```bash
-TOKEN="your-token"
-
-# 列出所有告警
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/alerts
-
-# 建立告警
-curl -X POST http://localhost:8080/api/alerts \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_id": "my-agent",
-    "rule_type": "error_rate",
-    "config": { "window_minutes": 60, "threshold": 10 },
-    "webhook_url": "https://hooks.slack.com/..."
-  }'
-
-# 開關告警
-curl -X PATCH http://localhost:8080/api/alerts/<id>/toggle \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled": false}'
-
-# 刪除告警
-curl -X DELETE http://localhost:8080/api/alerts/<id> \
-  -H "Authorization: Bearer $TOKEN"
-
-# 檢視告警歷史
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/alert-history
-```
+| 類型 | 說明 | 可設定參數 | 預設值 |
+|------|------|-----------|--------|
+| **agent_down** | Agent 長時間未發送心跳 | `duration_minutes`：視為離線的分鐘數 | 10 分鐘 |
+| **error_rate** | 錯誤率超過閾值 | `threshold`：百分比；`window_minutes`：滾動視窗 | 20%、5 分鐘 |
+| **budget** | 每日花費超過預算 | `threshold`：金額上限 USD | — |
 
 ## 通知管道
 
-### Webhook
+每條告警規則可設定以下通知方式：
 
-發送 POST 請求，包含 JSON 內容：
+**Webhook**
 
-```json
-{
-  "agent_id": "my-agent",
-  "rule_type": "error_rate",
-  "message": "Error rate for my-agent exceeded 10% in the last 60 minutes",
-  "timestamp": "2025-01-15T10:30:00Z"
-}
-```
+- 以 POST 方式發送 JSON 到指定 URL
+- 失敗時自動重試 3 次，使用指數退避（1 秒 → 4 秒 → 16 秒）
 
-失敗時會重試最多 3 次，使用指數退避（1 秒、4 秒、16 秒）。
+**Email（SMTP）**
 
-### Email
+- 透過 SMTP 伺服器發送告警通知
+- 需設定 SMTP 相關環境變數（詳見[部署](./docker.md)章節）
 
-需要透過環境變數設定 SMTP：
+## 冷卻機制
 
-| 變數 | 預設值 | 說明 |
-|------|--------|------|
-| `SMTP_HOST` | — | SMTP 伺服器主機名（必填） |
-| `SMTP_PORT` | `587` | SMTP 埠號 |
-| `SMTP_SECURE` | `false` | 使用 TLS |
-| `SMTP_USER` | — | SMTP 使用者名稱 |
-| `SMTP_PASS` | — | SMTP 密碼 |
-| `SMTP_FROM` | `alerts@agenttrace.dev` | 寄件者地址 |
+每條規則觸發後，會進入 **15 分鐘**的冷卻期，期間不會重複觸發同一條規則，避免告警疲勞。
 
-## 冷卻時間
+## 管理方式
 
-為防止告警風暴，同一規則的告警送出之間有 15 分鐘的冷卻時間。冷卻期間仍會檢查告警條件，但通知會被抑制。
+告警規則可透過兩種方式管理：
+
+1. **儀表板 UI**：在 Alerts 頁面建立、編輯、啟用/停用、刪除規則，並查看告警歷史
+2. **REST API**：透過 `/api/alerts` 端點程式化管理（詳見 [API 參考](../reference/api.md)章節）
+
+## 建立告警規則（儀表板）
+
+1. 前往 Alerts 頁面
+2. 點擊 "New Alert Rule"
+3. 選擇目標 Agent
+4. 選擇規則類型（agent_down / error_rate / budget）
+5. 設定相關參數
+6. 填入 Webhook URL 和/或 Email 地址
+7. 儲存規則
+
+## 告警歷史
+
+切換到 "History" 分頁，可以看到所有已觸發的告警記錄，包括觸發時間、目標 Agent、規則類型、告警訊息及發送方式。
