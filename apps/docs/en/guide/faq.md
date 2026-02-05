@@ -1,113 +1,58 @@
-# FAQ
+# Troubleshooting
 
-## General
+## Events are not appearing in the dashboard
 
-### What is AgentTrace?
+1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agenttrace/config.json`
+2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:8080/api/events`
+3. **Ensure the buffer has been flushed**: Events may still be in the buffer. Call `at.shutdown()` to force a flush, or wait for the 5-second auto-flush cycle
+4. **Check console warnings**: SDK network errors do not throw exceptions but are logged as warnings in the console
 
-AgentTrace is a local-first observability tool for AI agents. It tracks LLM API calls, token usage, costs, latency, and errors — all running on your machine with no cloud dependency.
+## Proxy cannot detect the Provider
 
-### What LLM providers are supported?
+1. **Use path prefix routing**: This is the most reliable method. For example, set the base URL to `http://localhost:4000/openai/v1`
+2. **Use x-target-url**: Add the `x-target-url` header to explicitly specify the target
+3. **Check the Provider detection order**: Path prefix -> Host header -> Path pattern -> x-target-url
+4. **Check the Proxy logs**: The Proxy outputs detection results and warnings to the console
 
-OpenAI, Anthropic, Google (Gemini), Mistral, and Cohere. The proxy auto-detects the provider from the request.
+## Receiving 429 Too Many Requests
 
-### Is my data sent anywhere?
+1. **Rate limit**: Maximum of 1,000 events per minute
+2. **Increase buffer size**: A larger `maxBufferSize` reduces flush frequency
+3. **Check Retry-After**: The `Retry-After` header in the response indicates how many seconds to wait
 
-No. AgentTrace runs entirely on your machine. Data is stored in a local SQLite database at `~/.agenttrace/agenttrace.db`. Your prompts and API keys never leave your environment.
+## Agent status shows "unknown"
 
-## Proxy
+1. **Confirm heartbeats are being sent**: Use `at.heartbeat()` to send heartbeats periodically (recommended every 30 seconds)
+2. **Timeout threshold**: If no heartbeat is received for more than 10 minutes, the Agent is marked as "down"
 
-### Do I need to change my application code?
+## Dashboard login fails
 
-No. Just point your LLM client's base URL to the proxy:
+1. **Verify the Token**: Check the Token in `~/.agenttrace/config.json`
+2. **Regenerate the Token**: Run `agenttrace reset-token` to generate a new Token
+3. **Confirm the server is running**: Run `agenttrace doctor` to check server status
 
-```bash
-export OPENAI_BASE_URL=http://localhost:4000/v1
-```
+## Cost calculations are incorrect
 
-The proxy is transparent — it forwards requests and responses without modification.
+1. **Verify model names**: Cost calculation relies on the pricing table in `@agenttrace/shared`. Model name lookup is case-insensitive (e.g., both `GPT-4o` and `gpt-4o` will match)
+2. **Negative token values**: If negative token counts are passed, cost calculation returns `null`
+3. **Manually specify cost_usd**: If automatic calculation is inaccurate, pass the `cost_usd` field manually in `track()`
 
-### Can I use the proxy without storing API keys in AgentTrace?
+## Port conflicts
 
-Yes. If your application already provides its own API key in the request headers, the proxy will use that key and not override it. Provider key injection is optional.
-
-### What happens if the proxy goes down?
-
-Your LLM calls will fail since they're routed through the proxy. To avoid this in production, point directly at the provider and use the SDK for tracking instead.
-
-### Does the proxy modify my requests or responses?
-
-No. The proxy forwards requests and responses verbatim. It only reads the response to extract usage metrics (token counts, model, status code).
-
-## SDK
-
-### When should I use the SDK vs. the proxy?
-
-| | Proxy | SDK |
-|--|-------|-----|
-| Code changes | None | Requires instrumentation |
-| Coverage | All LLM calls automatically | Only what you instrument |
-| Custom events | No | Yes (heartbeat, error, custom) |
-| Tracing | No | Yes (traces and spans) |
-
-Use the proxy for zero-effort tracking. Use the SDK when you need heartbeats, custom events, or distributed tracing.
-
-### Can I use both the proxy and SDK together?
-
-Yes. The proxy tracks LLM call metrics automatically. The SDK can add heartbeats, custom events, and trace context on top of that.
-
-## Security
-
-### How are provider API keys stored?
-
-Keys are stored using your OS keychain when available (macOS Keychain, Linux libsecret).
-In SSH, headless, or Docker environments, keys are encrypted with AES-256-GCM using a
-machine-derived key. They are never stored as plaintext.
-
-### Can another process on my machine read my API keys?
-
-If your OS keychain is available, keys are protected by the OS. In headless mode, the
-encrypted file prevents casual reading, but a process running as the same user could
-theoretically derive the same encryption key. For maximum protection, use a desktop
-environment with OS keychain support.
-
-### Do keys stay in memory after startup?
-
-Yes. Keys are decrypted once when `agenttrace start` runs and held in memory for the proxy's lifetime. They are never written back to disk during operation. If you update a key with `agenttrace providers set`, you need to restart `agenttrace start` for the change to take effect.
-
-## Data
-
-### How long is data retained?
-
-Default is 30 days. Configure with `--retention-days`:
+If the default ports are already in use, start with custom ports:
 
 ```bash
-agenttrace start --retention-days 7
+agenttrace start --port 9090 --proxy-port 5000
 ```
 
-### Can I export my data?
+## Database issues
 
-Yes. Use the export API:
+The SQLite database is located at `~/.agenttrace/data.db`. To reset it:
 
 ```bash
-# JSON export
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8080/api/events/export?agent_id=my-agent&format=json" > events.json
+# Stop the service, then delete the database file
+rm ~/.agenttrace/data.db
 
-# CSV export
-curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8080/api/events/export?agent_id=my-agent&format=csv" > events.csv
+# Restart — the system will automatically create a new database
+agenttrace start
 ```
-
-### How does cost calculation work?
-
-AgentTrace has built-in pricing data for common models. When the proxy or SDK records an event with `provider`, `model`, and token counts, the cost is calculated automatically. If a model isn't in the pricing table, cost will be `null`.
-
-## Performance
-
-### Will the proxy slow down my LLM calls?
-
-The proxy adds negligible overhead. It streams responses in real-time and processes metrics asynchronously. LLM API latency (typically 500ms–5s) dominates any proxy overhead.
-
-### Can SQLite handle the load?
-
-Yes. LLM calls are typically low QPS (single digits to low hundreds per second). SQLite handles this easily. The database uses WAL mode for concurrent read/write access.

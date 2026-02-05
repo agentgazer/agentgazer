@@ -1,6 +1,4 @@
-# SDK
-
-AgentTrace SDK 讓你在程式碼中追蹤 LLM 呼叫、錯誤和自訂事件。它在本機暫存事件，定期送到 AgentTrace server。
+# SDK 使用指南
 
 ## 安裝
 
@@ -8,146 +6,152 @@ AgentTrace SDK 讓你在程式碼中追蹤 LLM 呼叫、錯誤和自訂事件。
 npm install @agenttrace/sdk
 ```
 
-## 快速開始
+## 初始化
 
 ```typescript
 import { AgentTrace } from "@agenttrace/sdk";
 
 const at = AgentTrace.init({
-  apiKey: "your-token",     // 來自 ~/.agenttrace/config.json
-  agentId: "my-agent",
-});
-
-// 追蹤一次 LLM 呼叫
-at.track({
-  provider: "openai",
-  model: "gpt-4o",
-  tokens: { input: 150, output: 50 },
-  latency_ms: 1200,
-  status: 200,
+  apiKey: "your-token",           // 必填：在 onboard 時產生的 Token
+  agentId: "my-agent",            // 必填：此 Agent 的唯一識別碼
+  endpoint: "http://localhost:8080/api/events",  // 選填：預設指向本地伺服器
 });
 ```
 
-## 初始化
+> `apiKey` 和 `agentId` 為必填參數，缺少或僅含空白字元時會拋出錯誤。兩個值都會自動去除首尾空白。
 
-```typescript
-const at = AgentTrace.init({
-  apiKey: string;            // 必填 — 認證 token
-  agentId: string;           // 必填 — 識別此 agent
-  endpoint?: string;         // 預設: http://localhost:8080/api/events
-  flushInterval?: number;    // 預設: 5000（毫秒）
-  maxBufferSize?: number;    // 預設: 50 個事件
-});
-```
-
-## 追蹤方法
-
-### `track(options)`
-
-記錄一次 LLM 呼叫或完成事件。
+## 追蹤 LLM 呼叫
 
 ```typescript
 at.track({
-  provider: "anthropic",
-  model: "claude-sonnet-4-20250514",
-  tokens: { input: 200, output: 100 },
-  latency_ms: 800,
-  status: 200,
-  tags: { workflow: "summarize" },
+  provider: "openai",           // LLM Provider 名稱
+  model: "gpt-4o",              // 模型名稱
+  tokens: {
+    input: 500,                 // 輸入 token 數
+    output: 200,                // 輸出 token 數
+  },
+  latency_ms: 1200,             // 延遲（毫秒）
+  status: 200,                  // HTTP 狀態碼
 });
 ```
 
-| 欄位 | 型別 | 說明 |
-|------|------|------|
-| `provider` | `string` | Provider 名稱 (openai, anthropic 等) |
-| `model` | `string` | 模型識別碼 |
-| `tokens` | `{ input?, output?, total? }` | Token 計數 |
-| `latency_ms` | `number` | 請求耗時（毫秒） |
-| `status` | `number` | HTTP 狀態碼 |
-| `tags` | `Record<string, unknown>` | 自訂中繼資料 |
-| `error_message` | `string` | 失敗時的錯誤描述 |
-| `trace_id` | `string` | 分散式追蹤 ID |
-| `span_id` | `string` | Span ID |
-| `parent_span_id` | `string` | 父 Span ID |
+## 發送心跳
 
-### `heartbeat()`
-
-送出心跳信號。Server 用心跳來判斷 agent 健康狀態（healthy / degraded / down）。
+定期呼叫 `heartbeat()` 表示 Agent 仍在運行：
 
 ```typescript
-// 定期送出心跳
-setInterval(() => at.heartbeat(), 30_000);
+// 建議每 30 秒發送一次
+const heartbeatTimer = setInterval(() => {
+  at.heartbeat();
+}, 30_000);
 ```
 
-### `error(err)`
+Agent 狀態判定規則：
 
-記錄錯誤事件。
+- **Healthy**（健康）：最後心跳 < 2 分鐘前
+- **Degraded**（降級）：最後心跳 2 ~ 10 分鐘前
+- **Down**（離線）：最後心跳 > 10 分鐘前
+
+## 回報錯誤
 
 ```typescript
 try {
-  await callLLM();
+  await someOperation();
 } catch (err) {
-  at.error(err);
+  at.error(err as Error);
+  // Error 物件的 stack trace 會自動擷取
 }
 ```
 
-### `custom(data)`
-
-記錄自訂事件。
+## 自定義事件
 
 ```typescript
-at.custom({ action: "tool_call", tool: "web_search", query: "..." });
-```
-
-## 追蹤（Tracing）
-
-SDK 支援分散式追蹤，包含 trace 和 span：
-
-```typescript
-const trace = at.startTrace();
-
-const span = trace.startSpan("summarize");
-// ... 執行工作 ...
-
-const childSpan = span.startSpan("call-llm");
-at.track({
-  trace_id: childSpan.traceId,
-  span_id: childSpan.spanId,
-  parent_span_id: childSpan.parentSpanId,
-  provider: "openai",
-  model: "gpt-4o",
-  tokens: { input: 100, output: 50 },
-  latency_ms: 500,
-  status: 200,
+at.custom({
+  key: "value",
+  task: "data-processing",
+  items_processed: 42,
 });
 ```
 
-## 生命週期
+## Trace 與 Span
 
-### `flush()`
-
-手動將暫存的事件送到 server。
+SDK 支援結構化的 Trace / Span 追蹤：
 
 ```typescript
-await at.flush();
+const trace = at.startTrace();
+const span = trace.startSpan("planning");
+// ... 執行規劃邏輯 ...
+span.end();
+
+const execSpan = trace.startSpan("execution");
+// ... 執行作業 ...
+execSpan.end();
 ```
 
-### `shutdown()`
-
-送出剩餘事件並停止 SDK。
+## 關閉（Graceful Shutdown）
 
 ```typescript
+// 在程序退出前呼叫，確保所有暫存事件都已發送
 await at.shutdown();
 ```
 
-在程式結束前呼叫此方法，確保所有事件都被送出。
+## 事件緩衝機制
 
-## 成本計算
+SDK 採用批次發送策略以提升效率：
 
-AgentTrace 會自動計算已知模型的成本（當有指定 `provider` 和 `model` 時）。支援的模型包括：
+- 事件先暫存在記憶體 buffer 中
+- 每 **5 秒**自動 flush 一次
+- Buffer 達到 **50 筆**時立即 flush（以先到者為準）
+- 硬性上限 **5000** 筆事件 — 丟棄前會先嘗試緊急 flush
+- `maxBufferSize` 設為 0 或負數時會自動回退為預設值（50）
+- 網路錯誤只會記錄 warning，**不會拋出例外**（不影響你的 Agent 運行）
 
-- **OpenAI**: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-4, gpt-3.5-turbo, o1, o1-mini, o3-mini
-- **Anthropic**: claude-opus-4-20250514, claude-sonnet-4-20250514, claude-3-5-haiku-20241022
-- **Google**: gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash
-- **Mistral**: mistral-large-latest, mistral-small-latest, codestral-latest
-- **Cohere**: command-r-plus, command-r
+## 完整範例
+
+```typescript
+import { AgentTrace } from "@agenttrace/sdk";
+import OpenAI from "openai";
+
+const at = AgentTrace.init({
+  apiKey: process.env.AGENTTRACE_TOKEN!,
+  agentId: "my-chatbot",
+  endpoint: "http://localhost:8080/api/events",
+});
+
+const openai = new OpenAI();
+
+// 定期發送心跳
+setInterval(() => at.heartbeat(), 30_000);
+
+async function chat(userMessage: string): Promise<string> {
+  const start = Date.now();
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    at.track({
+      provider: "openai",
+      model: "gpt-4o",
+      tokens: {
+        input: response.usage?.prompt_tokens,
+        output: response.usage?.completion_tokens,
+      },
+      latency_ms: Date.now() - start,
+      status: 200,
+    });
+
+    return response.choices[0].message.content ?? "";
+  } catch (err) {
+    at.error(err as Error);
+    throw err;
+  }
+}
+
+// 程序結束前
+process.on("SIGTERM", async () => {
+  await at.shutdown();
+  process.exit(0);
+});
+```

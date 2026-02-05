@@ -1,153 +1,157 @@
 # SDK
 
-The AgentTrace SDK lets you instrument your application code to track LLM calls, errors, and custom events. It buffers events locally and flushes them to the AgentTrace server.
-
-## Install
+## Installation
 
 ```bash
 npm install @agenttrace/sdk
 ```
 
-## Quick Start
+## Initialization
 
 ```typescript
 import { AgentTrace } from "@agenttrace/sdk";
 
 const at = AgentTrace.init({
-  apiKey: "your-token",     // from ~/.agenttrace/config.json
-  agentId: "my-agent",
-});
-
-// Track an LLM call
-at.track({
-  provider: "openai",
-  model: "gpt-4o",
-  tokens: { input: 150, output: 50 },
-  latency_ms: 1200,
-  status: 200,
+  apiKey: "your-token",           // Required: Token generated during onboard
+  agentId: "my-agent",            // Required: Unique identifier for this Agent
+  endpoint: "http://localhost:8080/api/events",  // Optional: Defaults to local server
 });
 ```
 
-## Initialization
+> `apiKey` and `agentId` are required parameters. An error is thrown if either is missing or contains only whitespace. Both values are automatically trimmed.
 
-```typescript
-const at = AgentTrace.init({
-  apiKey: string;            // Required — auth token
-  agentId: string;           // Required — identifies this agent
-  endpoint?: string;         // Default: http://localhost:8080/api/events
-  flushInterval?: number;    // Default: 5000 (ms)
-  maxBufferSize?: number;    // Default: 50 events
-});
-```
-
-## Tracking Methods
-
-### `track(options)`
-
-Record an LLM call or completion event.
+## Tracking LLM Calls
 
 ```typescript
 at.track({
-  provider: "anthropic",
-  model: "claude-sonnet-4-20250514",
-  tokens: { input: 200, output: 100 },
-  latency_ms: 800,
-  status: 200,
-  tags: { workflow: "summarize" },
+  provider: "openai",           // LLM Provider name
+  model: "gpt-4o",              // Model name
+  tokens: {
+    input: 500,                 // Input token count
+    output: 200,                // Output token count
+  },
+  latency_ms: 1200,             // Latency in milliseconds
+  status: 200,                  // HTTP status code
 });
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `provider` | `string` | Provider name (openai, anthropic, etc.) |
-| `model` | `string` | Model identifier |
-| `tokens` | `{ input?, output?, total? }` | Token counts |
-| `latency_ms` | `number` | Request duration in milliseconds |
-| `status` | `number` | HTTP status code |
-| `tags` | `Record<string, unknown>` | Custom metadata |
-| `error_message` | `string` | Error description if failed |
-| `trace_id` | `string` | Trace ID for distributed tracing |
-| `span_id` | `string` | Span ID |
-| `parent_span_id` | `string` | Parent span ID |
+## Sending Heartbeats
 
-### `heartbeat()`
-
-Send a heartbeat signal. The server uses heartbeats to determine agent health status (healthy / degraded / down).
+Call `heartbeat()` periodically to indicate the Agent is still running:
 
 ```typescript
-// Send heartbeats periodically
-setInterval(() => at.heartbeat(), 30_000);
+// Recommended: send every 30 seconds
+const heartbeatTimer = setInterval(() => {
+  at.heartbeat();
+}, 30_000);
 ```
 
-### `error(err)`
+Agent status determination rules:
 
-Record an error event.
+- **Healthy**: Last heartbeat was less than 2 minutes ago
+- **Degraded**: Last heartbeat was 2 to 10 minutes ago
+- **Down**: Last heartbeat was more than 10 minutes ago
+
+## Reporting Errors
 
 ```typescript
 try {
-  await callLLM();
+  await someOperation();
 } catch (err) {
-  at.error(err);
+  at.error(err as Error);
+  // The Error object's stack trace is automatically captured
 }
 ```
 
-### `custom(data)`
-
-Record a custom event with arbitrary data.
+## Custom Events
 
 ```typescript
-at.custom({ action: "tool_call", tool: "web_search", query: "..." });
-```
-
-## Tracing
-
-The SDK supports distributed tracing with traces and spans:
-
-```typescript
-const trace = at.startTrace();
-
-const span = trace.startSpan("summarize");
-// ... do work ...
-
-const childSpan = span.startSpan("call-llm");
-at.track({
-  trace_id: childSpan.traceId,
-  span_id: childSpan.spanId,
-  parent_span_id: childSpan.parentSpanId,
-  provider: "openai",
-  model: "gpt-4o",
-  tokens: { input: 100, output: 50 },
-  latency_ms: 500,
-  status: 200,
+at.custom({
+  key: "value",
+  task: "data-processing",
+  items_processed: 42,
 });
 ```
 
-## Lifecycle
+## Traces and Spans
 
-### `flush()`
-
-Manually flush buffered events to the server.
+The SDK supports structured Trace / Span tracking:
 
 ```typescript
-await at.flush();
+const trace = at.startTrace();
+const span = trace.startSpan("planning");
+// ... execute planning logic ...
+span.end();
+
+const execSpan = trace.startSpan("execution");
+// ... execute operations ...
+execSpan.end();
 ```
 
-### `shutdown()`
-
-Flush remaining events and stop the SDK.
+## Shutdown (Graceful Shutdown)
 
 ```typescript
+// Call before process exit to ensure all buffered events are sent
 await at.shutdown();
 ```
 
-Call this before your process exits to ensure all events are delivered.
+## Event Buffering Mechanism
 
-## Cost Calculation
+The SDK uses a batch sending strategy for efficiency:
 
-AgentTrace automatically calculates costs for known models when `provider` and `model` are specified. Supported models include:
+- Events are first stored in an in-memory buffer
+- Automatically flushed every **5 seconds**
+- Immediately flushed when the buffer reaches **50 events** (whichever comes first)
+- Hard cap of **5,000** events — an emergency flush is attempted before dropping the oldest event
+- `maxBufferSize` values of 0 or below fall back to the default (50)
+- Network errors are logged as warnings but **do not throw exceptions** (they will not affect your Agent's operation)
 
-- **OpenAI**: gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-4, gpt-3.5-turbo, o1, o1-mini, o3-mini
-- **Anthropic**: claude-opus-4-20250514, claude-sonnet-4-20250514, claude-3-5-haiku-20241022
-- **Google**: gemini-2.0-flash, gemini-1.5-pro, gemini-1.5-flash
-- **Mistral**: mistral-large-latest, mistral-small-latest, codestral-latest
-- **Cohere**: command-r-plus, command-r
+## Complete Example
+
+```typescript
+import { AgentTrace } from "@agenttrace/sdk";
+import OpenAI from "openai";
+
+const at = AgentTrace.init({
+  apiKey: process.env.AGENTTRACE_TOKEN!,
+  agentId: "my-chatbot",
+  endpoint: "http://localhost:8080/api/events",
+});
+
+const openai = new OpenAI();
+
+// Send heartbeats periodically
+setInterval(() => at.heartbeat(), 30_000);
+
+async function chat(userMessage: string): Promise<string> {
+  const start = Date.now();
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: userMessage }],
+    });
+
+    at.track({
+      provider: "openai",
+      model: "gpt-4o",
+      tokens: {
+        input: response.usage?.prompt_tokens,
+        output: response.usage?.completion_tokens,
+      },
+      latency_ms: Date.now() - start,
+      status: 200,
+    });
+
+    return response.choices[0].message.content ?? "";
+  } catch (err) {
+    at.error(err as Error);
+    throw err;
+  }
+}
+
+// Before process exit
+process.on("SIGTERM", async () => {
+  await at.shutdown();
+  process.exit(0);
+});
+```

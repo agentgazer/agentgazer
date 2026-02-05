@@ -1,244 +1,217 @@
 # API 參考
 
-所有端點需要在 `Authorization` header 中帶 Bearer token：
+所有 API 端點皆需認證，使用以下任一方式：
 
-```
-Authorization: Bearer <token>
-```
+- Header：`Authorization: Bearer <token>`
+- Header：`x-api-key: <token>`
 
-Token 在 `agenttrace onboard` 時產生，存在 `~/.agenttrace/config.json`。
+## 事件（Events）
 
-Base URL: `http://localhost:8080`（預設）
+### POST /api/events
 
-## 健康檢查
+接收批次或單一事件。
 
-### `GET /api/health`
-
-回傳伺服器健康狀態。
-
-**回應：**
-
-```json
-{ "status": "ok", "uptime_ms": 12345 }
-```
-
-## Agent
-
-### `GET /api/agents`
-
-列出所有已知的 agent。
-
-**回應：**
-
-```json
-{ "agents": [{ "agent_id": "my-agent", "last_seen": "2025-01-15T10:00:00Z", "status": "healthy" }] }
-```
-
-### `GET /api/agents/:agentId`
-
-取得特定 agent。
-
-**回應：** Agent 物件或 `404`。
-
-## 事件
-
-### `POST /api/events`
-
-接收一個或多個事件。
-
-**請求本體** — 單一事件：
-
-```json
-{
-  "agent_id": "my-agent",
-  "event_type": "llm_call",
-  "provider": "openai",
-  "model": "gpt-4o",
-  "tokens_in": 150,
-  "tokens_out": 50,
-  "latency_ms": 1200,
-  "status_code": 200,
-  "source": "sdk",
-  "timestamp": "2025-01-15T10:00:00Z"
-}
-```
-
-**請求本體** — 批次：
+**請求格式 — 批次發送：**
 
 ```json
 {
   "events": [
-    { "agent_id": "my-agent", "event_type": "llm_call", "..." : "..." },
-    { "agent_id": "my-agent", "event_type": "heartbeat", "..." : "..." }
+    {
+      "agent_id": "my-agent",
+      "event_type": "llm_call",
+      "source": "sdk",
+      "timestamp": "2025-01-15T10:30:00.000Z",
+      "provider": "openai",
+      "model": "gpt-4o",
+      "tokens_in": 500,
+      "tokens_out": 200,
+      "tokens_total": 700,
+      "cost_usd": 0.0035,
+      "latency_ms": 1200,
+      "status_code": 200,
+      "error_message": null,
+      "tags": {}
+    }
   ]
 }
 ```
 
-**回應：**
-
-```json
-{ "status": "ok", "event_ids": ["uuid-1", "uuid-2"], "results": [...] }
-```
-
-| 狀態碼 | 意義 |
-|--------|------|
-| `200` | 所有事件已接受 |
-| `207` | 部分成功（部分事件無效） |
-| `400` | 所有事件無效 |
-
-### `GET /api/events`
-
-查詢 agent 的事件。
-
-**查詢參數：**
-
-| 參數 | 型別 | 必填 | 說明 |
-|------|------|------|------|
-| `agent_id` | string | 是 | Agent 識別碼 |
-| `from` | ISO 8601 | 否 | 開始時間 |
-| `to` | ISO 8601 | 否 | 結束時間 |
-| `event_type` | string | 否 | `llm_call`, `completion`, `heartbeat`, `error`, `custom` |
-| `provider` | string | 否 | Provider 名稱 |
-| `model` | string | 否 | 模型識別碼 |
-| `trace_id` | string | 否 | 依 trace 篩選 |
-| `search` | string | 否 | 全文搜尋 |
-| `limit` | number | 否 | 最大回傳數 |
-
-**回應：**
-
-```json
-{ "events": [...] }
-```
-
-### `GET /api/events/export`
-
-匯出事件為 JSON 或 CSV。
-
-**查詢參數：**
-
-| 參數 | 型別 | 必填 | 說明 |
-|------|------|------|------|
-| `agent_id` | string | 是 | Agent 識別碼 |
-| `format` | string | 否 | `json`（預設）或 `csv` |
-| `from` | ISO 8601 | 否 | 開始時間 |
-| `to` | ISO 8601 | 否 | 結束時間 |
-| `event_type` | string | 否 | 依類型篩選 |
-| `provider` | string | 否 | 依 provider 篩選 |
-| `model` | string | 否 | 依模型篩選 |
-| `trace_id` | string | 否 | 依 trace 篩選 |
-
-## 統計
-
-### `GET /api/stats/:agentId`
-
-取得 agent 的彙總統計。
-
-**查詢參數：**
-
-| 參數 | 型別 | 預設值 | 說明 |
-|------|------|--------|------|
-| `range` | string | `24h` | `1h`, `24h`, `7d`, `30d` 或 `custom` |
-| `from` | ISO 8601 | — | 開始時間（`custom` 範圍用） |
-| `to` | ISO 8601 | — | 結束時間（`custom` 範圍用） |
-
-**回應：**
+**請求格式 — 單一事件：**
 
 ```json
 {
-  "total_requests": 1500,
-  "total_errors": 12,
-  "error_rate": 0.8,
-  "total_cost": 3.45,
-  "total_tokens": 250000,
-  "p50_latency": 800,
-  "p99_latency": 3200,
-  "cost_by_model": [
-    { "model": "gpt-4o", "provider": "openai", "cost": 2.10, "count": 800 }
-  ],
-  "token_series": [
-    { "timestamp": "2025-01-15T10:00:00Z", "tokens_in": 1500, "tokens_out": 500 }
-  ]
+  "agent_id": "my-agent",
+  "event_type": "heartbeat",
+  "source": "sdk",
+  "timestamp": "2025-01-15T10:30:00.000Z"
 }
 ```
 
-## 告警
+**事件類型：** `llm_call` | `completion` | `heartbeat` | `error` | `custom`
 
-### `GET /api/alerts`
+**事件來源：** `sdk` | `proxy`
 
-列出所有告警規則。
+**欄位說明：**
 
-### `POST /api/alerts`
+| 欄位 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| `agent_id` | string | 是 | Agent 識別碼（最長 256 字元） |
+| `event_type` | string | 是 | 事件類型 |
+| `source` | string | 是 | 資料來源（sdk / proxy） |
+| `timestamp` | string | 是 | ISO-8601 時間戳 |
+| `provider` | string | 否 | LLM Provider 名稱 |
+| `model` | string | 否 | 模型名稱 |
+| `tokens_in` | number | 否 | 輸入 token 數 |
+| `tokens_out` | number | 否 | 輸出 token 數 |
+| `tokens_total` | number | 否 | 總 token 數 |
+| `cost_usd` | number | 否 | 花費（USD） |
+| `latency_ms` | number | 否 | 延遲（毫秒） |
+| `status_code` | number | 否 | HTTP 狀態碼 |
+| `error_message` | string | 否 | 錯誤訊息（最長 10,000 字元） |
+| `tags` | object | 否 | 自定義標籤（JSON 物件） |
+
+**回應狀態碼：**
+
+| 狀態碼 | 說明 |
+|--------|------|
+| `200 OK` | 所有事件驗證通過並已儲存 |
+| `207 Multi-Status` | 部分事件驗證失敗，有效事件已儲存 |
+| `400 Bad Request` | 所有事件驗證失敗或 JSON 格式錯誤 |
+| `401 Unauthorized` | Token 無效 |
+| `429 Too Many Requests` | 速率限制（每分鐘 1000 個事件），回應包含 `Retry-After` header |
+
+### GET /api/events
+
+查詢事件，支援以下篩選參數：
+
+| 參數 | 必填 | 說明 |
+|------|------|------|
+| `agent_id` | 是 | Agent 識別碼 |
+| `from` | 否 | 起始時間（ISO-8601） |
+| `to` | 否 | 結束時間（ISO-8601） |
+| `event_type` | 否 | 事件類型篩選 |
+| `provider` | 否 | Provider 篩選 |
+| `model` | 否 | 模型篩選 |
+| `trace_id` | 否 | Trace ID 篩選 |
+| `search` | 否 | 搜尋關鍵字 |
+| `limit` | 否 | 回傳筆數上限（最大 10000） |
+
+### GET /api/events/export
+
+匯出事件資料，支援 CSV 或 JSON 格式，上限 100000 筆。
+
+## Agent
+
+### GET /api/agents
+
+列出所有 Agent，支援分頁與搜尋。
+
+| 參數 | 說明 |
+|------|------|
+| `limit` | 每頁筆數 |
+| `offset` | 偏移量 |
+| `search` | 搜尋關鍵字 |
+| `status` | 狀態篩選（healthy / degraded / down） |
+
+### GET /api/agents/:agentId
+
+取得特定 Agent 的詳細資訊。
+
+## 統計（Stats）
+
+### GET /api/stats/overview
+
+取得跨所有 Agent 的彙總統計。
+
+| 參數 | 說明 |
+|------|------|
+| `range` | 時間範圍：`1h`、`24h`、`7d`、`30d` |
+
+### GET /api/stats/:agentId
+
+取得特定 Agent 的統計數據。
+
+| 參數 | 說明 |
+|------|------|
+| `range` | 預設時間範圍：`1h`、`24h`、`7d`、`30d` |
+| `from` | 自定義起始時間（ISO-8601） |
+| `to` | 自定義結束時間（ISO-8601） |
+
+## 告警（Alerts）
+
+### GET /api/alerts
+
+列出告警規則。
+
+| 參數 | 說明 |
+|------|------|
+| `limit` | 每頁筆數 |
+| `offset` | 偏移量 |
+| `agent_id` | Agent 篩選 |
+| `rule_type` | 規則類型篩選 |
+
+### POST /api/alerts
 
 建立告警規則。
-
-**請求本體：**
 
 ```json
 {
   "agent_id": "my-agent",
   "rule_type": "error_rate",
-  "config": { "window_minutes": 60, "threshold": 10 },
-  "enabled": true,
-  "webhook_url": "https://hooks.slack.com/..."
+  "config": {
+    "threshold": 20,
+    "window_minutes": 5
+  },
+  "webhook_url": "https://hooks.example.com/alert",
+  "email": "ops@example.com",
+  "enabled": true
 }
 ```
 
-| 欄位 | 型別 | 必填 | 說明 |
-|------|------|------|------|
-| `agent_id` | string | 是 | 目標 agent |
-| `rule_type` | string | 是 | `agent_down`, `error_rate` 或 `budget` |
-| `config` | object | 是 | 規則專屬設定 |
-| `enabled` | boolean | 否 | 預設: `true` |
-| `webhook_url` | string | 條件式 | Webhook URL（`webhook_url` 或 `email` 至少填一個） |
-| `email` | string | 條件式 | Email 地址 |
+### PUT /api/alerts/:id
 
-### `PUT /api/alerts/:id`
+更新告警規則（完整更新）。
 
-更新告警規則。
+### DELETE /api/alerts/:id
 
-### `PATCH /api/alerts/:id/toggle`
+刪除告警規則。
 
-開關告警。
+### PATCH /api/alerts/:id/toggle
 
-**請求本體：**
+切換告警規則的啟用/停用狀態。
+
+### GET /api/alert-history
+
+列出告警觸發歷史記錄。
+
+## 認證（Auth）
+
+### POST /api/auth/verify
+
+驗證 Token 是否有效。
 
 ```json
-{ "enabled": false }
+{
+  "token": "your-token"
+}
 ```
 
-### `DELETE /api/alerts/:id`
+回傳：
 
-刪除告警規則。回傳 `204 No Content`。
+```json
+{
+  "valid": true
+}
+```
 
-### `GET /api/alert-history`
+## 健康檢查（Health）
 
-取得告警發送歷史。
+### GET /api/health
 
-**查詢參數：**
+伺服器健康狀態。
 
-| 參數 | 型別 | 預設值 | 說明 |
-|------|------|--------|------|
-| `limit` | number | `100` | 最大回傳數 |
-
-## 事件 Schema
-
-| 欄位 | 型別 | 說明 |
-|------|------|------|
-| `id` | UUID | 自動產生 |
-| `agent_id` | string | Agent 識別碼 |
-| `event_type` | string | `llm_call`, `completion`, `heartbeat`, `error`, `custom` |
-| `provider` | string | Provider 名稱 |
-| `model` | string | 模型識別碼 |
-| `tokens_in` | number | 輸入 token 數 |
-| `tokens_out` | number | 輸出 token 數 |
-| `tokens_total` | number | 總 token 數 |
-| `cost_usd` | number | 計算的成本（美元） |
-| `latency_ms` | number | 請求耗時 |
-| `status_code` | number | HTTP 狀態碼 |
-| `error_message` | string | 錯誤描述 |
-| `tags` | object | 自訂中繼資料 |
-| `source` | string | `sdk` 或 `proxy` |
-| `timestamp` | ISO 8601 | 事件時間戳記 |
-| `trace_id` | string | 分散式追蹤 ID |
-| `span_id` | string | Span ID |
-| `parent_span_id` | string | 父 Span ID |
+```json
+{
+  "status": "ok"
+}
+```
