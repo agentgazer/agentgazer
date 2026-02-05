@@ -19,27 +19,21 @@ The CLI SHALL support a `--reset-token` flag that generates a new token, replaci
 - **THEN** a new token is generated, saved to config, the old token is invalidated, and the new token is printed
 
 ### Requirement: API bearer token authentication
-All API endpoints (except `GET /api/health` and `POST /api/auth/verify`) SHALL require an `Authorization: Bearer <token>` header. Requests without a valid token SHALL receive a 401 response. The `x-api-key` header SHALL also be accepted as an alias for the bearer token (for SDK compatibility).
 
-#### Scenario: Valid bearer token
-- **WHEN** a request is made to `/api/agents` with header `Authorization: Bearer <valid-token>`
-- **THEN** the request is processed normally
+All API endpoints (except `/api/health` and `/api/auth/verify`) SHALL require a valid auth token via `Authorization: Bearer <token>` or `x-api-key` header. Token comparison MUST use a constant-time algorithm (`crypto.timingSafeEqual`) to prevent timing side-channel attacks.
 
-#### Scenario: Valid x-api-key header
-- **WHEN** a request is made to `/api/events` with header `x-api-key: <valid-token>`
-- **THEN** the request is processed normally (SDK compatibility)
+#### Scenario: Token comparison is constant-time
+- **WHEN** the server compares a provided token against the stored token
+- **THEN** the comparison uses `crypto.timingSafeEqual` (or equivalent constant-time function)
+- **AND** tokens of different lengths are rejected without leaking length information
 
-#### Scenario: Missing auth header
-- **WHEN** a request is made to `/api/agents` without an auth header
-- **THEN** the server returns 401 with `{ error: "Authentication required" }`
+#### Scenario: Valid token accepted
+- **WHEN** a request includes a valid Bearer token
+- **THEN** the request is authorized
 
-#### Scenario: Invalid token
-- **WHEN** a request is made with `Authorization: Bearer wrong-token`
-- **THEN** the server returns 401 with `{ error: "Invalid token" }`
-
-#### Scenario: Health check without auth
-- **WHEN** a request is made to `/api/health` without any auth header
-- **THEN** the server returns 200 with status "ok" (no auth required)
+#### Scenario: Invalid token rejected
+- **WHEN** a request includes an invalid Bearer token
+- **THEN** the server responds with HTTP 401
 
 ### Requirement: Dashboard token verification endpoint
 The server SHALL expose `POST /api/auth/verify` (no auth required) that accepts `{ token: "<string>" }` and returns `{ valid: true }` if the token matches, or `{ valid: false }` with status 401 otherwise.

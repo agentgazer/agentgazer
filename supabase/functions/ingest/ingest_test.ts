@@ -114,7 +114,7 @@ Deno.test("Single valid event returns 200 with event_ids", async () => {
   const res = await post(makeEvent());
   const json = await res.json();
   if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}: ${JSON.stringify(json)}`);
-  if (!json.success) throw new Error("Expected success: true");
+  if (json.status !== "ok") throw new Error("Expected status: ok");
   if (!Array.isArray(json.event_ids)) throw new Error("Expected event_ids array");
   if (json.event_ids.length !== 1) throw new Error("Expected 1 event_id");
 });
@@ -197,7 +197,7 @@ Deno.test("Event with tags object is accepted", async () => {
   );
   const json = await res.json();
   if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}: ${JSON.stringify(json)}`);
-  if (!json.success) throw new Error("Expected success");
+  if (json.status !== "ok") throw new Error("Expected status: ok");
 });
 
 Deno.test("Event with array tags returns 400", async () => {
@@ -217,7 +217,7 @@ Deno.test("Heartbeat event sets agent status to healthy", async () => {
   );
   const json = await res.json();
   if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}: ${JSON.stringify(json)}`);
-  if (!json.success) throw new Error("Expected success");
+  if (json.status !== "ok") throw new Error("Expected status: ok");
 });
 
 Deno.test("Error event is accepted", async () => {
@@ -230,7 +230,7 @@ Deno.test("Error event is accepted", async () => {
   );
   const json = await res.json();
   if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}: ${JSON.stringify(json)}`);
-  if (!json.success) throw new Error("Expected success");
+  if (json.status !== "ok") throw new Error("Expected status: ok");
 });
 
 Deno.test("Custom event is accepted", async () => {
@@ -242,7 +242,7 @@ Deno.test("Custom event is accepted", async () => {
   );
   const json = await res.json();
   if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}: ${JSON.stringify(json)}`);
-  if (!json.success) throw new Error("Expected success");
+  if (json.status !== "ok") throw new Error("Expected status: ok");
 });
 
 Deno.test("Optional fields can be null", async () => {
@@ -262,5 +262,5 @@ Deno.test("Optional fields can be null", async () => {
   );
   const json = await res.json();
   if (res.status !== 200) throw new Error(`Expected 200, got ${res.status}: ${JSON.stringify(json)}`);
-  if (!json.success) throw new Error("Expected success");
+  if (json.status !== "ok") throw new Error("Expected status: ok");
 });

@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { timingSafeEqual } from "node:crypto";
 
 const PUBLIC_PATHS = ["/api/health", "/api/auth/verify"];
 
@@ -54,7 +55,10 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   }
 
   const expectedToken = req.app.locals.token as string;
-  if (token !== expectedToken) {
+  if (
+    token.length !== expectedToken.length ||
+    !timingSafeEqual(Buffer.from(token), Buffer.from(expectedToken))
+  ) {
     res.status(401).json({ error: "Invalid token" });
     return;
   }

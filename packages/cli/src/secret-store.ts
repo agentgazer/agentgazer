@@ -415,12 +415,11 @@ export async function migrateFromPlaintextConfig(
   if (!config.providers) return 0;
 
   let migrated = 0;
-  const SERVICE = "com.agenttrace.provider";
 
   for (const [name, providerConfig] of Object.entries(config.providers)) {
     if (providerConfig.apiKey && typeof providerConfig.apiKey === "string") {
       // Write to secret store
-      await store.set(SERVICE, name, providerConfig.apiKey);
+      await store.set(PROVIDER_SERVICE, name, providerConfig.apiKey);
       // Remove from config
       delete providerConfig.apiKey;
       migrated++;

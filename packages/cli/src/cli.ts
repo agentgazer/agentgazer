@@ -47,6 +47,22 @@ function parseFlags(argv: string[]): Record<string, string> {
   return flags;
 }
 
+function parsePositional(argv: string[]): string[] {
+  const positional: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg.startsWith("--")) {
+      const next = argv[i + 1];
+      if (next !== undefined && !next.startsWith("--")) {
+        i++; // skip flag value
+      }
+    } else {
+      positional.push(arg);
+    }
+  }
+  return positional;
+}
+
 // ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
@@ -593,15 +609,21 @@ async function cmdDoctor(flags: Record<string, string>): Promise<void> {
 }
 
 interface AgentRecord {
-  id: string;
+  agent_id: string;
   status: string;
-  event_count: number;
+  total_events: number;
   last_heartbeat: string | null;
+}
+
+interface AgentsResponse {
+  agents: AgentRecord[];
+  total?: number;
 }
 
 async function cmdAgents(flags: Record<string, string>): Promise<void> {
   const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
-  const agents = (await apiGet("/api/agents", port)) as AgentRecord[];
+  const resp = (await apiGet("/api/agents", port)) as AgentsResponse;
+  const agents = resp.agents;
 
   if (!agents || agents.length === 0) {
     console.log("No agents registered yet.");
@@ -613,42 +635,46 @@ async function cmdAgents(flags: Record<string, string>): Promise<void> {
   console.log("  " + "─".repeat(header.trimStart().length));
 
   for (const a of agents) {
-    const id = (a.id ?? "").padEnd(18);
+    const id = (a.agent_id ?? "").padEnd(18);
     const status = (a.status ?? "unknown").padEnd(11);
-    const events = formatNumber(a.event_count ?? 0).padStart(8);
+    const events = formatNumber(a.total_events ?? 0).padStart(8);
     const heartbeat = timeAgo(a.last_heartbeat);
     console.log(`  ${id}${status}${events}   ${heartbeat}`);
   }
 }
 
 interface StatsResponse {
-  requests: number;
-  errors: number;
-  cost: number;
-  tokens: number;
-  latency_p50: number;
-  latency_p99: number;
-  cost_by_model: { model: string; cost: number; calls: number }[];
+  total_requests: number;
+  total_errors: number;
+  error_rate: number;
+  total_cost: number;
+  total_tokens: number;
+  p50_latency: number | null;
+  p99_latency: number | null;
+  cost_by_model: { model: string; provider: string; cost: number; count: number }[];
+  token_series: { timestamp: string; tokens_in: number | null; tokens_out: number | null }[];
 }
 
 async function cmdStats(flags: Record<string, string>): Promise<void> {
   const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
   const range = flags["range"] || "24h";
-  let agentId = process.argv[3];
+  const positional = parsePositional(process.argv.slice(3));
+  let agentId = positional[0];
 
   // Auto-select agent if not specified
-  if (!agentId || agentId.startsWith("--")) {
-    const agents = (await apiGet("/api/agents", port)) as AgentRecord[];
+  if (!agentId) {
+    const resp = (await apiGet("/api/agents", port)) as AgentsResponse;
+    const agents = resp.agents;
     if (!agents || agents.length === 0) {
       console.log("No agents registered yet.");
       return;
     }
     if (agents.length === 1) {
-      agentId = agents[0].id;
+      agentId = agents[0].agent_id;
     } else {
       console.log("Multiple agents found. Please specify one:\n");
       for (const a of agents) {
-        console.log(`  agenttrace stats ${a.id}`);
+        console.log(`  agenttrace stats ${a.agent_id}`);
       }
       console.log();
       process.exit(1);
@@ -671,27 +697,27 @@ async function cmdStats(flags: Record<string, string>): Promise<void> {
   }
 
   const errorPct =
-    data.requests > 0
-      ? ((data.errors / data.requests) * 100).toFixed(2)
+    data.total_requests > 0
+      ? ((data.total_errors / data.total_requests) * 100).toFixed(2)
       : "0.00";
 
   console.log(`
   AgentTrace — Stats for "${agentId}" (last ${range})
   ───────────────────────────────────────
 
-  Requests:   ${formatNumber(data.requests)}
-  Errors:     ${formatNumber(data.errors)} (${errorPct}%)
-  Cost:       $${data.cost.toFixed(2)}
-  Tokens:     ${formatNumber(data.tokens)}
+  Requests:   ${formatNumber(data.total_requests)}
+  Errors:     ${formatNumber(data.total_errors)} (${errorPct}%)
+  Cost:       $${data.total_cost.toFixed(2)}
+  Tokens:     ${formatNumber(data.total_tokens)}
 
-  Latency:    p50 = ${formatNumber(data.latency_p50)}ms   p99 = ${formatNumber(data.latency_p99)}ms`);
+  Latency:    p50 = ${data.p50_latency != null ? formatNumber(data.p50_latency) : "--"}ms   p99 = ${data.p99_latency != null ? formatNumber(data.p99_latency) : "--"}ms`);
 
   if (data.cost_by_model && data.cost_by_model.length > 0) {
     console.log("\n  Cost by model:");
     for (const m of data.cost_by_model) {
       const model = m.model.padEnd(16);
       const cost = `$${m.cost.toFixed(2)}`;
-      console.log(`    ${model}${cost}  (${formatNumber(m.calls)} calls)`);
+      console.log(`    ${model}${cost}  (${formatNumber(m.count)} calls)`);
     }
   }
 

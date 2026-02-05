@@ -113,14 +113,11 @@ export function listProviders(): Record<string, ProviderConfig> {
 }
 
 export function resetToken(): AgentTraceConfig {
-  if (!fs.existsSync(CONFIG_DIR)) {
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
-  }
-
+  const existing = readConfig();
   const config: AgentTraceConfig = {
+    ...existing,
     token: generateToken(),
   };
-
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+  saveConfig(config);
   return config;
 }

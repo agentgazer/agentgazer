@@ -266,6 +266,28 @@ describe("config", () => {
       // All 10 tokens should be unique (cryptographic randomness)
       expect(tokens.size).toBe(10);
     });
+
+    it("preserves existing providers when resetting token", async () => {
+      const { ensureConfig, setProvider, resetToken, readConfig } =
+        await loadConfigModule();
+      ensureConfig();
+
+      setProvider("openai", {
+        apiKey: "sk-test",
+        rateLimit: { maxRequests: 100, windowSeconds: 60 },
+      });
+
+      const reset = resetToken();
+      const persisted = readConfig();
+
+      expect(persisted).not.toBeNull();
+      expect(persisted!.token).toBe(reset.token);
+      expect(persisted!.providers).toBeDefined();
+      expect(persisted!.providers!["openai"]).toEqual({
+        apiKey: "sk-test",
+        rateLimit: { maxRequests: 100, windowSeconds: 60 },
+      });
+    });
   });
 
   // -----------------------------------------------------------------------

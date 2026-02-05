@@ -175,6 +175,9 @@ export class AgentTrace {
   private enqueue(event: AgentEvent): void {
     if (this.buffer.length >= MAX_BUFFER_CAP) {
       this.buffer.shift(); // drop oldest to prevent unbounded growth
+      console.warn(
+        `[AgentTrace] Buffer overflow: dropping oldest event (buffer size: ${MAX_BUFFER_CAP}). Events are being produced faster than they can be flushed.`,
+      );
     }
     this.buffer.push(event);
     if (this.buffer.length >= this.maxBufferSize) {
