@@ -14,6 +14,12 @@ export default function SearchInput({ value, onChange, placeholder = "Search..."
     setLocal(value);
   }, [value]);
 
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
   function handleChange(v: string) {
     setLocal(v);
     if (timerRef.current) clearTimeout(timerRef.current);

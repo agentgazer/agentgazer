@@ -393,23 +393,27 @@ export default function AlertsPage() {
   const historyTotalPages =
     historyData?.total != null ? Math.ceil(historyData.total / HISTORY_PAGE_SIZE) : 1;
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   /* Handlers */
   async function handleToggle(rule: AlertRule) {
+    setActionError(null);
     try {
       await api.patch(`/api/alerts/${rule.id}/toggle`, {});
       refreshRules();
-    } catch {
-      // silent: next poll will reflect state
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to toggle rule");
     }
   }
 
   async function handleDelete(rule: AlertRule) {
     if (!confirm(`Delete alert rule for "${rule.agent_id}"?`)) return;
+    setActionError(null);
     try {
       await api.del(`/api/alerts/${rule.id}`);
       refreshRules();
-    } catch {
-      // silent
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to delete rule");
     }
   }
 
@@ -471,6 +475,7 @@ export default function AlertsPage() {
       {tab === "rules" && (
         <div className="mt-6">
           {rulesError && <ErrorBanner message={rulesError} />}
+          {actionError && <ErrorBanner message={actionError} />}
 
           {/* New rule button + filter */}
           <div className="mb-4 flex flex-wrap items-center gap-3">

@@ -294,10 +294,14 @@ export class LibsecretStore implements SecretStore {
   }
 
   async set(service: string, account: string, value: string): Promise<void> {
-    execSync(
-      `echo -n ${shellEscape(value)} | secret-tool store --label=${shellEscape(`${service}:${account}`)} service ${shellEscape(service)} account ${shellEscape(account)}`,
-      { stdio: "pipe" }
-    );
+    try {
+      execSync(
+        `echo -n ${shellEscape(value)} | secret-tool store --label=${shellEscape(`${service}:${account}`)} service ${shellEscape(service)} account ${shellEscape(account)}`,
+        { stdio: "pipe" }
+      );
+    } catch (err) {
+      throw new Error(`Failed to store secret via secret-tool: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   async delete(service: string, account: string): Promise<void> {

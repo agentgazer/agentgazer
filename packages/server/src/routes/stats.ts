@@ -132,19 +132,27 @@ router.get("/api/stats/overview", (req, res) => {
   const activeModels = costByModelRows.length;
 
   // Cost time series — bucket by hour for 1h, by day for others
-  const bucketFormat = range === "1h" ? "%Y-%m-%dT%H:00:00Z" : "%Y-%m-%dT00:00:00Z";
-
-  const costSeries = db
-    .prepare(
-      `SELECT
-         strftime('${bucketFormat}', timestamp) AS timestamp,
+  // Use separate pre-built SQL statements to avoid string interpolation into queries
+  const costSeriesSQL = range === "1h"
+    ? `SELECT
+         strftime('%Y-%m-%dT%H:00:00Z', timestamp) AS timestamp,
          COALESCE(SUM(cost_usd), 0) AS cost,
          COALESCE(SUM(tokens_total), 0) AS tokens
        FROM agent_events
        ${where}
-       GROUP BY strftime('${bucketFormat}', timestamp)
-       ORDER BY timestamp ASC`,
-    )
+       GROUP BY strftime('%Y-%m-%dT%H:00:00Z', timestamp)
+       ORDER BY timestamp ASC`
+    : `SELECT
+         strftime('%Y-%m-%dT00:00:00Z', timestamp) AS timestamp,
+         COALESCE(SUM(cost_usd), 0) AS cost,
+         COALESCE(SUM(tokens_total), 0) AS tokens
+       FROM agent_events
+       ${where}
+       GROUP BY strftime('%Y-%m-%dT00:00:00Z', timestamp)
+       ORDER BY timestamp ASC`;
+
+  const costSeries = db
+    .prepare(costSeriesSQL)
     .all(...params) as { timestamp: string; cost: number; tokens: number }[];
 
   res.json({

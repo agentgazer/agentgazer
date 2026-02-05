@@ -244,9 +244,10 @@ describe("getModelPricing", () => {
     expect(getModelPricing("")).toBeNull();
   });
 
-  it("is case-sensitive (model names must match exactly)", () => {
-    expect(getModelPricing("GPT-4O")).toBeNull();
+  it("is case-insensitive (falls back to lowercase lookup)", () => {
+    expect(getModelPricing("GPT-4O")).not.toBeNull();
     expect(getModelPricing("gpt-4o")).not.toBeNull();
+    expect(getModelPricing("Gpt-4o")).not.toBeNull();
   });
 });
 

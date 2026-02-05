@@ -18,10 +18,11 @@ export class AgentTrace {
   private timer: ReturnType<typeof setInterval> | null = null;
 
   private constructor(options: AgentTraceOptions) {
-    this.apiKey = options.apiKey;
-    this.agentId = options.agentId;
+    this.apiKey = options.apiKey.trim();
+    this.agentId = options.agentId.trim();
     this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
-    this.maxBufferSize = options.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
+    const bufferSize = options.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
+    this.maxBufferSize = bufferSize > 0 ? bufferSize : DEFAULT_MAX_BUFFER_SIZE;
 
     const interval = options.flushInterval ?? DEFAULT_FLUSH_INTERVAL;
     this.timer = setInterval(() => {
@@ -35,10 +36,10 @@ export class AgentTrace {
   }
 
   static init(options: AgentTraceOptions): AgentTrace {
-    if (!options.apiKey) {
+    if (!options.apiKey || !options.apiKey.trim()) {
       throw new Error("[AgentTrace] apiKey is required");
     }
-    if (!options.agentId) {
+    if (!options.agentId || !options.agentId.trim()) {
       throw new Error("[AgentTrace] agentId is required");
     }
     return new AgentTrace(options);
@@ -174,10 +175,14 @@ export class AgentTrace {
 
   private enqueue(event: AgentEvent): void {
     if (this.buffer.length >= MAX_BUFFER_CAP) {
-      this.buffer.shift(); // drop oldest to prevent unbounded growth
-      console.warn(
-        `[AgentTrace] Buffer overflow: dropping oldest event (buffer size: ${MAX_BUFFER_CAP}). Events are being produced faster than they can be flushed.`,
-      );
+      // Attempt emergency flush before dropping events
+      void this.flush();
+      if (this.buffer.length >= MAX_BUFFER_CAP) {
+        this.buffer.shift(); // drop oldest to prevent unbounded growth
+        console.warn(
+          `[AgentTrace] Buffer overflow: dropping oldest event (buffer size: ${MAX_BUFFER_CAP}). Events are being produced faster than they can be flushed.`,
+        );
+      }
     }
     this.buffer.push(event);
     if (this.buffer.length >= this.maxBufferSize) {

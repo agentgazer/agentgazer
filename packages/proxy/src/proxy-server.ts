@@ -48,7 +48,9 @@ function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
     req.on("data", (chunk: Buffer) => {
       totalSize += chunk.length;
       if (totalSize > MAX_REQUEST_BODY_SIZE) {
-        req.destroy(new Error("Request body too large"));
+        const err = new Error("Request body too large");
+        req.destroy(err);
+        reject(err);
         return;
       }
       chunks.push(chunk);
@@ -595,31 +597,24 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const sseText = sseBody.toString("utf-8");
     const parsed = parseSSEResponse(provider, sseText, statusCode);
 
-    let model: string | null = null;
-    let tokensIn: number | null = null;
-    let tokensOut: number | null = null;
-    let tokensTotal: number | null = null;
+    if (!parsed) {
+      log.warn(`No parseable SSE data for provider: ${provider} — skipping event`);
+      return;
+    }
+
     let costUsd: number | null = null;
-
-    if (parsed) {
-      model = parsed.model;
-      tokensIn = parsed.tokensIn;
-      tokensOut = parsed.tokensOut;
-      tokensTotal = parsed.tokensTotal;
-
-      if (model && tokensIn != null && tokensOut != null) {
-        costUsd = calculateCost(model, tokensIn, tokensOut);
-      }
+    if (parsed.model && parsed.tokensIn != null && parsed.tokensOut != null) {
+      costUsd = calculateCost(parsed.model, parsed.tokensIn, parsed.tokensOut);
     }
 
     const event: AgentEvent = {
       agent_id: agentId,
       event_type: "llm_call",
       provider,
-      model,
-      tokens_in: tokensIn,
-      tokens_out: tokensOut,
-      tokens_total: tokensTotal,
+      model: parsed.model,
+      tokens_in: parsed.tokensIn,
+      tokens_out: parsed.tokensOut,
+      tokens_total: parsed.tokensTotal,
       cost_usd: costUsd,
       latency_ms: latencyMs,
       status_code: statusCode,

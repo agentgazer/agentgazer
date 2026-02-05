@@ -135,9 +135,9 @@ export default function CostsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {data.cost_by_model.map((row, i) => (
+                  {data.cost_by_model.map((row) => (
                     <tr
-                      key={i}
+                      key={`${row.model}-${row.provider}`}
                       className="bg-gray-900 transition-colors hover:bg-gray-800"
                     >
                       <td className="px-4 py-3 font-medium text-white">

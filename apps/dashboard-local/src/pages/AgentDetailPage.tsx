@@ -47,7 +47,8 @@ export default function AgentDetailPage() {
   const [customTo, setCustomTo] = useState("");
 
   const fetcher = useCallback(() => {
-    let url = `/api/stats/${encodeURIComponent(agentId!)}?range=${range}`;
+    if (!agentId) return Promise.reject(new Error("Missing agentId"));
+    let url = `/api/stats/${encodeURIComponent(agentId)}?range=${range}`;
     if (range === "custom" && customFrom && customTo) {
       url += `&from=${encodeURIComponent(customFrom + "T00:00:00Z")}&to=${encodeURIComponent(customTo + "T23:59:59Z")}`;
     }
@@ -156,9 +157,9 @@ export default function AgentDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {data.cost_by_model.map((row, i) => (
+                  {data.cost_by_model.map((row) => (
                     <tr
-                      key={i}
+                      key={`${row.model}-${row.provider}`}
                       className="bg-gray-900 transition-colors hover:bg-gray-800"
                     >
                       <td className="px-4 py-3 font-medium text-white">

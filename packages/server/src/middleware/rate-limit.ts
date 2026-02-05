@@ -13,11 +13,18 @@ interface Bucket {
 const DEFAULT_MAX_TOKENS = 1000; // events per window
 const DEFAULT_REFILL_INTERVAL_MS = 60_000; // 1 minute
 
+const MAX_BUCKETS = 10_000; // Cap to prevent memory exhaustion from unique key flooding
+
 const buckets = new Map<string, Bucket>();
 
 function getOrCreateBucket(key: string): Bucket {
   let bucket = buckets.get(key);
   if (!bucket) {
+    // Evict oldest entries if at capacity
+    if (buckets.size >= MAX_BUCKETS) {
+      const firstKey = buckets.keys().next().value;
+      if (firstKey !== undefined) buckets.delete(firstKey);
+    }
     bucket = { tokens: DEFAULT_MAX_TOKENS, lastRefill: Date.now() };
     buckets.set(key, bucket);
   }

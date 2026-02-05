@@ -9,6 +9,7 @@ const VALID_EVENT_TYPES = new Set(["llm_call", "completion", "heartbeat", "error
 const VALID_SOURCES = new Set(["sdk", "proxy"]);
 
 const MAX_QUERY_LIMIT = 10_000;
+const MAX_STRING_FIELD_LENGTH = 10_000;
 
 function safeParseTags(tags: unknown): unknown {
   if (typeof tags !== "string") return tags;
@@ -51,6 +52,9 @@ function validateEvent(raw: RawEvent): ValidationResult {
   // Required fields
   if (typeof raw.agent_id !== "string" || raw.agent_id.length === 0) {
     return { valid: false, error: "agent_id is required and must be a non-empty string" };
+  }
+  if (raw.agent_id.length > 256) {
+    return { valid: false, error: "agent_id must be at most 256 characters" };
   }
 
   if (typeof raw.event_type !== "string" || !VALID_EVENT_TYPES.has(raw.event_type)) {
@@ -132,6 +136,9 @@ function validateEvent(raw: RawEvent): ValidationResult {
   if (raw.error_message != null) {
     if (typeof raw.error_message !== "string") {
       return { valid: false, error: "error_message must be a string" };
+    }
+    if (raw.error_message.length > MAX_STRING_FIELD_LENGTH) {
+      return { valid: false, error: `error_message must be at most ${MAX_STRING_FIELD_LENGTH} characters` };
     }
     event.error_message = raw.error_message;
   }

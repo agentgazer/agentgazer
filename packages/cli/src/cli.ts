@@ -179,10 +179,8 @@ async function cmdOnboard(): Promise<void> {
         }
       }
 
-      // Only store rate limit config in config.json (no apiKey)
-      if (providerConfig.rateLimit) {
-        setProvider(provider, providerConfig);
-      }
+      // Store provider config in config.json (apiKey is empty — actual key is in secret store)
+      setProvider(provider, providerConfig);
 
       providerCount++;
       console.log(`  ✓ ${provider} configured.\n`);
@@ -256,6 +254,9 @@ async function cmdProviders(args: string[]): Promise<void> {
       if (!name || !key) {
         console.error("Usage: agenttrace providers set <provider-name> <api-key>");
         process.exit(1);
+      }
+      if (!(KNOWN_PROVIDERS as readonly string[]).includes(name)) {
+        console.warn(`Warning: "${name}" is not a known provider (${KNOWN_PROVIDERS.join(", ")}). Proceeding anyway.`);
       }
       const { store, backendName } = await detectSecretStore(getConfigDir());
       // Store API key in secret store
@@ -462,6 +463,12 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
   process.on("SIGINT", handleShutdown);
   process.on("SIGTERM", handleShutdown);
+
+  // Clean up listeners once shutdown completes to prevent leaks on restart
+  process.once("exit", () => {
+    process.removeListener("SIGINT", handleShutdown);
+    process.removeListener("SIGTERM", handleShutdown);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -531,6 +538,15 @@ async function cmdDoctor(flags: Record<string, string>): Promise<void> {
   const proxyPort = flags["proxy-port"]
     ? parseInt(flags["proxy-port"], 10)
     : 4000;
+
+  if (isNaN(port) || port < 1 || port > 65535) {
+    console.error("Error: --port must be a valid port number (1-65535)");
+    process.exit(1);
+  }
+  if (isNaN(proxyPort) || proxyPort < 1 || proxyPort > 65535) {
+    console.error("Error: --proxy-port must be a valid port number (1-65535)");
+    process.exit(1);
+  }
 
   console.log(`
   AgentTrace — Doctor
@@ -622,6 +638,10 @@ interface AgentsResponse {
 
 async function cmdAgents(flags: Record<string, string>): Promise<void> {
   const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  if (isNaN(port) || port < 1 || port > 65535) {
+    console.error("Error: --port must be a valid port number (1-65535)");
+    process.exit(1);
+  }
   const resp = (await apiGet("/api/agents", port)) as AgentsResponse;
   const agents = resp.agents;
 

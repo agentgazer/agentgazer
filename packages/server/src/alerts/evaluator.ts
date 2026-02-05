@@ -314,14 +314,18 @@ async function tick(db: Database.Database): Promise<void> {
       }
 
       if (rule.email) {
-        void sendEmail(rule.email, payload);
-        db.prepare(SQL_INSERT_HISTORY).run(
-          rule.id,
-          rule.agent_id,
-          rule.rule_type,
-          message,
-          "email",
-        );
+        try {
+          await sendEmail(rule.email, payload);
+          db.prepare(SQL_INSERT_HISTORY).run(
+            rule.id,
+            rule.agent_id,
+            rule.rule_type,
+            message,
+            "email",
+          );
+        } catch (emailErr) {
+          log.error("Email delivery failed, history not recorded", { ruleId: rule.id, err: String(emailErr) });
+        }
       }
     } catch (err) {
       log.error(`Error evaluating rule`, { ruleId: rule.id, ruleType: rule.rule_type, err: String(err) });

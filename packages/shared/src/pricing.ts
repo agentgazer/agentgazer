@@ -65,7 +65,7 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
 };
 
 export function getModelPricing(model: string): ModelPricing | null {
-  return PRICING_TABLE[model] ?? null;
+  return PRICING_TABLE[model] ?? PRICING_TABLE[model.toLowerCase()] ?? null;
 }
 
 export function calculateCost(
@@ -73,12 +73,15 @@ export function calculateCost(
   tokensIn: number,
   tokensOut: number
 ): number | null {
+  if (tokensIn < 0 || tokensOut < 0) return null;
+
   const pricing = getModelPricing(model);
   if (!pricing) return null;
 
   const inputCost = (tokensIn / 1_000_000) * pricing.inputPerMToken;
   const outputCost = (tokensOut / 1_000_000) * pricing.outputPerMToken;
-  return inputCost + outputCost;
+  // Round to 10 decimal places to mitigate floating-point arithmetic drift
+  return Math.round((inputCost + outputCost) * 1e10) / 1e10;
 }
 
 export function listSupportedModels(): string[] {
