@@ -330,38 +330,48 @@ The Proxy supports path prefix routing, which automatically forwards requests to
 
 #### OpenAI SDK Integration Example
 
-The simplest approach is to set the `OPENAI_BASE_URL` environment variable:
+**Option A: Use stored API Key (Recommended)**
+
+If you've stored your API Key with `agenttrace providers set openai <key>`, use the path prefix for automatic injection:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:4000/v1
+export OPENAI_BASE_URL=http://localhost:4000/openai/v1
 ```
-
-Or specify it in your code:
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/v1",  // Point to the Proxy
-  // API Key is configured normally; the Proxy passes it through
-});
-
-// Use as usual — no other changes needed
-const response = await openai.chat.completions.create({
-  model: "gpt-4o",
-  messages: [{ role: "user", content: "Hello!" }],
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",  // Any value — will be overwritten by Proxy
 });
 ```
 
-The Proxy automatically detects this as an OpenAI request from the path `/v1/chat/completions`.
+**Option B: Provide your own API Key**
+
+If you want to use your own API Key (not the stored one):
+
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/v1",
+  apiKey: process.env.OPENAI_API_KEY,  // Must provide your own
+});
+```
+
+The Proxy detects this as an OpenAI request from the path `/v1/chat/completions` and passes your key through.
 
 #### Anthropic SDK Integration Example
+
+Use the `/anthropic` path prefix — the Proxy will automatically inject the stored API Key:
 
 ```typescript
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
   baseURL: "http://localhost:4000/anthropic",
+  apiKey: "dummy",  // Any value — will be overwritten by Proxy
 });
 
 const message = await anthropic.messages.create({
@@ -370,6 +380,8 @@ const message = await anthropic.messages.create({
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
+
+> To use your own API Key instead, set `apiKey` and avoid the path prefix (but automatic injection won't work).
 
 ### 5.2 Using the x-target-url Header
 

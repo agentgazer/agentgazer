@@ -330,38 +330,48 @@ Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 
 #### OpenAI SDK 整合範例
 
-最簡單的方式是設定 `OPENAI_BASE_URL` 環境變數：
+**方式 A：使用儲存的 API Key（推薦）**
+
+如果你已經用 `agenttrace providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:4000/v1
+export OPENAI_BASE_URL=http://localhost:4000/openai/v1
 ```
-
-或在程式碼中指定：
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/v1",  // 指向 Proxy
-  // API Key 正常設定，Proxy 會透傳
-});
-
-// 正常使用，完全不需要其他改動
-const response = await openai.chat.completions.create({
-  model: "gpt-4o",
-  messages: [{ role: "user", content: "Hello!" }],
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",  // 任意值，會被 Proxy 覆蓋
 });
 ```
 
-Proxy 會自動從路徑 `/v1/chat/completions` 偵測到是 OpenAI 請求。
+**方式 B：自己提供 API Key**
+
+如果你想用自己的 API Key（不使用儲存的金鑰）：
+
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/v1",
+  apiKey: process.env.OPENAI_API_KEY,  // 必須自己提供
+});
+```
+
+Proxy 會從路徑 `/v1/chat/completions` 偵測到是 OpenAI 請求並透傳你的 Key。
 
 #### Anthropic SDK 整合範例
+
+使用路徑前綴 `/anthropic`，Proxy 會自動注入儲存的 API Key：
 
 ```typescript
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
   baseURL: "http://localhost:4000/anthropic",
+  apiKey: "dummy",  // 任意值，會被 Proxy 覆蓋
 });
 
 const message = await anthropic.messages.create({
@@ -370,6 +380,8 @@ const message = await anthropic.messages.create({
   messages: [{ role: "user", content: "Hello!" }],
 });
 ```
+
+> 若要自己提供 API Key，設定 `apiKey` 並確保不使用路徑前綴（但此情況下無法自動注入）。
 
 ### 5.2 使用 x-target-url Header
 
