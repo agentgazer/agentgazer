@@ -54,6 +54,27 @@ Two ways to capture data:
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## API Key Management
+
+Store your API keys once, use them everywhere:
+
+```bash
+agenttrace providers set openai sk-xxx
+agenttrace providers set anthropic sk-ant-xxx
+```
+
+Keys are encrypted locally (AES-256-GCM) and never leave your machine. When you use the Proxy with path prefix routing (`/openai/...`, `/anthropic/...`), keys are automatically injected into requests — no need to configure each agent separately.
+
+```typescript
+// No API key needed in code — Proxy injects it automatically
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",  // Will be replaced by stored key
+});
+```
+
+This also centralizes key rotation: update once with `providers set`, all agents use the new key immediately.
+
 ## Supported Providers
 
 | Provider | Auto-detected |

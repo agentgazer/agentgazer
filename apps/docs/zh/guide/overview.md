@@ -54,6 +54,27 @@ agenttrace start
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## API Key 託管
+
+儲存一次，到處使用：
+
+```bash
+agenttrace providers set openai sk-xxx
+agenttrace providers set anthropic sk-ant-xxx
+```
+
+金鑰在本機加密儲存（AES-256-GCM），永遠不會離開你的機器。當你使用 Proxy 的路徑前綴路由（`/openai/...`、`/anthropic/...`）時，金鑰會自動注入請求 — 不需要在每個 Agent 中分別設定。
+
+```typescript
+// 程式碼中不需要 API Key — Proxy 自動注入
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",  // 會被儲存的金鑰取代
+});
+```
+
+這也讓金鑰輪換變得簡單：用 `providers set` 更新一次，所有 Agent 立即使用新金鑰。
+
 ## 支援的 Provider
 
 | Provider | 自動偵測 |
