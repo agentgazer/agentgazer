@@ -48,14 +48,14 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agenttrace/server": "^0.1.0",
     "@agenttrace/proxy": "^0.1.0",
+    "@agenttrace/server": "^0.1.0",
     "@agenttrace/shared": "^0.1.0",
     "open": "^10.1.0"
   },
   "devDependencies": {
     "dashboard-local": "*",
     "typescript": "^5.5.0",
-    "vitest": "^2.1.9"
+    "vitest": "^4.0.18"
   }
 }
