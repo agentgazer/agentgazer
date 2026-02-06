@@ -79,7 +79,8 @@ Commands:
   status                      Show current configuration
   reset-token                 Generate a new auth token
   providers list              List configured providers
-  providers set <name> <key>  Set/update a provider API key
+  providers set-key           Interactive provider key setup
+  providers set <name> <key>  Set provider key (non-interactive)
   providers remove <name>     Remove a provider
   version                     Show version
   doctor                      Check system health
@@ -108,7 +109,7 @@ Examples:
   agenttrace onboard                           First-time setup
   agenttrace start                             Start with defaults
   agenttrace start --port 9090                 Use custom server port
-  agenttrace providers set openai sk-xxx       Set OpenAI API key
+  agenttrace providers set-key                 Interactive provider setup
   agenttrace providers list                    List configured providers
   agenttrace stats                             Show stats (auto-selects agent)
   agenttrace stats my-agent --range 7d         Show stats for specific agent
@@ -236,7 +237,7 @@ async function cmdProviders(args: string[]): Promise<void> {
       const providers = listProviders();
       const names = Object.keys(providers);
       if (names.length === 0) {
-        console.log("No providers configured. Use \"agenttrace providers set <name> <key>\" to add one.");
+        console.log("No providers configured. Use \"agenttrace providers set-key\" to add one.");
         return;
       }
       console.log("\n  Configured providers:");
@@ -277,6 +278,64 @@ async function cmdProviders(args: string[]): Promise<void> {
       console.log(`Provider "${name}" configured (secret stored in ${backendName}).`);
       break;
     }
+    case "set-key": {
+      // Interactive provider key setup
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+
+      console.log("\n  Available providers:");
+      console.log("  ───────────────────────────────────────");
+      KNOWN_PROVIDERS.forEach((p, i) => {
+        console.log(`  ${i + 1}. ${p}`);
+      });
+      console.log();
+
+      try {
+        const choice = await ask(rl, "  Select provider (number): ");
+        const idx = parseInt(choice, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= KNOWN_PROVIDERS.length) {
+          console.error("  Invalid selection.");
+          process.exit(1);
+        }
+        const provider = KNOWN_PROVIDERS[idx];
+
+        const apiKey = await ask(rl, `  API key for ${provider}: `);
+        if (!apiKey) {
+          console.error("  API key is required.");
+          process.exit(1);
+        }
+
+        const rateLimitAnswer = await ask(
+          rl,
+          `  Rate limit (e.g. "100/60" for 100 req per 60s, Enter to skip): `
+        );
+
+        // Store API key in secret store
+        const { store, backendName: backend } = await detectSecretStore(getConfigDir());
+        await store.set(PROVIDER_SERVICE, provider, apiKey);
+
+        // Store non-secret config (rate limits) in config.json
+        const providerConfig: ProviderConfig = { apiKey: "" };
+        if (rateLimitAnswer) {
+          const parts = rateLimitAnswer.split("/");
+          if (parts.length === 2) {
+            const maxRequests = parseInt(parts[0], 10);
+            const windowSeconds = parseInt(parts[1], 10);
+            if (!isNaN(maxRequests) && !isNaN(windowSeconds) && maxRequests > 0 && windowSeconds > 0) {
+              providerConfig.rateLimit = { maxRequests, windowSeconds };
+            }
+          }
+        }
+
+        setProvider(provider, providerConfig);
+        console.log(`\n  ✓ ${provider} configured (secret stored in ${backend}).`);
+      } finally {
+        rl.close();
+      }
+      break;
+    }
     case "remove": {
       const name = args[1];
       if (!name) {
@@ -292,7 +351,7 @@ async function cmdProviders(args: string[]): Promise<void> {
       break;
     }
     default:
-      console.error("Usage: agenttrace providers <list|set|remove>");
+      console.error("Usage: agenttrace providers <list|set-key|set|remove>");
       process.exit(1);
   }
 }

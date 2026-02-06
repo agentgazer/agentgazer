@@ -223,7 +223,7 @@ export class KeychainStore implements SecretStore {
     }
 
     execSync(
-      `/usr/bin/security add-generic-password -s ${shellEscape(service)} -a ${shellEscape(account)} -w ${shellEscape(value)} -T ""`,
+      `/usr/bin/security add-generic-password -s ${shellEscape(service)} -a ${shellEscape(account)} -w ${shellEscape(value)} -U`,
       { stdio: "pipe" }
     );
   }
