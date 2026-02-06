@@ -2,7 +2,16 @@
 
 Local-first observability for AI agents. One command to monitor LLM calls, costs, errors, and latency across OpenAI, Anthropic, Google, Mistral, and Cohere.
 
-```
+## Install
+
+```bash
+# One-line install (recommended) — works without Node.js
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
+
+# Homebrew (macOS / Linux)
+brew install agenttrace/tap/agenttrace
+
+# npm (requires Node.js >= 18)
 npx agenttrace
 ```
 
@@ -275,6 +284,22 @@ To reset the auth token:
 ```bash
 agenttrace --reset-token
 ```
+
+## Uninstall
+
+```bash
+# If installed via curl | sh
+agenttrace uninstall
+# Or: curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/uninstall.sh | sh
+
+# If installed via Homebrew
+brew uninstall agenttrace
+
+# If installed via npm
+npm uninstall -g agenttrace
+```
+
+User data (`~/.agenttrace/`) is preserved by default. The curl uninstaller will prompt you; for other methods, manually remove `~/.agenttrace/` if desired.
 
 ## Environment variables
 
