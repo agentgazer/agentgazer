@@ -153,7 +153,7 @@ install_agenttrace() {
   mkdir -p "$LIB_DIR"
 
   # Use the resolved node to run npm install
-  "$RESOLVED_NODE" "$RESOLVED_NPM" install -g agenttrace \
+  "$RESOLVED_NODE" "$RESOLVED_NPM" install -g @agenttrace/cli \
     --prefix "$LIB_DIR" \
     --loglevel error 2>&1
 
