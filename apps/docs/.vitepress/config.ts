@@ -50,6 +50,7 @@ export default defineConfig({
                 { text: "Dashboard", link: "/en/guide/dashboard" },
                 { text: "Provider Keys", link: "/en/guide/providers" },
                 { text: "Alerts", link: "/en/guide/alerts" },
+                { text: "Multi-Agent Setup", link: "/en/guide/multi-agent" },
               ],
             },
             {
@@ -105,6 +106,7 @@ export default defineConfig({
                 { text: "儀表板", link: "/zh/guide/dashboard" },
                 { text: "Provider 金鑰管理", link: "/zh/guide/providers" },
                 { text: "告警系統", link: "/zh/guide/alerts" },
+                { text: "多 Agent 設定", link: "/zh/guide/multi-agent" },
               ],
             },
             {
