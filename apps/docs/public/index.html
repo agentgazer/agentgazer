@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AgentTrace</title>
+  <script>
+    // Redirect to appropriate locale based on browser language
+    const lang = navigator.language || navigator.userLanguage;
+    const isZh = lang.startsWith('zh');
+    window.location.href = isZh ? '/zh/' : '/en/';
+  </script>
+  <meta http-equiv="refresh" content="0; url=/en/">
+</head>
+<body>
+  <p>Redirecting to <a href="/en/">English</a> or <a href="/zh/">繁體中文</a>...</p>
+</body>
+</html>
