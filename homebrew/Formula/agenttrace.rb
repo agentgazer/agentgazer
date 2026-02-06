@@ -1,8 +1,8 @@
 class Agenttrace < Formula
   desc "Local-first AI agent observability platform"
   homepage "https://github.com/agenttrace/agenttrace"
-  url "https://registry.npmjs.org/@agenttrace/cli/-/cli-0.1.2.tgz"
-  sha256 "53bcd8654b2d56d5f307b913bd0025780a57ad51a56e821d8b0fa900afea7d00"
+  url "https://registry.npmjs.org/@agenttrace/cli/-/cli-0.1.3.tgz"
+  sha256 "660b2b3221d0a9552b98e9faeb0247cd33e06a404ddf6e79c95d20cb380870be"
   license "Apache-2.0"
 
   depends_on "node@22"

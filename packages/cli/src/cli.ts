@@ -308,7 +308,7 @@ function cmdStatus(): void {
   AgentTrace — Status
   ───────────────────────────────────────
 
-  Token:    ${config.token.slice(0, 16)}...
+  Token:    ${config.token}
   Config:   ${getConfigDir()}/config.json
   Database: ${getDbPath()}
   Server:   http://localhost:8080 (default)
@@ -421,16 +421,16 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   });
 
   console.log(`
-  ╔══════════════════════════════════════════╗
-  ║           AgentTrace running             ║
-  ╠══════════════════════════════════════════╣
-  ║                                          ║
-  ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}      ║
-  ║  Proxy:      http://localhost:${String(proxyPort).padEnd(5)}      ║
-  ║                                          ║
-  ║  Token:      ${config.token.slice(0, 16)}...      ║
-  ║                                          ║
-  ╚══════════════════════════════════════════╝
+  ╔════════════════════════════════════════════════════╗
+  ║              AgentTrace running                    ║
+  ╠════════════════════════════════════════════════════╣
+  ║                                                    ║
+  ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}                ║
+  ║  Proxy:      http://localhost:${String(proxyPort).padEnd(5)}                ║
+  ║                                                    ║
+  ║  Token:      ${config.token.padEnd(32)}    ║
+  ║                                                    ║
+  ╚════════════════════════════════════════════════════╝
 
   Proxy routes:  http://localhost:${proxyPort}/{provider}/...
   Providers:     ${KNOWN_PROVIDER_NAMES.join(", ")}
