@@ -194,9 +194,9 @@ agenttrace providers set openai $OPENAI_API_KEY
 | `api` | 指定 API 協定為 `anthropic-messages`，讓 Proxy 能正確偵測 Provider |
 | `primary` | 使用的模型，格式為 `<provider-name>/<model-name>` |
 
-### 省略 apiKey 的簡化設定（建議）
+### 重要：apiKey 不能為空
 
-如果你已透過 `agenttrace providers set anthropic` 儲存了金鑰：
+OpenClaw 在發送請求前會驗證 `apiKey` 不為空。即使使用 AgentTrace 的金鑰注入功能，你仍需提供一個 placeholder 值：
 
 ```json5
 {
@@ -205,18 +205,68 @@ agenttrace providers set openai $OPENAI_API_KEY
     "providers": {
       "anthropic-traced": {
         "baseUrl": "http://localhost:4000/anthropic",
-        "api": "anthropic-messages"
+        "apiKey": "placeholder",  // 必填！不能為空
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-sonnet-4-20250514",
+            "name": "Claude Sonnet 4",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "claude-opus-4-20250514",
+            "name": "Claude Opus 4",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
       }
     }
   },
   "agents": {
     "defaults": {
       "model": {
-        "primary": "anthropic-traced/claude-opus-4-5"
+        "primary": "anthropic-traced/claude-sonnet-4-20250514"
       }
     }
   }
 }
+```
+
+::: warning 注意事項
+- **`apiKey`**：使用 `"placeholder"` — AgentTrace proxy 會用你的真實金鑰替換它
+- **`models`**：必填的陣列，定義此 Provider 可用的模型
+- **`baseUrl`**：不能包含 `/v1` — OpenClaw 會自動加上 API 路徑
+:::
+
+### 設定 auth-profiles.json
+
+OpenClaw 還需要在 agent 目錄中設定認證：
+
+```bash
+# 為 main agent 建立認證設定
+mkdir -p ~/.openclaw/agents/main/agent
+cat > ~/.openclaw/agents/main/agent/auth-profiles.json << 'EOF'
+{
+  "anthropic": {
+    "provider": "anthropic",
+    "mode": "api_key",
+    "apiKey": "placeholder"
+  }
+}
+EOF
+```
+
+或使用 OpenClaw CLI：
+
+```bash
+openclaw models auth api-key --provider anthropic
+# 提示輸入時輸入 "placeholder"
 ```
 
 ### 支援的 Anthropic 模型
@@ -505,9 +555,13 @@ curl -X POST http://localhost:8080/api/alerts \
 
 | 問題 | 可能原因 | 解決方案 |
 |------|---------|---------|
+| "No API key found for provider" | 設定中的 `apiKey` 為空 | 使用 `"apiKey": "placeholder"` — 不能是空字串 |
+| "No API key found for provider" | 缺少 `auth-profiles.json` | 建立 `~/.openclaw/agents/main/agent/auth-profiles.json` 並填入 placeholder 金鑰 |
+| 404 Not Found | `baseUrl` 包含 `/v1` | 從 baseUrl 移除 `/v1`（例如使用 `/anthropic` 而非 `/anthropic/v1`） |
+| 401 Unauthorized | AgentTrace 沒有真正的金鑰 | 執行 `agenttrace providers set-key` 儲存你的真實 API 金鑰 |
 | OpenClaw 的呼叫未出現在 Dashboard | `openclaw.json` 中的 `baseUrl` 設定錯誤 | 確認 `baseUrl` 指向 Proxy 的 `:4000` 並包含 Provider 路徑前綴（例如 `http://localhost:4000/anthropic`），而非 Server 的 `:8080`，並確認 AgentTrace 正在運行 |
 | Provider 無法被偵測 | `api` 協定欄位設定錯誤 | Anthropic 使用 `"api": "anthropic-messages"`，OpenAI 使用 `"api": "openai-completions"` |
-| LLM Provider 回傳認證錯誤 | API 金鑰未設定或未被注入 | 透過 `agenttrace providers set` 儲存金鑰並確保 `baseUrl` 使用路徑前綴（例如 `/anthropic`），或在 `openclaw.json` 中直接包含 `apiKey` 欄位 |
+| Provider 無法被偵測 | 缺少 `models` 陣列 | 加入 `models` 陣列並定義至少一個模型 |
 | 連線被拒絕 (Connection Refused) | AgentTrace 未啟動或連接埠不正確 | 執行 `agenttrace doctor` 檢查服務狀態，確認連接埠設定一致 |
 | 事件出現但沒有成本資料 | 模型名稱不在定價表中 | 檢查模型名稱是否與 `packages/shared/src/pricing.ts` 中的定價表匹配 |
 | 修改設定後 OpenClaw 無法啟動 | `openclaw.json` 語法錯誤 | 驗證 JSON 語法，檢查是否有多餘的逗號（trailing commas） |

@@ -257,16 +257,24 @@ export class KeychainStore implements SecretStore {
 
   async list(service: string): Promise<string[]> {
     try {
-      const result = execSync(
-        `/usr/bin/security dump-keychain | grep -A4 "svce.*=.*${shellEscape(service)}"`,
-        { stdio: ["pipe", "pipe", "pipe"], encoding: "utf-8" }
+      // Dump keychain and parse for entries matching this service
+      const dump = execSync(
+        `/usr/bin/security dump-keychain`,
+        { stdio: ["pipe", "pipe", "pipe"], encoding: "utf-8", maxBuffer: 50 * 1024 * 1024 }
       );
 
       const accounts: string[] = [];
-      const acctRegex = /"acct"<blob>="([^"]+)"/g;
-      let match;
-      while ((match = acctRegex.exec(result)) !== null) {
-        accounts.push(match[1]);
+      // Split by entry boundaries and find entries with matching svce
+      const entries = dump.split(/keychain:/);
+      for (const entry of entries) {
+        // Check if this entry has our service
+        const svceMatch = entry.match(/"svce"<blob>="([^"]+)"/);
+        if (svceMatch && svceMatch[1] === service) {
+          const acctMatch = entry.match(/"acct"<blob>="([^"]+)"/);
+          if (acctMatch) {
+            accounts.push(acctMatch[1]);
+          }
+        }
       }
       return accounts;
     } catch {

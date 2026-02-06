@@ -324,6 +324,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     let pathPrefixProvider: ProviderName | null = null;
     let effectivePath = path;
 
+    log.info(`[PROXY] ${method} ${path}`);
+    log.info(`[PROXY] Headers: ${JSON.stringify(Object.fromEntries(Object.entries(req.headers).filter(([k]) => !k.toLowerCase().includes('key') && !k.toLowerCase().includes('auth'))))}`);
+
     if (!targetBase) {
       const prefixResult = parsePathPrefix(path);
       if (prefixResult) {
@@ -332,6 +335,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           targetBase = baseUrl;
           effectivePath = prefixResult.remainingPath;
           pathPrefixProvider = prefixResult.provider;
+          log.info(`[PROXY] Detected provider: ${prefixResult.provider}, forwarding to: ${baseUrl}${effectivePath}`);
         }
       }
     }
@@ -362,6 +366,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     // Build target URL: combine base with the effective path (prefix stripped if used)
     const targetUrl = targetBase.replace(/\/+$/, "") + effectivePath;
+    log.info(`[PROXY] Target URL: ${targetUrl}`);
 
     // Read the full request body
     let requestBody: Buffer;
@@ -455,6 +460,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     // Inject provider API key only for hostname-matched providers (strict).
     // Path-only matches are NOT trusted for key injection to prevent leakage.
+    log.info(`[PROXY] Provider detection: strict=${detectedProviderStrict}, metrics=${detectedProviderForMetrics}`);
     if (detectedProviderStrict !== "unknown") {
       const providerKey = providerKeys[detectedProviderStrict];
       if (providerKey) {
@@ -463,14 +469,19 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           providerKey
         );
         if (authHeader) {
-          // Only inject if the client didn't already provide an auth header
+          // Remove any existing auth header and inject the configured one
           const existingAuthKey = Object.keys(forwardHeaders).find(
             (k) => k.toLowerCase() === authHeader.name.toLowerCase()
           );
-          if (!existingAuthKey) {
-            forwardHeaders[authHeader.name] = authHeader.value;
+          if (existingAuthKey) {
+            log.info(`[PROXY] Replacing existing ${existingAuthKey} header with configured key`);
+            delete forwardHeaders[existingAuthKey];
           }
+          forwardHeaders[authHeader.name] = authHeader.value;
+          log.info(`[PROXY] Injected ${authHeader.name} header for ${detectedProviderStrict}`);
         }
+      } else {
+        log.warn(`[PROXY] No API key configured for provider: ${detectedProviderStrict}`);
       }
     }
 
@@ -490,10 +501,12 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown fetch error";
-      log.error(`Upstream request failed: ${message}`);
+      log.error(`[PROXY] Upstream request failed: ${message}`);
       sendJson(res, 502, { error: `Upstream request failed: ${message}` });
       return;
     }
+
+    log.info(`[PROXY] Response: ${providerResponse.status} ${providerResponse.statusText}`);
 
     // Check if the response is an SSE stream
     const contentType = providerResponse.headers.get("content-type") ?? "";

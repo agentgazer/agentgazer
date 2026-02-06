@@ -194,9 +194,9 @@ Edit `~/.openclaw/openclaw.json` and point the Anthropic provider's `baseUrl` to
 | `api` | Specifies the API protocol as `anthropic-messages`, enabling the proxy to correctly detect the provider |
 | `primary` | The model to use, in the format `<provider-name>/<model-name>` |
 
-### Simplified Configuration Without apiKey (Recommended)
+### Important: apiKey Cannot Be Empty
 
-If you have already stored the key via `agenttrace providers set anthropic`:
+OpenClaw validates that `apiKey` is not empty before sending requests. Even when using AgentTrace's key injection feature, you must provide a placeholder value:
 
 ```json5
 {
@@ -205,18 +205,68 @@ If you have already stored the key via `agenttrace providers set anthropic`:
     "providers": {
       "anthropic-traced": {
         "baseUrl": "http://localhost:4000/anthropic",
-        "api": "anthropic-messages"
+        "apiKey": "placeholder",  // Required! Cannot be empty
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-sonnet-4-20250514",
+            "name": "Claude Sonnet 4",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "claude-opus-4-20250514",
+            "name": "Claude Opus 4",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
       }
     }
   },
   "agents": {
     "defaults": {
       "model": {
-        "primary": "anthropic-traced/claude-opus-4-5"
+        "primary": "anthropic-traced/claude-sonnet-4-20250514"
       }
     }
   }
 }
+```
+
+::: warning
+- **`apiKey`**: Use `"placeholder"` — AgentTrace proxy will replace it with your real key
+- **`models`**: Required array defining available models for this provider
+- **`baseUrl`**: Must NOT include `/v1` — OpenClaw adds the API path automatically
+:::
+
+### Configure auth-profiles.json
+
+OpenClaw also requires auth configuration in the agent directory:
+
+```bash
+# Create auth profile for the main agent
+mkdir -p ~/.openclaw/agents/main/agent
+cat > ~/.openclaw/agents/main/agent/auth-profiles.json << 'EOF'
+{
+  "anthropic": {
+    "provider": "anthropic",
+    "mode": "api_key",
+    "apiKey": "placeholder"
+  }
+}
+EOF
+```
+
+Or use the OpenClaw CLI:
+
+```bash
+openclaw models auth api-key --provider anthropic
+# Enter "placeholder" when prompted
 ```
 
 ### Supported Anthropic Models
@@ -505,9 +555,13 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
 | Problem | Possible Cause | Solution |
 |---------|---------------|----------|
+| "No API key found for provider" | `apiKey` is empty in config | Use `"apiKey": "placeholder"` — cannot be empty string |
+| "No API key found for provider" | Missing `auth-profiles.json` | Create `~/.openclaw/agents/main/agent/auth-profiles.json` with placeholder key |
+| 404 Not Found | `baseUrl` includes `/v1` | Remove `/v1` from baseUrl (e.g., use `/anthropic` not `/anthropic/v1`) |
+| 401 Unauthorized | AgentTrace doesn't have the real key | Run `agenttrace providers set-key` to store your real API key |
 | OpenClaw calls do not appear in Dashboard | Incorrect `baseUrl` in `openclaw.json` | Confirm `baseUrl` points to the Proxy's `:4000` with a provider path prefix (e.g., `http://localhost:4000/anthropic`), not the Server's `:8080`, and verify that AgentTrace is running |
 | Provider not detected | Incorrect `api` protocol field | Use `"api": "anthropic-messages"` for Anthropic and `"api": "openai-completions"` for OpenAI |
-| LLM provider returns authentication error | API key not configured or not injected | Store the key via `agenttrace providers set` and ensure `baseUrl` uses a path prefix (e.g., `/anthropic`), or include the `apiKey` field directly in `openclaw.json` |
+| Provider not detected | Missing `models` array | Add `models` array with at least one model definition |
 | Connection refused | AgentTrace not started or incorrect port | Run `agenttrace doctor` to check service status and verify consistent port configuration |
 | Events appear but cost data is missing | Model name not in the pricing table | Verify the model name matches an entry in `packages/shared/src/pricing.ts` |
 | OpenClaw fails to start after configuration changes | Syntax error in `openclaw.json` | Validate JSON syntax and check for trailing commas |
