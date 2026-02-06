@@ -1,6 +1,9 @@
+import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { clearToken } from "../lib/api";
 import Logo from "./Logo";
+
+const SIDEBAR_COLLAPSED_KEY = "agenttrace-sidebar-collapsed";
 
 const NAV_ITEMS = [
   {
@@ -44,6 +47,14 @@ const NAV_ITEMS = [
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    return saved === "true";
+  });
+
+  useEffect(() => {
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
+  }, [collapsed]);
 
   function handleLogout() {
     clearToken();
@@ -57,13 +68,33 @@ export default function Layout() {
     return location.pathname.startsWith(path);
   }
 
+  const sidebarWidth = collapsed ? "w-16" : "w-64";
+  const mainMargin = collapsed ? "ml-16" : "ml-64";
+
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 flex w-64 flex-col border-r border-gray-800 bg-gray-900">
-        {/* Logo */}
-        <div className="flex h-16 items-center px-6">
-          <Logo size="md" />
+      <aside className={`fixed inset-y-0 left-0 flex ${sidebarWidth} flex-col border-r border-gray-800 bg-gray-900 transition-all duration-200`}>
+        {/* Logo & Toggle */}
+        <div className="flex h-16 items-center justify-between px-3">
+          {!collapsed && (
+            <div className="pl-3">
+              <Logo size="md" />
+            </div>
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className={`rounded p-2 text-gray-400 transition-colors hover:bg-gray-800 hover:text-white ${collapsed ? "mx-auto" : ""}`}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              {collapsed ? (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M12 17.25h8.25" />
+              )}
+            </svg>
+          </button>
         </div>
 
         {/* Navigation */}
@@ -74,14 +105,15 @@ export default function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                title={collapsed ? item.label : undefined}
+                className={`flex items-center ${collapsed ? "justify-center" : "gap-3"} rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                   active
                     ? "bg-gray-700 text-white"
                     : "text-gray-400 hover:bg-gray-800 hover:text-white"
                 }`}
               >
                 {item.icon}
-                {item.label}
+                {!collapsed && <span>{item.label}</span>}
               </Link>
             );
           })}
@@ -91,18 +123,19 @@ export default function Layout() {
         <div className="border-t border-gray-800 p-3">
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-800 hover:text-white"
+            title={collapsed ? "Logout" : undefined}
+            className={`flex w-full items-center ${collapsed ? "justify-center" : "gap-3"} rounded-md px-3 py-2 text-sm font-medium text-gray-400 transition-colors hover:bg-gray-800 hover:text-white`}
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
             </svg>
-            Logout
+            {!collapsed && <span>Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="ml-64 min-h-screen flex-1 bg-gray-950 p-6">
+      <main className={`${mainMargin} min-h-screen flex-1 bg-gray-950 p-6 transition-all duration-200`}>
         <Outlet />
       </main>
     </div>

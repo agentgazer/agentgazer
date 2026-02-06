@@ -1,6 +1,8 @@
-export function relativeTime(iso: string): string {
+export function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return "Never";
   const now = Date.now();
   const then = new Date(iso).getTime();
+  if (isNaN(then)) return "Never";
   const diff = Math.max(0, now - then);
   const seconds = Math.floor(diff / 1000);
   if (seconds < 60) return `${seconds}s ago`;

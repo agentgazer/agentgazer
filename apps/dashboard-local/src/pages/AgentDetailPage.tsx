@@ -7,6 +7,10 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import TokenBarChart from "../components/charts/TokenBarChart";
+import PolicySettings from "../components/PolicySettings";
+import ModelSettings from "../components/ModelSettings";
+import RateLimitSettings from "../components/RateLimitSettings";
+import RequestLog from "../components/RequestLog";
 
 interface StatsResponse {
   total_requests: number;
@@ -27,6 +31,8 @@ interface StatsResponse {
     tokens_in: number | null;
     tokens_out: number | null;
   }>;
+  blocked_count: number;
+  block_reasons: Record<string, number>;
 }
 
 type Range = "1h" | "24h" | "7d" | "30d" | "custom";
@@ -59,7 +65,7 @@ export default function AgentDetailPage() {
 
   const statCards = useMemo(() => {
     if (!data) return [];
-    return [
+    const cards = [
       { label: "Total Requests", value: formatNumber(data.total_requests) },
       { label: "Total Errors", value: formatNumber(data.total_errors) },
       {
@@ -77,6 +83,14 @@ export default function AgentDetailPage() {
         value: formatLatency(data.p99_latency),
       },
     ];
+    // Add blocked count if there are any
+    if (data.blocked_count > 0) {
+      cards.push({
+        label: "Blocked Requests",
+        value: formatNumber(data.blocked_count),
+      });
+    }
+    return cards;
   }, [data]);
 
   if (loading && !data) return <LoadingSpinner />;
@@ -99,6 +113,26 @@ export default function AgentDetailPage() {
           <ErrorBanner message={error} />
         </div>
       )}
+
+      {/* Policy Settings */}
+      <div className="mt-6">
+        <PolicySettings agentId={agentId!} />
+      </div>
+
+      {/* Model Settings */}
+      <div className="mt-6">
+        <ModelSettings agentId={agentId!} />
+      </div>
+
+      {/* Rate Limit Settings */}
+      <div className="mt-6">
+        <RateLimitSettings agentId={agentId!} />
+      </div>
+
+      {/* Request Log */}
+      <div className="mt-6">
+        <RequestLog agentId={agentId!} />
+      </div>
 
       {/* Range selector */}
       <div className="mt-6">
@@ -178,6 +212,32 @@ export default function AgentDetailPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Blocked requests breakdown */}
+          {data.blocked_count > 0 && Object.keys(data.block_reasons).length > 0 && (
+            <div className="mt-8 overflow-hidden rounded-lg border border-gray-700">
+              <h2 className="bg-gray-800 px-4 py-3 text-sm font-semibold text-gray-300">
+                Blocked Requests by Reason
+              </h2>
+              <div className="bg-gray-900 p-4">
+                <div className="flex flex-wrap gap-4">
+                  {Object.entries(data.block_reasons).map(([reason, count]) => (
+                    <div
+                      key={reason}
+                      className="flex items-center gap-2 rounded-lg border border-red-800 bg-red-900/20 px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-red-400">
+                        {reason.replace(/_/g, " ")}
+                      </span>
+                      <span className="rounded-full bg-red-800 px-2 py-0.5 text-xs font-medium text-white">
+                        {formatNumber(count)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </>

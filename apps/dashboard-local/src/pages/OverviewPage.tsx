@@ -1,18 +1,18 @@
 import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
-import { relativeTime } from "../lib/format";
+import { relativeTime, formatCost } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
-import StatusBadge from "../components/StatusBadge";
 import Pagination from "../components/Pagination";
 
 interface Agent {
   agent_id: string;
-  status: string;
-  last_heartbeat: string;
-  total_events: number;
+  updated_at: string;
+  total_tokens: number;
+  total_cost: number;
+  today_cost: number;
 }
 
 interface AgentsResponse {
@@ -69,21 +69,23 @@ export default function OverviewPage() {
                   <h2 className="truncate text-sm font-semibold text-white">
                     {agent.agent_id}
                   </h2>
-                  <StatusBadge status={agent.status} />
+                  <span className="text-xs text-gray-400">
+                    {relativeTime(agent.updated_at)}
+                  </span>
                 </div>
-                <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
-                  <span>
-                    Last heartbeat:{" "}
-                    <span className="text-gray-300">
-                      {relativeTime(agent.last_heartbeat)}
-                    </span>
-                  </span>
-                  <span>
-                    Events:{" "}
-                    <span className="text-gray-300">
-                      {agent.total_events.toLocaleString()}
-                    </span>
-                  </span>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <div className="text-gray-500">Tokens</div>
+                    <div className="text-gray-300">{agent.total_tokens.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Total Cost</div>
+                    <div className="text-gray-300">{formatCost(agent.total_cost)}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-500">Today</div>
+                    <div className="text-gray-300">{formatCost(agent.today_cost)}</div>
+                  </div>
                 </div>
               </Link>
             ))}

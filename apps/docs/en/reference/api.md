@@ -47,7 +47,7 @@ Accepts batch or single events.
 }
 ```
 
-**Event types:** `llm_call` | `completion` | `heartbeat` | `error` | `custom`
+**Event types:** `llm_call` | `completion` | `heartbeat` | `error` | `custom` | `blocked`
 
 **Event sources:** `sdk` | `proxy`
 
@@ -60,7 +60,8 @@ Accepts batch or single events.
 | `source` | string | Yes | Data source (sdk / proxy) |
 | `timestamp` | string | Yes | ISO-8601 timestamp |
 | `provider` | string | No | LLM Provider name |
-| `model` | string | No | Model name |
+| `model` | string | No | Model name (actual model used) |
+| `requested_model` | string | No | Originally requested model (before override) |
 | `tokens_in` | number | No | Input token count |
 | `tokens_out` | number | No | Output token count |
 | `tokens_total` | number | No | Total token count |
@@ -116,6 +117,101 @@ List all Agents with pagination and search support.
 ### GET /api/agents/:agentId
 
 Get detailed information for a specific Agent.
+
+### GET /api/agents/:agentId/policy
+
+Get agent policy settings.
+
+**Response:**
+
+```json
+{
+  "active": true,
+  "budget_limit": 20.00,
+  "allowed_hours_start": 9,
+  "allowed_hours_end": 18
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `active` | boolean | Whether agent is enabled |
+| `budget_limit` | number \| null | Daily spending cap in USD |
+| `allowed_hours_start` | number \| null | Start hour (0-23) |
+| `allowed_hours_end` | number \| null | End hour (0-23) |
+
+### PUT /api/agents/:agentId/policy
+
+Update agent policy settings. Partial updates are supported.
+
+**Request:**
+
+```json
+{
+  "active": false,
+  "budget_limit": 50.00
+}
+```
+
+### GET /api/agents/:agentId/providers
+
+Get list of providers the agent has used.
+
+**Response:**
+
+```json
+{
+  "providers": [
+    { "provider": "openai", "model_override": "gpt-4o-mini" },
+    { "provider": "anthropic", "model_override": null }
+  ]
+}
+```
+
+### GET /api/agents/:agentId/model-rules
+
+Get model override rules for an agent.
+
+**Response:**
+
+```json
+[
+  { "provider": "openai", "model_override": "gpt-4o-mini" }
+]
+```
+
+### PUT /api/agents/:agentId/model-rules/:provider
+
+Set model override for a specific provider.
+
+**Request:**
+
+```json
+{
+  "model_override": "gpt-4o-mini"
+}
+```
+
+### DELETE /api/agents/:agentId/model-rules/:provider
+
+Remove model override for a specific provider.
+
+## Models
+
+### GET /api/models
+
+Get available models for each provider.
+
+**Response:**
+
+```json
+{
+  "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+  "anthropic": ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001"],
+  "google": ["gemini-1.5-pro", "gemini-1.5-flash"],
+  ...
+}
+```
 
 ## Stats
 

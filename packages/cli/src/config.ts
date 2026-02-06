@@ -3,6 +3,10 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 import * as os from "node:os";
 
+/**
+ * @deprecated Rate limits are now managed in the Dashboard and stored in the database.
+ * This type is kept for backwards compatibility during migration.
+ */
 export interface ProviderRateLimit {
   maxRequests: number;
   windowSeconds: number;
@@ -10,6 +14,7 @@ export interface ProviderRateLimit {
 
 export interface ProviderConfig {
   apiKey: string;
+  /** @deprecated Rate limits are now managed in the Dashboard. This field is ignored. */
   rateLimit?: ProviderRateLimit;
 }
 

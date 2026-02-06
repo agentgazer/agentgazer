@@ -3,7 +3,7 @@ layout: home
 
 hero:
   name: AgentTrace
-  text: Keep a pulse on your agents.
+  text: Keep an eye on your agents.
   tagline: One command to monitor your AI agents locally. Track LLM calls, costs, latency, and errors — all on your machine.
   image:
     src: /logo.svg

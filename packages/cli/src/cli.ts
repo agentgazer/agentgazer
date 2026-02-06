@@ -163,28 +163,11 @@ async function cmdOnboard(): Promise<void> {
       const key = await ask(rl, `  API key for ${provider} (press Enter to skip): `);
       if (!key) continue;
 
-      const rateLimitAnswer = await ask(
-        rl,
-        `  Set rate limit for ${provider}? (e.g. "100/60" for 100 req per 60s, Enter to skip): `
-      );
-
       // Store API key in secret store
       await store.set(PROVIDER_SERVICE, provider, key);
 
-      // Store non-secret config (rate limits) in config.json
+      // Store provider entry in config.json (apiKey is empty — actual key is in secret store)
       const providerConfig: ProviderConfig = { apiKey: "" };
-      if (rateLimitAnswer) {
-        const parts = rateLimitAnswer.split("/");
-        if (parts.length === 2) {
-          const maxRequests = parseInt(parts[0], 10);
-          const windowSeconds = parseInt(parts[1], 10);
-          if (!isNaN(maxRequests) && !isNaN(windowSeconds) && maxRequests > 0 && windowSeconds > 0) {
-            providerConfig.rateLimit = { maxRequests, windowSeconds };
-          }
-        }
-      }
-
-      // Store provider config in config.json (apiKey is empty — actual key is in secret store)
       setProvider(provider, providerConfig);
 
       providerCount++;
@@ -307,30 +290,15 @@ async function cmdProviders(args: string[]): Promise<void> {
           process.exit(1);
         }
 
-        const rateLimitAnswer = await ask(
-          rl,
-          `  Rate limit (e.g. "100/60" for 100 req per 60s, Enter to skip): `
-        );
-
         // Store API key in secret store
         const { store, backendName: backend } = await detectSecretStore(getConfigDir());
         await store.set(PROVIDER_SERVICE, provider, apiKey);
 
-        // Store non-secret config (rate limits) in config.json
+        // Store provider entry in config.json (apiKey is empty — actual key is in secret store)
         const providerConfig: ProviderConfig = { apiKey: "" };
-        if (rateLimitAnswer) {
-          const parts = rateLimitAnswer.split("/");
-          if (parts.length === 2) {
-            const maxRequests = parseInt(parts[0], 10);
-            const windowSeconds = parseInt(parts[1], 10);
-            if (!isNaN(maxRequests) && !isNaN(windowSeconds) && maxRequests > 0 && windowSeconds > 0) {
-              providerConfig.rateLimit = { maxRequests, windowSeconds };
-            }
-          }
-        }
-
         setProvider(provider, providerConfig);
         console.log(`\n  ✓ ${provider} configured (secret stored in ${backend}).`);
+        console.log(`  Rate limits can be configured in the Dashboard.`);
       } finally {
         rl.close();
       }
@@ -435,7 +403,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   }
 
   // Start the local server
-  const { shutdown: shutdownServer } = await startServer({
+  const { db, shutdown: shutdownServer } = await startServer({
     port: serverPort,
     token: config.token,
     dbPath: getDbPath(),
@@ -459,24 +427,14 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   // Load provider keys from secret store
   const providerKeys = await loadProviderKeys(store);
 
-  // Load rate limits from config.json (non-secret config)
-  const rateLimits: Record<string, { maxRequests: number; windowSeconds: number }> = {};
-  if (config.providers) {
-    for (const [name, pConfig] of Object.entries(config.providers)) {
-      if (pConfig.rateLimit) {
-        rateLimits[name] = pConfig.rateLimit;
-      }
-    }
-  }
-
-  // Start the LLM proxy
+  // Start the LLM proxy (with db for policy enforcement and rate limits)
   const { shutdown: shutdownProxy } = startProxy({
     apiKey: config.token,
     agentId: "proxy",
     port: proxyPort,
     endpoint: `http://localhost:${serverPort}/api/events`,
     providerKeys,
-    rateLimits,
+    db, // Rate limits are loaded from db
   });
 
   console.log(`

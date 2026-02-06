@@ -30,22 +30,6 @@ describe("getModelPricing", () => {
     });
   });
 
-  it("returns pricing for gpt-4", () => {
-    const pricing = getModelPricing("gpt-4");
-    expect(pricing).toEqual({
-      inputPerMToken: 30.0,
-      outputPerMToken: 60.0,
-    });
-  });
-
-  it("returns pricing for gpt-3.5-turbo", () => {
-    const pricing = getModelPricing("gpt-3.5-turbo");
-    expect(pricing).toEqual({
-      inputPerMToken: 0.5,
-      outputPerMToken: 1.5,
-    });
-  });
-
   it("returns pricing for o1", () => {
     const pricing = getModelPricing("o1");
     expect(pricing).toEqual({
@@ -62,11 +46,19 @@ describe("getModelPricing", () => {
     });
   });
 
-  it("returns pricing for claude-opus-4-20250514", () => {
-    const pricing = getModelPricing("claude-opus-4-20250514");
+  it("returns pricing for claude-opus-4-5-20251101", () => {
+    const pricing = getModelPricing("claude-opus-4-5-20251101");
     expect(pricing).toEqual({
       inputPerMToken: 15.0,
       outputPerMToken: 75.0,
+    });
+  });
+
+  it("returns pricing for claude-sonnet-4-5-20250929", () => {
+    const pricing = getModelPricing("claude-sonnet-4-5-20250929");
+    expect(pricing).toEqual({
+      inputPerMToken: 3.0,
+      outputPerMToken: 15.0,
     });
   });
 
@@ -78,11 +70,19 @@ describe("getModelPricing", () => {
     });
   });
 
-  it("returns pricing for claude-3-5-haiku-20241022", () => {
-    const pricing = getModelPricing("claude-3-5-haiku-20241022");
+  it("returns pricing for claude-haiku-4-5-20251001", () => {
+    const pricing = getModelPricing("claude-haiku-4-5-20251001");
     expect(pricing).toEqual({
       inputPerMToken: 0.8,
       outputPerMToken: 4.0,
+    });
+  });
+
+  it("returns pricing for gemini-2.5-pro", () => {
+    const pricing = getModelPricing("gemini-2.5-pro");
+    expect(pricing).toEqual({
+      inputPerMToken: 1.25,
+      outputPerMToken: 5.0,
     });
   });
 
@@ -91,14 +91,6 @@ describe("getModelPricing", () => {
     expect(pricing).toEqual({
       inputPerMToken: 0.1,
       outputPerMToken: 0.4,
-    });
-  });
-
-  it("returns pricing for gemini-1.5-pro", () => {
-    const pricing = getModelPricing("gemini-1.5-pro");
-    expect(pricing).toEqual({
-      inputPerMToken: 1.25,
-      outputPerMToken: 5.0,
     });
   });
 
@@ -261,12 +253,12 @@ describe("calculateCost", () => {
     expect(cost).toBeCloseTo(0.0075, 10);
   });
 
-  it("calculates cost for claude-opus-4-20250514", () => {
-    // claude-opus-4-20250514: $15.00/1M in, $75.00/1M out
+  it("calculates cost for claude-opus-4-5-20251101", () => {
+    // claude-opus-4-5-20251101: $15.00/1M in, $75.00/1M out
     // 10000 in = 10000/1M * 15.00 = 0.15
     // 5000 out = 5000/1M * 75.00 = 0.375
     // total = 0.525
-    const cost = calculateCost("claude-opus-4-20250514", 10000, 5000);
+    const cost = calculateCost("claude-opus-4-5-20251101", 10000, 5000);
     expect(cost).toBeCloseTo(0.525, 10);
   });
 
@@ -289,12 +281,12 @@ describe("calculateCost", () => {
   });
 
   it("handles large token counts correctly", () => {
-    // gpt-4: $30/1M in, $60/1M out
-    // 10M in = 10 * 30 = 300
-    // 5M out = 5 * 60 = 300
-    // total = 600
-    const cost = calculateCost("gpt-4", 10_000_000, 5_000_000);
-    expect(cost).toBeCloseTo(600, 10);
+    // gemini-2.5-pro: $1.25/1M in, $5.00/1M out
+    // 10M in = 10 * 1.25 = 12.5
+    // 5M out = 5 * 5.00 = 25
+    // total = 37.5
+    const cost = calculateCost("gemini-2.5-pro", 10_000_000, 5_000_000);
+    expect(cost).toBeCloseTo(37.5, 10);
   });
 
   it("handles only input tokens (zero output)", () => {
@@ -342,8 +334,6 @@ describe("listSupportedModels", () => {
     expect(models).toContain("gpt-4o");
     expect(models).toContain("gpt-4o-mini");
     expect(models).toContain("gpt-4-turbo");
-    expect(models).toContain("gpt-4");
-    expect(models).toContain("gpt-3.5-turbo");
     expect(models).toContain("o1");
     expect(models).toContain("o1-mini");
     expect(models).toContain("o3-mini");
@@ -351,16 +341,18 @@ describe("listSupportedModels", () => {
 
   it("includes known Anthropic models", () => {
     const models = listSupportedModels();
-    expect(models).toContain("claude-opus-4-20250514");
+    expect(models).toContain("claude-opus-4-5-20251101");
+    expect(models).toContain("claude-sonnet-4-5-20250929");
     expect(models).toContain("claude-sonnet-4-20250514");
-    expect(models).toContain("claude-3-5-haiku-20241022");
+    expect(models).toContain("claude-haiku-4-5-20251001");
   });
 
   it("includes known Google models", () => {
     const models = listSupportedModels();
+    expect(models).toContain("gemini-2.5-pro");
+    expect(models).toContain("gemini-2.5-flash");
     expect(models).toContain("gemini-2.0-flash");
-    expect(models).toContain("gemini-1.5-pro");
-    expect(models).toContain("gemini-1.5-flash");
+    expect(models).toContain("gemini-2.0-flash-lite");
   });
 
   it("includes known Mistral models", () => {

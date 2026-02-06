@@ -131,18 +131,32 @@ router.get("/api/stats/overview", (req, res) => {
   // Active models count
   const activeModels = costByModelRows.length;
 
-  // Cost time series — bucket by hour for 1h, by day for others
-  // Use separate pre-built SQL statements to avoid string interpolation into queries
-  const costSeriesSQL = range === "1h"
-    ? `SELECT
+  // Cost time series — bucket appropriately by range
+  // 1h: 5-minute buckets, 24h: hourly buckets, 7d/30d: daily buckets
+  let costSeriesSQL: string;
+  if (range === "1h") {
+    // 5-minute buckets for 1h range
+    costSeriesSQL = `SELECT
+         strftime('%Y-%m-%dT%H:', timestamp) || printf('%02d', (CAST(strftime('%M', timestamp) AS INTEGER) / 5) * 5) || ':00Z' AS timestamp,
+         COALESCE(SUM(cost_usd), 0) AS cost,
+         COALESCE(SUM(tokens_total), 0) AS tokens
+       FROM agent_events
+       ${where}
+       GROUP BY strftime('%Y-%m-%dT%H:', timestamp) || printf('%02d', (CAST(strftime('%M', timestamp) AS INTEGER) / 5) * 5)
+       ORDER BY timestamp ASC`;
+  } else if (range === "24h") {
+    // Hourly buckets for 24h range
+    costSeriesSQL = `SELECT
          strftime('%Y-%m-%dT%H:00:00Z', timestamp) AS timestamp,
          COALESCE(SUM(cost_usd), 0) AS cost,
          COALESCE(SUM(tokens_total), 0) AS tokens
        FROM agent_events
        ${where}
        GROUP BY strftime('%Y-%m-%dT%H:00:00Z', timestamp)
-       ORDER BY timestamp ASC`
-    : `SELECT
+       ORDER BY timestamp ASC`;
+  } else {
+    // Daily buckets for 7d/30d
+    costSeriesSQL = `SELECT
          strftime('%Y-%m-%dT00:00:00Z', timestamp) AS timestamp,
          COALESCE(SUM(cost_usd), 0) AS cost,
          COALESCE(SUM(tokens_total), 0) AS tokens
@@ -150,6 +164,7 @@ router.get("/api/stats/overview", (req, res) => {
        ${where}
        GROUP BY strftime('%Y-%m-%dT00:00:00Z', timestamp)
        ORDER BY timestamp ASC`;
+  }
 
   const costSeries = db
     .prepare(costSeriesSQL)
@@ -241,6 +256,22 @@ router.get("/api/stats/:agentId", (req, res) => {
       tokens_out: e.tokens_out,
     }));
 
+  // Blocked events stats
+  const blockedEvents = allEvents.filter((e) => e.event_type === "blocked");
+  const blockedCount = blockedEvents.length;
+
+  // Count by block reason
+  const blockReasons: Record<string, number> = {};
+  for (const e of blockedEvents) {
+    try {
+      const tags = JSON.parse(e.tags || "{}");
+      const reason = tags.block_reason || "unknown";
+      blockReasons[reason] = (blockReasons[reason] || 0) + 1;
+    } catch {
+      blockReasons["unknown"] = (blockReasons["unknown"] || 0) + 1;
+    }
+  }
+
   res.json({
     total_requests: totalRequests,
     total_errors: totalErrors,
@@ -251,6 +282,8 @@ router.get("/api/stats/:agentId", (req, res) => {
     p99_latency: p99Latency,
     cost_by_model: costByModel,
     token_series: tokenSeries,
+    blocked_count: blockedCount,
+    block_reasons: blockReasons,
   });
 });
 

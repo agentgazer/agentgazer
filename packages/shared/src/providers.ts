@@ -199,3 +199,19 @@ export function parsePathPrefix(
   }
   return null;
 }
+
+/**
+ * Parse a URL path to extract an agent ID from /agents/{id}/... format.
+ * Given "/agents/my-bot/openai/v1/chat/completions" returns:
+ *   { agentId: "my-bot", remainingPath: "/openai/v1/chat/completions" }
+ * Returns null if path doesn't match the /agents/{id}/ pattern.
+ */
+export function parseAgentPath(
+  path: string
+): { agentId: string; remainingPath: string } | null {
+  const match = path.match(/^\/agents\/([^/]+)(\/.*)?$/);
+  if (!match) return null;
+  const agentId = match[1];
+  const rest = match[2] ?? "/";
+  return { agentId, remainingPath: rest };
+}

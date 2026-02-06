@@ -5,7 +5,7 @@ import { rateLimitEvents } from "../middleware/rate-limit.js";
 
 const router = Router();
 
-const VALID_EVENT_TYPES = new Set(["llm_call", "completion", "heartbeat", "error", "custom"]);
+const VALID_EVENT_TYPES = new Set(["llm_call", "completion", "heartbeat", "error", "custom", "blocked"]);
 const VALID_SOURCES = new Set(["sdk", "proxy"]);
 
 const MAX_QUERY_LIMIT = 10_000;
@@ -23,6 +23,7 @@ interface RawEvent {
   timestamp?: unknown;
   provider?: unknown;
   model?: unknown;
+  requested_model?: unknown;
   tokens_in?: unknown;
   tokens_out?: unknown;
   tokens_total?: unknown;
@@ -89,6 +90,13 @@ function validateEvent(raw: RawEvent): ValidationResult {
       return { valid: false, error: "model must be a string" };
     }
     event.model = raw.model;
+  }
+
+  if (raw.requested_model != null) {
+    if (typeof raw.requested_model !== "string") {
+      return { valid: false, error: "requested_model must be a string" };
+    }
+    event.requested_model = raw.requested_model;
   }
 
   if (raw.tokens_in != null) {

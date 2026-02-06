@@ -70,9 +70,37 @@ const message = await anthropic.messages.create({
 
 > To use your own API Key instead, set `apiKey` and avoid the path prefix (but automatic injection won't work).
 
-## Per-Agent Tracking with x-agent-id
+## Agent Identification
 
-When multiple agents share the same Proxy, use the `x-agent-id` header to attribute usage to each agent:
+The Proxy supports multiple ways to identify which agent is making a request.
+
+### Path-based Agent ID
+
+Include the agent ID in the URL path using `/agents/{agent-id}/`:
+
+```
+http://localhost:4000/agents/my-bot/openai/v1/chat/completions
+                      └─────────┘└────────────────────────────┘
+                       Agent ID      Provider path
+```
+
+Example with OpenAI SDK:
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/agents/coding-assistant/openai/v1",
+  apiKey: "dummy",
+});
+```
+
+This is useful when:
+- Your SDK doesn't support custom headers
+- You want the agent ID visible in the URL
+- You're using curl or simple HTTP clients
+
+### x-agent-id Header
+
+Use the `x-agent-id` header to identify the agent:
 
 ```typescript
 const openai = new OpenAI({
@@ -84,7 +112,19 @@ const openai = new OpenAI({
 });
 ```
 
-Without this header, all requests use the Proxy's default agent ID (set via `--agent-id` at startup).
+### Agent ID Priority
+
+When multiple identification methods are present, the Proxy uses this priority:
+
+| Priority | Method | Example |
+|----------|--------|---------|
+| 1 (highest) | `x-agent-id` header | `x-agent-id: my-agent` |
+| 2 | Path prefix | `/agents/my-agent/openai/...` |
+| 3 (lowest) | Default | Configured at startup or "default" |
+
+### Auto-Create Agents
+
+When the Proxy receives a request for an agent that doesn't exist, it automatically creates the agent with default policy settings.
 
 ## Using the x-target-url Header
 
@@ -106,6 +146,136 @@ The Proxy detects the target Provider in the following order:
 2. **Host header** — e.g., `Host: api.openai.com`
 3. **Path pattern** — e.g., `/v1/chat/completions` maps to OpenAI
 4. **x-target-url header** — manually specified target URL
+
+## Policy Enforcement
+
+The Proxy enforces agent policies before forwarding requests. When a policy blocks a request, the Proxy returns a fake LLM response instead of forwarding to the provider.
+
+### Policy Checks
+
+| Policy | Behavior |
+|--------|----------|
+| **Active** | If `active=false`, all requests are blocked |
+| **Budget Limit** | If daily spend >= `budget_limit`, requests are blocked |
+| **Allowed Hours** | If current time is outside `allowed_hours_start` to `allowed_hours_end`, requests are blocked |
+
+### Blocked Response Format
+
+When blocked, the Proxy returns a valid response in the provider's format:
+
+**OpenAI format:**
+
+```json
+{
+  "id": "blocked-...",
+  "object": "chat.completion",
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": "[AgentTrace] Request blocked: budget_exceeded"
+    },
+    "finish_reason": "stop"
+  }]
+}
+```
+
+**Anthropic format:**
+
+```json
+{
+  "id": "blocked-...",
+  "type": "message",
+  "content": [{
+    "type": "text",
+    "text": "[AgentTrace] Request blocked: agent_deactivated"
+  }],
+  "stop_reason": "end_turn"
+}
+```
+
+### Block Reasons
+
+| Reason | Description |
+|--------|-------------|
+| `agent_deactivated` | Agent's `active` setting is `false` |
+| `budget_exceeded` | Daily spend has reached `budget_limit` |
+| `outside_allowed_hours` | Current time is outside allowed window |
+
+Blocked requests are recorded as events with `event_type: "blocked"` and the block reason in tags.
+
+## Rate Limiting
+
+The Proxy enforces per-agent per-provider rate limits configured in the Dashboard. When a limit is exceeded, the Proxy returns a `429 Too Many Requests` response.
+
+### How It Works
+
+Rate limits use a **sliding window** algorithm:
+
+1. Each request timestamp is recorded
+2. When a new request arrives, timestamps older than the window are evicted
+3. If the remaining count >= max requests, the request is rejected
+4. The response includes `retry_after_seconds` calculated from when the oldest request in the window will expire
+
+### Response Format
+
+When rate limited, the Proxy returns a provider-specific error format:
+
+**OpenAI format (and most other providers):**
+
+```json
+{
+  "error": {
+    "message": "Rate limit exceeded for agent \"my-bot\" on openai. Please retry after 45 seconds.",
+    "type": "rate_limit_error",
+    "param": null,
+    "code": "rate_limit_exceeded"
+  },
+  "retry_after_seconds": 45
+}
+```
+
+**Anthropic format:**
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "rate_limit_error",
+    "message": "Rate limit exceeded for agent \"my-bot\" on anthropic. Please retry after 45 seconds."
+  },
+  "retry_after_seconds": 45
+}
+```
+
+The `Retry-After` HTTP header is also set.
+
+### Configuration
+
+Rate limits are configured in the Dashboard's Agent Detail → Rate Limit Settings section. See [Dashboard Rate Limit Settings](/guide/dashboard#rate-limit-settings) for details.
+
+### Block Reason
+
+Rate-limited requests are recorded with block reason `rate_limited` in the event tags.
+
+## Model Override
+
+The Proxy can rewrite the model in requests based on rules configured in the Dashboard.
+
+### How It Works
+
+1. Request arrives with `model: "gpt-4o"`
+2. Proxy checks for override rule for this agent + provider
+3. If rule exists (e.g., override to "gpt-4o-mini"), Proxy rewrites the request body
+4. Request is forwarded with `model: "gpt-4o-mini"`
+5. Event is recorded with both `requested_model: "gpt-4o"` and `model: "gpt-4o-mini"`
+
+### Use Cases
+
+- **Cost control** — Force cheaper models without changing agent code
+- **Testing** — Compare behavior across models
+- **Rollback** — Quickly switch models if issues arise
+
+Model overrides are configured in the Dashboard's Agent Detail → Model Settings section.
 
 ## Streaming Support
 
@@ -132,7 +302,7 @@ Response:
 The Proxy only extracts the following metric data:
 
 - Token counts (input / output / total)
-- Model name
+- Model name (requested and actual)
 - Latency (milliseconds)
 - Cost (USD)
 - HTTP status code

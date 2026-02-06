@@ -12,6 +12,7 @@ export function usePolling<T>(
   fetcherRef.current = fetcher;
 
   const doFetch = useCallback(async () => {
+    setLoading(true);
     try {
       const result = await fetcherRef.current();
       setData(result);
@@ -23,8 +24,9 @@ export function usePolling<T>(
     }
   }, []);
 
+  // Initial fetch and polling setup
   useEffect(() => {
-    doFetch(); // initial fetch
+    doFetch();
 
     timerRef.current = setInterval(doFetch, interval);
 
@@ -44,6 +46,11 @@ export function usePolling<T>(
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [doFetch, interval]);
+
+  // Re-fetch immediately when fetcher changes (e.g., filters/range change)
+  useEffect(() => {
+    doFetch();
+  }, [fetcher, doFetch]);
 
   return { data, error, loading, refresh: doFetch };
 }

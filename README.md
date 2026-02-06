@@ -2,6 +2,8 @@
 
 Local-first observability for AI agents. One command to monitor LLM calls, costs, errors, and latency across OpenAI, Anthropic, Google, Mistral, and Cohere.
 
+**[Documentation](https://agenttrace.dev)** | **[中文文件](https://agenttrace.dev/zh/)**
+
 ## Install
 
 ```bash
@@ -41,7 +43,7 @@ export OPENAI_BASE_URL=http://localhost:4000/v1
 # Use your LLM client as normal — calls are recorded automatically
 ```
 
-The proxy auto-detects the provider from the request URL and forwards to the correct upstream API. Supported providers:
+The proxy auto-detects the provider from the request URL and forwards to the correct upstream API. It also supports [rate limiting](https://agenttrace.dev/guide/proxy#rate-limiting), [model override](https://agenttrace.dev/guide/proxy#model-override), and [policy enforcement](https://agenttrace.dev/guide/proxy#policy-enforcement). Supported providers:
 
 | Provider | Host pattern |
 |----------|-------------|

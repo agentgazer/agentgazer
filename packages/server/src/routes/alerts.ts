@@ -10,8 +10,11 @@ interface AlertRuleRow {
   rule_type: string;
   config: string;
   enabled: number;
+  notification_type: string;
   webhook_url: string | null;
   email: string | null;
+  smtp_config: string | null;
+  telegram_config: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -31,10 +34,27 @@ function parseAlertRule(row: AlertRuleRow) {
   if (typeof row.config === "string") {
     try { config = JSON.parse(row.config); } catch { /* keep as string */ }
   }
+  let smtpConfig: unknown = row.smtp_config;
+  if (row.smtp_config && typeof row.smtp_config === "string") {
+    try { smtpConfig = JSON.parse(row.smtp_config); } catch { /* keep as string */ }
+  }
+  let telegramConfig: unknown = row.telegram_config;
+  if (row.telegram_config && typeof row.telegram_config === "string") {
+    try { telegramConfig = JSON.parse(row.telegram_config); } catch { /* keep as string */ }
+  }
   return {
-    ...row,
+    id: row.id,
+    agent_id: row.agent_id,
+    rule_type: row.rule_type,
     config,
     enabled: row.enabled === 1,
+    notification_type: row.notification_type || "webhook",
+    webhook_url: row.webhook_url,
+    email: row.email,
+    smtp_config: smtpConfig,
+    telegram_config: telegramConfig,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
   };
 }
 
@@ -108,8 +128,11 @@ router.post("/api/alerts", (req, res) => {
     rule_type?: string;
     config?: Record<string, unknown>;
     enabled?: boolean;
+    notification_type?: string;
     webhook_url?: string;
     email?: string;
+    smtp_config?: Record<string, unknown>;
+    telegram_config?: Record<string, unknown>;
   };
 
   // Validate required fields
@@ -134,22 +157,49 @@ router.post("/api/alerts", (req, res) => {
     return;
   }
 
-  // webhook_url is required (email removed for local mode — no SMTP)
-  if (!body.webhook_url) {
-    res.status(400).json({ error: "webhook_url is required" });
+  const notificationType = body.notification_type || "webhook";
+  const validNotificationTypes = new Set(["webhook", "email", "telegram"]);
+  if (!validNotificationTypes.has(notificationType)) {
+    res.status(400).json({ error: `notification_type must be one of: ${[...validNotificationTypes].join(", ")}` });
     return;
   }
 
-  // Validate webhook_url format
-  try {
-    const parsed = new URL(body.webhook_url);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      res.status(400).json({ error: "webhook_url must use http or https protocol" });
+  // Validate notification-specific fields
+  if (notificationType === "webhook") {
+    if (!body.webhook_url) {
+      res.status(400).json({ error: "webhook_url is required for webhook notification" });
       return;
     }
-  } catch {
-    res.status(400).json({ error: "webhook_url must be a valid URL" });
-    return;
+    try {
+      const parsed = new URL(body.webhook_url);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        res.status(400).json({ error: "webhook_url must use http or https protocol" });
+        return;
+      }
+    } catch {
+      res.status(400).json({ error: "webhook_url must be a valid URL" });
+      return;
+    }
+  } else if (notificationType === "email") {
+    if (!body.smtp_config) {
+      res.status(400).json({ error: "smtp_config is required for email notification" });
+      return;
+    }
+    const smtp = body.smtp_config as { host?: string; port?: number; from?: string; to?: string };
+    if (!smtp.host || !smtp.from || !smtp.to) {
+      res.status(400).json({ error: "smtp_config requires host, from, and to fields" });
+      return;
+    }
+  } else if (notificationType === "telegram") {
+    if (!body.telegram_config) {
+      res.status(400).json({ error: "telegram_config is required for telegram notification" });
+      return;
+    }
+    const tg = body.telegram_config as { bot_token?: string; chat_id?: string };
+    if (!tg.bot_token || !tg.chat_id) {
+      res.status(400).json({ error: "telegram_config requires bot_token and chat_id fields" });
+      return;
+    }
   }
 
   const id = randomUUID();
@@ -157,16 +207,19 @@ router.post("/api/alerts", (req, res) => {
   const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : 1;
 
   db.prepare(
-    `INSERT INTO alert_rules (id, agent_id, rule_type, config, enabled, webhook_url, email, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO alert_rules (id, agent_id, rule_type, config, enabled, notification_type, webhook_url, email, smtp_config, telegram_config, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     id,
     body.agent_id,
     body.rule_type,
     JSON.stringify(body.config),
     enabled,
-    body.webhook_url,
+    notificationType,
+    body.webhook_url ?? null,
     body.email ?? null,
+    body.smtp_config ? JSON.stringify(body.smtp_config) : null,
+    body.telegram_config ? JSON.stringify(body.telegram_config) : null,
     now,
     now,
   );
@@ -184,8 +237,11 @@ router.put("/api/alerts/:id", (req, res) => {
     rule_type?: string;
     config?: Record<string, unknown>;
     enabled?: boolean;
+    notification_type?: string;
     webhook_url?: string;
     email?: string;
+    smtp_config?: Record<string, unknown>;
+    telegram_config?: Record<string, unknown>;
   };
 
   const existing = db.prepare("SELECT * FROM alert_rules WHERE id = ?").get(id) as
@@ -202,8 +258,10 @@ router.put("/api/alerts/:id", (req, res) => {
   const ruleType = body.rule_type ?? existing.rule_type;
   const config = body.config !== undefined ? JSON.stringify(body.config) : existing.config;
   const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled;
+  const notificationType = body.notification_type ?? existing.notification_type ?? "webhook";
+
   // Validate webhook_url if provided
-  if (body.webhook_url !== undefined && body.webhook_url !== null) {
+  if (body.webhook_url !== undefined && body.webhook_url !== null && body.webhook_url !== "") {
     try {
       const parsed = new URL(body.webhook_url);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
@@ -215,14 +273,20 @@ router.put("/api/alerts/:id", (req, res) => {
       return;
     }
   }
-  const webhookUrl = body.webhook_url !== undefined ? body.webhook_url : existing.webhook_url;
+  const webhookUrl = body.webhook_url !== undefined ? (body.webhook_url || null) : existing.webhook_url;
   const email = body.email !== undefined ? body.email : existing.email;
+  const smtpConfig = body.smtp_config !== undefined
+    ? (body.smtp_config ? JSON.stringify(body.smtp_config) : null)
+    : existing.smtp_config;
+  const telegramConfig = body.telegram_config !== undefined
+    ? (body.telegram_config ? JSON.stringify(body.telegram_config) : null)
+    : existing.telegram_config;
 
   db.prepare(
     `UPDATE alert_rules
-     SET agent_id = ?, rule_type = ?, config = ?, enabled = ?, webhook_url = ?, email = ?, updated_at = ?
+     SET agent_id = ?, rule_type = ?, config = ?, enabled = ?, notification_type = ?, webhook_url = ?, email = ?, smtp_config = ?, telegram_config = ?, updated_at = ?
      WHERE id = ?`,
-  ).run(agentId, ruleType, config, enabled, webhookUrl, email, now, id);
+  ).run(agentId, ruleType, config, enabled, notificationType, webhookUrl, email, smtpConfig, telegramConfig, now, id);
 
   const row = db.prepare("SELECT * FROM alert_rules WHERE id = ?").get(id) as AlertRuleRow;
   res.json(parseAlertRule(row));

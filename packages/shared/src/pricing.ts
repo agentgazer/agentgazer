@@ -9,21 +9,22 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "gpt-4o": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
   "gpt-4o-mini": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
   "gpt-4-turbo": { inputPerMToken: 10.00, outputPerMToken: 30.00 },
-  "gpt-4": { inputPerMToken: 30.00, outputPerMToken: 60.00 },
-  "gpt-3.5-turbo": { inputPerMToken: 0.50, outputPerMToken: 1.50 },
   "o1": { inputPerMToken: 15.00, outputPerMToken: 60.00 },
   "o1-mini": { inputPerMToken: 3.00, outputPerMToken: 12.00 },
+  "o1-pro": { inputPerMToken: 150.00, outputPerMToken: 600.00 },
   "o3-mini": { inputPerMToken: 1.10, outputPerMToken: 4.40 },
 
   // Anthropic
-  "claude-opus-4-20250514": { inputPerMToken: 15.00, outputPerMToken: 75.00 },
+  "claude-opus-4-5-20251101": { inputPerMToken: 15.00, outputPerMToken: 75.00 },
+  "claude-sonnet-4-5-20250929": { inputPerMToken: 3.00, outputPerMToken: 15.00 },
   "claude-sonnet-4-20250514": { inputPerMToken: 3.00, outputPerMToken: 15.00 },
-  "claude-3-5-haiku-20241022": { inputPerMToken: 0.80, outputPerMToken: 4.00 },
+  "claude-haiku-4-5-20251001": { inputPerMToken: 0.80, outputPerMToken: 4.00 },
 
   // Google
+  "gemini-2.5-pro": { inputPerMToken: 1.25, outputPerMToken: 5.00 },
+  "gemini-2.5-flash": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
   "gemini-2.0-flash": { inputPerMToken: 0.10, outputPerMToken: 0.40 },
-  "gemini-1.5-pro": { inputPerMToken: 1.25, outputPerMToken: 5.00 },
-  "gemini-1.5-flash": { inputPerMToken: 0.075, outputPerMToken: 0.30 },
+  "gemini-2.0-flash-lite": { inputPerMToken: 0.075, outputPerMToken: 0.30 },
 
   // Mistral
   "mistral-large-latest": { inputPerMToken: 2.00, outputPerMToken: 6.00 },

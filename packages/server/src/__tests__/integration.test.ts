@@ -149,8 +149,7 @@ describe("Integration: SDK -> Local Server", () => {
     );
     expect(agentRes.status).toBe(200);
     expect(agentRes.body.agent_id).toBe(agentId);
-    expect(agentRes.body.status).toBe("healthy"); // heartbeat was sent
-    expect(agentRes.body.last_heartbeat).toBeTruthy();
+    expect(agentRes.body.updated_at).toBeTruthy();
   });
 
   it("SDK custom events and tags round-trip through the server", async () => {
@@ -304,12 +303,12 @@ describe("Integration: Alert evaluation", () => {
     const ruleId = alertRes.body.id;
     expect(ruleId).toBeTruthy();
 
-    // 3. Directly manipulate the agent's last_heartbeat_at to be 10 minutes ago
-    //    so the evaluator thinks the agent is down.
+    // 3. Directly manipulate the agent's updated_at to be 10 minutes ago
+    //    so the evaluator thinks the agent is inactive.
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     // SQLite datetime format without trailing Z (matches the schema convention)
     const staleTimestamp = tenMinutesAgo.toISOString().replace("T", " ").slice(0, 19);
-    db.prepare("UPDATE agents SET last_heartbeat_at = ?, status = 'unknown' WHERE agent_id = ?").run(
+    db.prepare("UPDATE agents SET updated_at = ? WHERE agent_id = ?").run(
       staleTimestamp,
       agentId,
     );
@@ -334,7 +333,7 @@ describe("Integration: Alert evaluation", () => {
     expect(entry).toBeTruthy();
     expect(entry.rule_type).toBe("agent_down");
     expect(entry.message).toContain(agentId);
-    expect(entry.message).toContain("heartbeat");
+    expect(entry.message).toContain("inactive");
     expect(entry.delivered_via).toBe("webhook");
   });
 
@@ -483,10 +482,10 @@ describe("Integration: Alert evaluation", () => {
       },
     });
 
-    // Make the heartbeat stale
+    // Make the activity stale
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     const staleTimestamp = tenMinutesAgo.toISOString().replace("T", " ").slice(0, 19);
-    db.prepare("UPDATE agents SET last_heartbeat_at = ? WHERE agent_id = ?").run(
+    db.prepare("UPDATE agents SET updated_at = ? WHERE agent_id = ?").run(
       staleTimestamp,
       agentId,
     );

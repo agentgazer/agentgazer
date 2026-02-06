@@ -1,15 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 100" fill="none">
-  <!-- Pulse logomark - sharp spike, short baselines -->
-  <polyline
-    points="10,62 45,62 80,8 115,62 150,62"
-    stroke="#818CF8"
-    stroke-width="5.5"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    fill="none"
-  />
-  <!-- Dot as A crossbar -->
-  <circle cx="80" cy="40" r="4.5" fill="#A5B4FC" />
+  <!-- Eye logomark -->
+  <g transform="translate(10, 10) scale(1.8)">
+    <!-- Eye outline -->
+    <path
+      d="M4.072 24.644a2.024 2.024 0 0 1 0-1.278C6.846 15.02 14.72 9 24 9c9.276 0 17.146 6.014 19.926 14.356a2.024 2.024 0 0 1 0 1.278C41.154 32.98 33.28 39 24 39c-9.276 0-17.146-6.014-19.926-14.356Z"
+      stroke="#818CF8"
+      stroke-width="3"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      fill="none"
+    />
+    <!-- Pupil -->
+    <circle cx="24" cy="24" r="6" stroke="#818CF8" stroke-width="3" fill="none" />
+  </g>
 
   <!-- AgentTrace text -->
   <text x="165" y="68" font-family="Inter, -apple-system, system-ui, sans-serif" font-size="38" font-weight="600">

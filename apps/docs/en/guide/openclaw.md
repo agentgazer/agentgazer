@@ -377,6 +377,83 @@ When using multiple providers simultaneously, the AgentTrace Dashboard can:
 - Compare latency performance between providers
 - Provide complete call records during provider failovers
 
+## Agent Governance (Optional)
+
+AgentTrace supports agent-level governance policies that allow you to control and limit LLM usage on a per-agent basis. When using governance features, you'll need to use agent path routing to identify which agent is making the request.
+
+### Agent Path Routing
+
+Instead of the simple provider path (`/anthropic`), you can use an agent-specific path that includes an agent ID:
+
+```
+http://localhost:4000/agents/{agent-id}/{provider}
+```
+
+For example:
+- `http://localhost:4000/agents/openclaw/anthropic` — routes to Anthropic, identified as agent "openclaw"
+- `http://localhost:4000/agents/discord-bot/openai` — routes to OpenAI, identified as agent "discord-bot"
+
+### OpenClaw Configuration with Agent Path
+
+```json5
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "anthropic-traced": {
+        "baseUrl": "http://localhost:4000/agents/openclaw/anthropic",
+        "apiKey": "placeholder",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-sonnet-4-20250514",
+            "name": "Claude Sonnet 4",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+### Governance Features
+
+Once you have requests routing through agent paths, you can configure policies in the AgentTrace Dashboard:
+
+| Feature | Description |
+|---------|-------------|
+| **Active Toggle** | Disable an agent to block all requests (returns a policy block message instead of calling the LLM) |
+| **Daily Budget Limit** | Set a maximum daily spend; requests are blocked once the limit is reached |
+| **Allowed Hours** | Restrict when the agent can make LLM calls (e.g., 9:00-17:00 only) |
+
+### Agent Identification Priority
+
+The proxy identifies agents in the following order:
+
+1. **`x-agent-id` header** — Highest priority, useful for programmatic control
+2. **Agent path** (`/agents/{id}/...`) — Middle priority, recommended for OpenClaw
+3. **Default** — Falls back to "default" if neither is specified
+
+### Example: Setting a Budget Limit
+
+After configuring agent path routing, you can set a $10/day budget limit via the API:
+
+```bash
+curl -X PUT http://localhost:8080/api/agents/openclaw/policy \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "active": true,
+    "budget_limit": 10.00
+  }'
+```
+
+Or use the Dashboard: navigate to **Agents** > **openclaw** > **Policy Settings**.
+
 ## Verification
 
 After completing the configuration, follow these steps to verify that the integration is working correctly.

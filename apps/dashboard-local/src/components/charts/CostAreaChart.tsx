@@ -13,11 +13,14 @@ interface CostSeriesEntry {
   tokens: number;
 }
 
+type Range = "1h" | "24h" | "7d" | "30d";
+
 interface CostAreaChartProps {
   series: CostSeriesEntry[];
+  range?: Range;
 }
 
-export default function CostAreaChart({ series }: CostAreaChartProps) {
+export default function CostAreaChart({ series, range = "24h" }: CostAreaChartProps) {
   if (series.length === 0) {
     return (
       <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
@@ -39,7 +42,13 @@ export default function CostAreaChart({ series }: CostAreaChartProps) {
           dataKey="timestamp"
           tickFormatter={(v: string) => {
             const d = new Date(v);
-            return d.toLocaleDateString([], { month: "short", day: "numeric" });
+            if (range === "1h") {
+              return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            } else if (range === "24h") {
+              return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            } else {
+              return d.toLocaleDateString([], { month: "short", day: "numeric" });
+            }
           }}
           tick={{ fill: "#6b7280", fontSize: 11 }}
           axisLine={{ stroke: "#374151" }}
@@ -67,6 +76,14 @@ export default function CostAreaChart({ series }: CostAreaChartProps) {
           ]}
           labelFormatter={(label: string) => {
             const d = new Date(label);
+            if (range === "1h" || range === "24h") {
+              return d.toLocaleString([], {
+                month: "short",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+            }
             return d.toLocaleDateString([], {
               weekday: "short",
               month: "short",

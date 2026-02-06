@@ -70,9 +70,37 @@ const message = await anthropic.messages.create({
 
 > 若要自己提供 API Key，設定 `apiKey` 並確保不使用路徑前綴（但此情況下無法自動注入）。
 
-## 多 Agent 追蹤：x-agent-id
+## Agent 識別
 
-當多個 Agent 共用同一個 Proxy 時，用 `x-agent-id` header 區分各 Agent 的用量：
+Proxy 支援多種方式識別發出請求的 Agent。
+
+### 路徑式 Agent ID
+
+在 URL 路徑中加入 agent ID，使用 `/agents/{agent-id}/` 格式：
+
+```
+http://localhost:4000/agents/my-bot/openai/v1/chat/completions
+                      └─────────┘└────────────────────────────┘
+                       Agent ID      Provider 路徑
+```
+
+OpenAI SDK 範例：
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/agents/coding-assistant/openai/v1",
+  apiKey: "dummy",
+});
+```
+
+適用情境：
+- SDK 不支援自訂 header
+- 希望 agent ID 在 URL 中可見
+- 使用 curl 或簡單的 HTTP 用戶端
+
+### x-agent-id Header
+
+使用 `x-agent-id` header 識別 Agent：
 
 ```typescript
 const openai = new OpenAI({
@@ -84,7 +112,19 @@ const openai = new OpenAI({
 });
 ```
 
-若不設定此 header，所有請求會使用 Proxy 啟動時指定的預設 agent ID（`--agent-id`）。
+### Agent ID 優先順序
+
+當同時使用多種識別方式時，Proxy 依照以下優先順序：
+
+| 優先順序 | 方式 | 範例 |
+|----------|------|------|
+| 1（最高） | `x-agent-id` header | `x-agent-id: my-agent` |
+| 2 | 路徑前綴 | `/agents/my-agent/openai/...` |
+| 3（最低） | 預設值 | 啟動時設定或 "default" |
+
+### 自動建立 Agent
+
+當 Proxy 收到不存在的 agent ID 請求時，會自動建立該 Agent 並套用預設政策設定。
 
 ## 使用 x-target-url Header
 
@@ -106,6 +146,136 @@ Proxy 使用以下順序偵測目標 Provider：
 2. **Host Header** — 如 `Host: api.openai.com`
 3. **路徑模式** — 如 `/v1/chat/completions` 對應 OpenAI
 4. **x-target-url Header** — 手動指定目標 URL
+
+## 政策執行
+
+Proxy 在轉發請求前會檢查 Agent 政策。當政策阻擋請求時，Proxy 會回傳假的 LLM 回應，而不是轉發到 Provider。
+
+### 政策檢查
+
+| 政策 | 行為 |
+|------|------|
+| **Active** | 若 `active=false`，所有請求會被阻擋 |
+| **Budget Limit** | 若當日花費 >= `budget_limit`，請求會被阻擋 |
+| **Allowed Hours** | 若當前時間在 `allowed_hours_start` 到 `allowed_hours_end` 之外，請求會被阻擋 |
+
+### 阻擋回應格式
+
+被阻擋時，Proxy 會回傳符合 Provider 格式的有效回應：
+
+**OpenAI 格式：**
+
+```json
+{
+  "id": "blocked-...",
+  "object": "chat.completion",
+  "choices": [{
+    "message": {
+      "role": "assistant",
+      "content": "[AgentTrace] Request blocked: budget_exceeded"
+    },
+    "finish_reason": "stop"
+  }]
+}
+```
+
+**Anthropic 格式：**
+
+```json
+{
+  "id": "blocked-...",
+  "type": "message",
+  "content": [{
+    "type": "text",
+    "text": "[AgentTrace] Request blocked: agent_deactivated"
+  }],
+  "stop_reason": "end_turn"
+}
+```
+
+### 阻擋原因
+
+| 原因 | 說明 |
+|------|------|
+| `agent_deactivated` | Agent 的 `active` 設定為 `false` |
+| `budget_exceeded` | 當日花費已達 `budget_limit` |
+| `outside_allowed_hours` | 當前時間在允許區間之外 |
+
+被阻擋的請求會被記錄為 `event_type: "blocked"` 的事件，阻擋原因會記錄在 tags 中。
+
+## 頻率限制（Rate Limiting）
+
+Proxy 會執行 Dashboard 中設定的 per-agent per-provider 頻率限制。當超過限制時，Proxy 回傳 `429 Too Many Requests` 回應。
+
+### 運作方式
+
+頻率限制使用**滑動窗口**演算法：
+
+1. 記錄每個請求的時間戳
+2. 新請求抵達時，移除超出窗口時間的舊時間戳
+3. 若剩餘數量 >= 最大請求數，拒絕該請求
+4. 回應包含 `retry_after_seconds`，計算自窗口中最舊請求何時過期
+
+### 回應格式
+
+被頻率限制時，Proxy 回傳符合 Provider 格式的錯誤回應：
+
+**OpenAI 格式（大多數 Provider 通用）：**
+
+```json
+{
+  "error": {
+    "message": "Rate limit exceeded for agent \"my-bot\" on openai. Please retry after 45 seconds.",
+    "type": "rate_limit_error",
+    "param": null,
+    "code": "rate_limit_exceeded"
+  },
+  "retry_after_seconds": 45
+}
+```
+
+**Anthropic 格式：**
+
+```json
+{
+  "type": "error",
+  "error": {
+    "type": "rate_limit_error",
+    "message": "Rate limit exceeded for agent \"my-bot\" on anthropic. Please retry after 45 seconds."
+  },
+  "retry_after_seconds": 45
+}
+```
+
+HTTP Header 也會設定 `Retry-After`。
+
+### 設定方式
+
+頻率限制在 Dashboard 的 Agent Detail → Rate Limit Settings 區塊設定。詳見 [Dashboard 頻率限制設定](/zh/guide/dashboard#頻率限制設定-rate-limit-settings)。
+
+### 阻擋原因
+
+被頻率限制的請求會記錄阻擋原因 `rate_limited` 在事件 tags 中。
+
+## 模型覆寫（Model Override）
+
+Proxy 可以依據 Dashboard 設定的規則改寫請求中的模型。
+
+### 運作方式
+
+1. 請求抵達，帶有 `model: "gpt-4o"`
+2. Proxy 檢查此 agent + provider 是否有覆寫規則
+3. 若有規則（例如覆寫成 "gpt-4o-mini"），Proxy 改寫請求內容
+4. 請求以 `model: "gpt-4o-mini"` 轉發
+5. 事件同時記錄 `requested_model: "gpt-4o"` 和 `model: "gpt-4o-mini"`
+
+### 使用情境
+
+- **成本控制** — 不修改 Agent 程式碼，強制使用較便宜的模型
+- **測試** — 比較不同模型的行為
+- **快速回滾** — 出問題時快速切換模型
+
+模型覆寫在 Dashboard 的 Agent Detail → Model Settings 區塊設定。
 
 ## 串流支援
 
@@ -132,7 +302,7 @@ curl http://localhost:4000/health
 Proxy 只提取以下指標資料：
 
 - Token 數量（輸入/輸出/合計）
-- 模型名稱
+- 模型名稱（請求的與實際使用的）
 - 延遲（毫秒）
 - 成本（USD）
 - HTTP 狀態碼

@@ -1114,7 +1114,7 @@ describe("Proxy Server Integration", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not override existing Authorization header from client", async () => {
+  it("overrides existing Authorization header when providerKeys is configured", async () => {
     providerServer = await createMockProviderServer();
     ingestServer = await createMockIngestServer();
 
@@ -1159,9 +1159,10 @@ describe("Proxy Server Integration", () => {
     });
 
     expect(providerServer.receivedRequests).toHaveLength(1);
-    // Client's own key should be preserved, NOT overwritten
+    // When providerKeys is configured, it OVERRIDES any client-provided key
+    // This is intentional for integrations like OpenClaw that send placeholder keys
     expect(providerServer.receivedRequests[0].headers["authorization"]).toBe(
-      "Bearer sk-client-own-key"
+      "Bearer sk-injected-key-12345"
     );
 
     vi.restoreAllMocks();

@@ -47,7 +47,7 @@
 }
 ```
 
-**事件類型：** `llm_call` | `completion` | `heartbeat` | `error` | `custom`
+**事件類型：** `llm_call` | `completion` | `heartbeat` | `error` | `custom` | `blocked`
 
 **事件來源：** `sdk` | `proxy`
 
@@ -60,7 +60,8 @@
 | `source` | string | 是 | 資料來源（sdk / proxy） |
 | `timestamp` | string | 是 | ISO-8601 時間戳 |
 | `provider` | string | 否 | LLM Provider 名稱 |
-| `model` | string | 否 | 模型名稱 |
+| `model` | string | 否 | 模型名稱（實際使用的模型） |
+| `requested_model` | string | 否 | 原本請求的模型（override 前） |
 | `tokens_in` | number | 否 | 輸入 token 數 |
 | `tokens_out` | number | 否 | 輸出 token 數 |
 | `tokens_total` | number | 否 | 總 token 數 |
@@ -116,6 +117,101 @@
 ### GET /api/agents/:agentId
 
 取得特定 Agent 的詳細資訊。
+
+### GET /api/agents/:agentId/policy
+
+取得 Agent 政策設定。
+
+**回應：**
+
+```json
+{
+  "active": true,
+  "budget_limit": 20.00,
+  "allowed_hours_start": 9,
+  "allowed_hours_end": 18
+}
+```
+
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| `active` | boolean | Agent 是否啟用 |
+| `budget_limit` | number \| null | 每日花費上限（USD） |
+| `allowed_hours_start` | number \| null | 允許時段起始（0-23） |
+| `allowed_hours_end` | number \| null | 允許時段結束（0-23） |
+
+### PUT /api/agents/:agentId/policy
+
+更新 Agent 政策設定。支援部分更新。
+
+**請求：**
+
+```json
+{
+  "active": false,
+  "budget_limit": 50.00
+}
+```
+
+### GET /api/agents/:agentId/providers
+
+取得 Agent 使用過的 Provider 列表。
+
+**回應：**
+
+```json
+{
+  "providers": [
+    { "provider": "openai", "model_override": "gpt-4o-mini" },
+    { "provider": "anthropic", "model_override": null }
+  ]
+}
+```
+
+### GET /api/agents/:agentId/model-rules
+
+取得 Agent 的模型覆寫規則。
+
+**回應：**
+
+```json
+[
+  { "provider": "openai", "model_override": "gpt-4o-mini" }
+]
+```
+
+### PUT /api/agents/:agentId/model-rules/:provider
+
+設定特定 Provider 的模型覆寫。
+
+**請求：**
+
+```json
+{
+  "model_override": "gpt-4o-mini"
+}
+```
+
+### DELETE /api/agents/:agentId/model-rules/:provider
+
+移除特定 Provider 的模型覆寫。
+
+## 模型（Models）
+
+### GET /api/models
+
+取得各 Provider 可選的模型列表。
+
+**回應：**
+
+```json
+{
+  "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+  "anthropic": ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001"],
+  "google": ["gemini-1.5-pro", "gemini-1.5-flash"],
+  ...
+}
+```
 
 ## 統計（Stats）
 

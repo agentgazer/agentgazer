@@ -12,6 +12,7 @@ export const AgentEventSchema = z.object({
   event_type: EventType,
   provider: z.string().nullish(),
   model: z.string().nullish(),
+  requested_model: z.string().nullish(),
   tokens_in: z.number().int().nonnegative().nullish(),
   tokens_out: z.number().int().nonnegative().nullish(),
   tokens_total: z.number().int().nonnegative().nullish(),

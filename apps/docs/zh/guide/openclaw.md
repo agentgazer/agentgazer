@@ -377,6 +377,83 @@ OpenClaw 支援同時使用多個 LLM Provider。以下設定同時啟用 Anthro
 - 比較不同 Provider 的延遲表現
 - 在 Provider 切換（failover）時提供完整的呼叫記錄
 
+## Agent 治理（選用）
+
+AgentTrace 支援 Agent 層級的治理策略，讓你可以針對每個 Agent 控制和限制 LLM 使用。使用治理功能時，你需要使用 Agent 路徑路由來識別發出請求的 Agent。
+
+### Agent 路徑路由
+
+除了簡單的 Provider 路徑（`/anthropic`），你可以使用包含 Agent ID 的特定路徑：
+
+```
+http://localhost:4000/agents/{agent-id}/{provider}
+```
+
+例如：
+- `http://localhost:4000/agents/openclaw/anthropic` — 路由到 Anthropic，識別為 "openclaw" Agent
+- `http://localhost:4000/agents/discord-bot/openai` — 路由到 OpenAI，識別為 "discord-bot" Agent
+
+### 使用 Agent 路徑的 OpenClaw 設定
+
+```json5
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "anthropic-traced": {
+        "baseUrl": "http://localhost:4000/agents/openclaw/anthropic",
+        "apiKey": "placeholder",
+        "api": "anthropic-messages",
+        "models": [
+          {
+            "id": "claude-sonnet-4-20250514",
+            "name": "Claude Sonnet 4",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  }
+}
+```
+
+### 治理功能
+
+當請求透過 Agent 路徑路由後，你可以在 AgentTrace Dashboard 中設定策略：
+
+| 功能 | 說明 |
+|------|------|
+| **啟用/停用開關** | 停用 Agent 以封鎖所有請求（回傳策略封鎖訊息而非呼叫 LLM） |
+| **每日預算上限** | 設定最大日花費；達到限制後請求將被封鎖 |
+| **允許時段** | 限制 Agent 可以發出 LLM 呼叫的時間（例如僅限 9:00-17:00） |
+
+### Agent 識別優先順序
+
+Proxy 按以下順序識別 Agent：
+
+1. **`x-agent-id` header** — 最高優先順序，適合程式化控制
+2. **Agent 路徑** (`/agents/{id}/...`) — 中優先順序，推薦用於 OpenClaw
+3. **預設值** — 如果都未指定則使用 "default"
+
+### 範例：設定預算限制
+
+設定 Agent 路徑路由後，你可以透過 API 設定 $10/天的預算限制：
+
+```bash
+curl -X PUT http://localhost:8080/api/agents/openclaw/policy \
+  -H "Authorization: Bearer <your-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "active": true,
+    "budget_limit": 10.00
+  }'
+```
+
+或使用 Dashboard：前往 **Agents** > **openclaw** > **Policy Settings**。
+
 ## 驗證
 
 完成設定後，依照以下步驟驗證整合是否成功。

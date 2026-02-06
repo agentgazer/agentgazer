@@ -20,6 +20,7 @@ export {
   getProviderBaseUrl,
   getProviderAuthHeader,
   parsePathPrefix,
+  parseAgentPath,
   KNOWN_PROVIDER_NAMES,
   type ProviderName,
 } from "./providers.js";
@@ -34,3 +35,8 @@ export {
   type Logger,
   type LogLevel,
 } from "./logger.js";
+
+export {
+  SELECTABLE_MODELS,
+  getSelectableModels,
+} from "./models.js";

@@ -5,6 +5,7 @@ import {
   getProviderBaseUrl,
   getProviderAuthHeader,
   parsePathPrefix,
+  parseAgentPath,
   parseProviderResponse,
   calculateCost,
   createLogger,
@@ -12,6 +13,58 @@ import {
   type ParsedResponse,
   type ProviderName,
 } from "@agenttrace/shared";
+import {
+  getAgentPolicy,
+  getDailySpend,
+  insertEvents,
+  upsertAgent,
+  getModelRule,
+  getAllRateLimits,
+  type AgentPolicy,
+  type InsertEventRow,
+} from "@agenttrace/server";
+import type Database from "better-sqlite3";
+
+// ---------------------------------------------------------------------------
+// Model Override Cache
+// ---------------------------------------------------------------------------
+
+interface ModelOverrideCache {
+  [key: string]: {
+    model_override: string | null;
+    expiresAt: number;
+  };
+}
+
+const modelOverrideCache: ModelOverrideCache = {};
+const MODEL_OVERRIDE_CACHE_TTL_MS = 30_000; // 30 seconds
+
+function getModelOverride(
+  db: Database.Database | undefined,
+  agentId: string,
+  provider: string,
+): string | null {
+  if (!db) return null;
+
+  const cacheKey = `${agentId}:${provider}`;
+  const cached = modelOverrideCache[cacheKey];
+
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.model_override;
+  }
+
+  // Fetch from DB
+  const rule = getModelRule(db, agentId, provider);
+  const modelOverride = rule?.model_override ?? null;
+
+  // Cache the result
+  modelOverrideCache[cacheKey] = {
+    model_override: modelOverride,
+    expiresAt: Date.now() + MODEL_OVERRIDE_CACHE_TTL_MS,
+  };
+
+  return modelOverride;
+}
 
 const log = createLogger("proxy");
 import { EventBuffer } from "./event-buffer.js";
@@ -25,7 +78,10 @@ export interface ProxyOptions {
   flushInterval?: number;
   maxBufferSize?: number;
   providerKeys?: Record<string, string>;
+  /** @deprecated Rate limits are now loaded from the database. This option is ignored. */
   rateLimits?: Record<string, RateLimitConfig>;
+  /** Optional database instance for policy enforcement and rate limits */
+  db?: Database.Database;
 }
 
 export interface ProxyServer {
@@ -40,6 +96,7 @@ const DEFAULT_MAX_BUFFER_SIZE = 50;
 const MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_SSE_BUFFER_SIZE = 50 * 1024 * 1024; // 50 MB
 const UPSTREAM_TIMEOUT_MS = 120_000; // 2 minutes
+const RATE_LIMIT_REFRESH_INTERVAL_MS = 30_000; // 30 seconds
 
 function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -254,8 +311,212 @@ function parseSSEResponse(
 }
 
 // ---------------------------------------------------------------------------
+// Policy enforcement helpers
+// ---------------------------------------------------------------------------
+
+type BlockReason = "inactive" | "budget_exceeded" | "outside_hours";
+
+interface PolicyCheckResult {
+  allowed: boolean;
+  reason?: BlockReason;
+  message?: string;
+}
+
+function checkAgentPolicy(
+  db: Database.Database | undefined,
+  agentId: string,
+): PolicyCheckResult {
+  if (!db) {
+    // No DB means no policy enforcement (backwards compatible)
+    return { allowed: true };
+  }
+
+  const policy = getAgentPolicy(db, agentId);
+  if (!policy) {
+    // Agent doesn't exist yet or no policy — allow by default
+    return { allowed: true };
+  }
+
+  // Check if agent is active
+  if (!policy.active) {
+    return {
+      allowed: false,
+      reason: "inactive",
+      message: "Agent is currently deactivated",
+    };
+  }
+
+  // Check budget limit
+  if (policy.budget_limit !== null) {
+    const dailySpend = getDailySpend(db, agentId);
+    if (dailySpend >= policy.budget_limit) {
+      return {
+        allowed: false,
+        reason: "budget_exceeded",
+        message: `Daily budget limit of $${policy.budget_limit.toFixed(2)} exceeded (spent: $${dailySpend.toFixed(2)})`,
+      };
+    }
+  }
+
+  // Check allowed hours
+  if (policy.allowed_hours_start !== null && policy.allowed_hours_end !== null) {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const start = policy.allowed_hours_start;
+    const end = policy.allowed_hours_end;
+
+    let isWithinHours: boolean;
+    if (start <= end) {
+      // Normal range (e.g., 9-17)
+      isWithinHours = currentHour >= start && currentHour < end;
+    } else {
+      // Overnight range (e.g., 22-6)
+      isWithinHours = currentHour >= start || currentHour < end;
+    }
+
+    if (!isWithinHours) {
+      return {
+        allowed: false,
+        reason: "outside_hours",
+        message: `Agent is only allowed to operate between ${start}:00 and ${end}:00 (server time)`,
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * Generate a blocked response in OpenAI format.
+ */
+function generateOpenAIBlockedResponse(reason: BlockReason, message: string): object {
+  return {
+    id: `chatcmpl-blocked-${Date.now()}`,
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model: "agenttrace-policy",
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: `[AgentTrace Policy Block] ${message}`,
+        },
+        finish_reason: "stop",
+      },
+    ],
+    usage: {
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+    },
+  };
+}
+
+/**
+ * Generate a blocked response in Anthropic format.
+ */
+function generateAnthropicBlockedResponse(reason: BlockReason, message: string): object {
+  return {
+    id: `msg_blocked_${Date.now()}`,
+    type: "message",
+    role: "assistant",
+    content: [
+      {
+        type: "text",
+        text: `[AgentTrace Policy Block] ${message}`,
+      },
+    ],
+    model: "agenttrace-policy",
+    stop_reason: "end_turn",
+    usage: {
+      input_tokens: 0,
+      output_tokens: 0,
+    },
+  };
+}
+
+/**
+ * Generate a blocked response based on provider format.
+ */
+function generateBlockedResponse(
+  provider: ProviderName,
+  reason: BlockReason,
+  message: string,
+): object {
+  if (provider === "anthropic") {
+    return generateAnthropicBlockedResponse(reason, message);
+  }
+  // Default to OpenAI format (used by most providers)
+  return generateOpenAIBlockedResponse(reason, message);
+}
+
+/**
+ * Record a blocked event to the database.
+ */
+function recordBlockedEvent(
+  db: Database.Database | undefined,
+  agentId: string,
+  provider: ProviderName,
+  reason: BlockReason,
+  message: string,
+): void {
+  if (!db) return;
+
+  try {
+    // Ensure agent exists
+    upsertAgent(db, agentId, false);
+
+    // Insert blocked event
+    const event: InsertEventRow = {
+      agent_id: agentId,
+      event_type: "blocked",
+      provider,
+      model: null,
+      tokens_in: null,
+      tokens_out: null,
+      tokens_total: null,
+      cost_usd: null,
+      latency_ms: null,
+      status_code: 403,
+      source: "proxy",
+      timestamp: new Date().toISOString(),
+      tags: { block_reason: reason, block_message: message },
+    };
+    insertEvents(db, [event]);
+  } catch (err) {
+    log.error("Failed to record blocked event", { err: String(err) });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Proxy server
 // ---------------------------------------------------------------------------
+
+/**
+ * Load rate limits from database and convert to RateLimiter config format.
+ */
+function loadRateLimitsFromDb(db: Database.Database | undefined): Record<string, RateLimitConfig> {
+  if (!db) return {};
+
+  try {
+    const rows = getAllRateLimits(db);
+    const configs: Record<string, RateLimitConfig> = {};
+
+    for (const row of rows) {
+      const key = `${row.agent_id}:${row.provider}`;
+      configs[key] = {
+        maxRequests: row.max_requests,
+        windowSeconds: row.window_seconds,
+      };
+    }
+
+    return configs;
+  } catch (err) {
+    log.error("Failed to load rate limits from database", { err: String(err) });
+    return {};
+  }
+}
 
 export function startProxy(options: ProxyOptions): ProxyServer {
   const port = options.port ?? DEFAULT_PORT;
@@ -264,7 +525,29 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   const flushInterval = options.flushInterval ?? DEFAULT_FLUSH_INTERVAL;
   const maxBufferSize = options.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
   const providerKeys = options.providerKeys ?? {};
-  const rateLimiter = new RateLimiter(options.rateLimits);
+  const db = options.db;
+
+  // Initialize rate limiter - prefer database, fall back to options for backward compatibility/testing
+  let initialRateLimits: Record<string, RateLimitConfig> = {};
+  if (db) {
+    initialRateLimits = loadRateLimitsFromDb(db);
+  } else if (options.rateLimits) {
+    // Convert legacy format (provider -> config) to new format (agentId:provider -> config)
+    for (const [provider, config] of Object.entries(options.rateLimits)) {
+      initialRateLimits[`${agentId}:${provider}`] = config;
+    }
+  }
+  const rateLimiter = new RateLimiter(initialRateLimits);
+
+  // Set up periodic refresh of rate limits from database
+  let rateLimitRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  if (db) {
+    rateLimitRefreshTimer = setInterval(() => {
+      const configs = loadRateLimitsFromDb(db);
+      rateLimiter.updateConfigs(configs);
+    }, RATE_LIMIT_REFRESH_INTERVAL_MS);
+    rateLimitRefreshTimer.unref();
+  }
 
   const startTime = Date.now();
 
@@ -299,8 +582,24 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
-    // Per-request agent identification: x-agent-id header overrides default agentId
-    const effectiveAgentId = (req.headers["x-agent-id"] as string | undefined) ?? agentId;
+    // Agent identification priority: header > path (/agents/{id}/...) > default
+    let effectiveAgentId = req.headers["x-agent-id"] as string | undefined;
+    let workingPath = path;
+
+    // Check for /agents/{id}/... path pattern if no header
+    if (!effectiveAgentId) {
+      const agentPathResult = parseAgentPath(path);
+      if (agentPathResult) {
+        effectiveAgentId = agentPathResult.agentId;
+        workingPath = agentPathResult.remainingPath;
+        log.info(`[PROXY] Agent ID from path: ${effectiveAgentId}`);
+      }
+    }
+
+    // Fall back to default agent ID
+    if (!effectiveAgentId) {
+      effectiveAgentId = agentId;
+    }
 
     // Proxy logic: use x-target-url header if provided, otherwise auto-detect
     // provider from the Host header or request path.
@@ -322,13 +621,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     // Path prefix routing: /{provider}/... -> provider base URL + remaining path
     let pathPrefixProvider: ProviderName | null = null;
-    let effectivePath = path;
+    let effectivePath = workingPath;
 
-    log.info(`[PROXY] ${method} ${path}`);
+    log.info(`[PROXY] ${method} ${path} (working path: ${workingPath}, agent: ${effectiveAgentId})`);
     log.info(`[PROXY] Headers: ${JSON.stringify(Object.fromEntries(Object.entries(req.headers).filter(([k]) => !k.toLowerCase().includes('key') && !k.toLowerCase().includes('auth'))))}`);
 
     if (!targetBase) {
-      const prefixResult = parsePathPrefix(path);
+      const prefixResult = parsePathPrefix(workingPath);
       if (prefixResult) {
         const baseUrl = getProviderBaseUrl(prefixResult.provider);
         if (baseUrl) {
@@ -366,6 +665,23 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     // Build target URL: combine base with the effective path (prefix stripped if used)
     const targetUrl = targetBase.replace(/\/+$/, "") + effectivePath;
+
+    // Detect provider early for policy enforcement response format
+    const earlyProvider: ProviderName = pathPrefixProvider ?? detectProvider(targetUrl);
+
+    // Policy check: verify agent is allowed to make requests
+    const policyResult = checkAgentPolicy(db, effectiveAgentId);
+    if (!policyResult.allowed && policyResult.reason && policyResult.message) {
+      log.info(`[PROXY] Request blocked for agent "${effectiveAgentId}": ${policyResult.reason}`);
+
+      // Record blocked event
+      recordBlockedEvent(db, effectiveAgentId, earlyProvider, policyResult.reason, policyResult.message);
+
+      // Return a fake LLM response that indicates the block
+      const blockedResponse = generateBlockedResponse(earlyProvider, policyResult.reason, policyResult.message);
+      sendJson(res, 200, blockedResponse);
+      return;
+    }
     log.info(`[PROXY] Target URL: ${targetUrl}`);
 
     // Read the full request body
@@ -385,6 +701,31 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     // Path prefix is definitively trusted (we resolved the provider ourselves).
     const detectedProviderStrict: ProviderName = pathPrefixProvider
       ?? detectProviderByHostname(targetUrl);
+
+    // Model override: check if we should rewrite the model in request body
+    let requestedModel: string | null = null;
+    let actualModel: string | null = null;
+    let modifiedRequestBody = requestBody;
+
+    if (detectedProviderStrict !== "unknown") {
+      try {
+        const bodyJson = JSON.parse(requestBody.toString("utf-8"));
+        if (bodyJson.model) {
+          requestedModel = bodyJson.model;
+          const modelOverride = getModelOverride(db, effectiveAgentId, detectedProviderStrict);
+          if (modelOverride) {
+            log.info(`[PROXY] Model override: ${requestedModel} → ${modelOverride}`);
+            bodyJson.model = modelOverride;
+            actualModel = modelOverride;
+            modifiedRequestBody = Buffer.from(JSON.stringify(bodyJson), "utf-8");
+          } else {
+            actualModel = requestedModel;
+          }
+        }
+      } catch {
+        // Not JSON or no model field - continue without modification
+      }
+    }
 
     // Lenient detection (hostname + path fallback): used for metric extraction.
     let detectedProviderForMetrics: ProviderName = pathPrefixProvider
@@ -408,18 +749,42 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     // Rate limiting: check before forwarding (strict match only)
     if (detectedProviderStrict !== "unknown") {
-      const rateLimitResult = rateLimiter.check(detectedProviderStrict);
+      const rateLimitResult = rateLimiter.check(effectiveAgentId, detectedProviderStrict);
       if (!rateLimitResult.allowed) {
+        const retryAfter = rateLimitResult.retryAfterSeconds ?? 60;
+        const message = `Rate limit exceeded for agent "${effectiveAgentId}" on ${detectedProviderStrict}. Please retry after ${retryAfter} seconds.`;
+
         res.writeHead(429, {
           "Content-Type": "application/json",
-          "Retry-After": String(rateLimitResult.retryAfterSeconds),
+          "Retry-After": String(retryAfter),
         });
-        res.end(
-          JSON.stringify({
-            error: `Rate limit exceeded for provider: ${detectedProviderStrict}`,
-            retry_after_seconds: rateLimitResult.retryAfterSeconds,
-          })
-        );
+
+        // Return provider-specific error format
+        let errorBody: object;
+        if (detectedProviderStrict === "anthropic") {
+          // Anthropic error format
+          errorBody = {
+            type: "error",
+            error: {
+              type: "rate_limit_error",
+              message,
+            },
+            retry_after_seconds: retryAfter,
+          };
+        } else {
+          // OpenAI-style error format (used by most providers)
+          errorBody = {
+            error: {
+              message,
+              type: "rate_limit_error",
+              param: null,
+              code: "rate_limit_exceeded",
+            },
+            retry_after_seconds: retryAfter,
+          };
+        }
+
+        res.end(JSON.stringify(errorBody));
 
         // Record rate limit event
         const event: AgentEvent = {
@@ -449,7 +814,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       if (
         lowerKey === "x-target-url" ||
         lowerKey === "host" ||
-        lowerKey === "connection"
+        lowerKey === "connection" ||
+        lowerKey === "content-length" // Let fetch recalculate after body modification
       ) {
         continue;
       }
@@ -494,7 +860,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         headers: forwardHeaders,
         body:
           method !== "GET" && method !== "HEAD"
-            ? new Uint8Array(requestBody)
+            ? new Uint8Array(modifiedRequestBody)
             : undefined,
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
@@ -553,7 +919,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           providerResponse.status,
           fullBody,
           latencyMs,
-          effectiveAgentId
+          effectiveAgentId,
+          requestedModel,
         );
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
@@ -593,7 +960,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           providerResponse.status,
           responseBodyBuffer,
           latencyMs,
-          effectiveAgentId
+          effectiveAgentId,
+          requestedModel,
         );
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
@@ -606,7 +974,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     statusCode: number,
     sseBody: Buffer,
     latencyMs: number,
-    effectiveAgentId: string
+    effectiveAgentId: string,
+    requestedModel: string | null,
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping streaming metric extraction");
@@ -631,6 +1000,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       event_type: "llm_call",
       provider,
       model: parsed.model,
+      requested_model: requestedModel,
       tokens_in: parsed.tokensIn,
       tokens_out: parsed.tokensOut,
       tokens_total: parsed.tokensTotal,
@@ -650,7 +1020,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     statusCode: number,
     responseBody: Buffer,
     latencyMs: number,
-    effectiveAgentId: string
+    effectiveAgentId: string,
+    requestedModel: string | null,
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping metric extraction");
@@ -683,6 +1054,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       event_type: "llm_call",
       provider,
       model: parsed.model,
+      requested_model: requestedModel,
       tokens_in: parsed.tokensIn,
       tokens_out: parsed.tokensOut,
       tokens_total: parsed.tokensTotal,
@@ -700,6 +1072,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   server.listen(port);
 
   async function shutdown(): Promise<void> {
+    if (rateLimitRefreshTimer) {
+      clearInterval(rateLimitRefreshTimer);
+    }
     await eventBuffer.shutdown();
     return new Promise((resolve, reject) => {
       server.close((err) => {

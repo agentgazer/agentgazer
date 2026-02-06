@@ -13,6 +13,8 @@ import agentsRouter from "./routes/agents.js";
 import eventsRouter from "./routes/events.js";
 import statsRouter from "./routes/stats.js";
 import alertsRouter from "./routes/alerts.js";
+import modelRulesRouter from "./routes/model-rules.js";
+import rateLimitsRouter from "./routes/rate-limits.js";
 import { startEvaluator } from "./alerts/evaluator.js";
 
 export interface ServerOptions {
@@ -47,6 +49,8 @@ export function createServer(options: ServerOptions): { app: express.Express; db
   app.use(eventsRouter);
   app.use(statsRouter);
   app.use(alertsRouter);
+  app.use(modelRulesRouter);
+  app.use(rateLimitsRouter);
 
   // Serve dashboard static files if a directory is provided
   if (options.dashboardDir) {
@@ -67,7 +71,7 @@ export function createServer(options: ServerOptions): { app: express.Express; db
 
 export async function startServer(
   options: ServerOptions,
-): Promise<{ server: http.Server; shutdown: () => Promise<void> }> {
+): Promise<{ server: http.Server; db: ReturnType<typeof initDatabase>; shutdown: () => Promise<void> }> {
   const port = options.port ?? 8080;
   const { app, db } = createServer(options);
 
@@ -125,5 +129,5 @@ export async function startServer(
     });
   }
 
-  return { server, shutdown };
+  return { server, db, shutdown };
 }

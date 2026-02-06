@@ -116,7 +116,7 @@ export default function CostsPage() {
             <h2 className="mb-4 text-sm font-semibold text-gray-300">
               Cost Trend
             </h2>
-            <CostAreaChart series={data.cost_series} />
+            <CostAreaChart series={data.cost_series} range={range} />
           </div>
 
           {/* Cost by Model Table */}

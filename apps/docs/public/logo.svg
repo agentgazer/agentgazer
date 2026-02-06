@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" fill="none">
-  <!-- Pulse line with sharp A-shaped spike -->
-  <polyline
-    points="0,75 55,75 100,10 145,75 200,75"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Eye outline -->
+  <path
+    d="M4.072 24.644a2.024 2.024 0 0 1 0-1.278C6.846 15.02 14.72 9 24 9c9.276 0 17.146 6.014 19.926 14.356a2.024 2.024 0 0 1 0 1.278C41.154 32.98 33.28 39 24 39c-9.276 0-17.146-6.014-19.926-14.356Z"
     stroke="#4F46E5"
-    stroke-width="6"
+    stroke-width="3"
     stroke-linecap="round"
     stroke-linejoin="round"
     fill="none"
   />
-  <!-- Dot as A crossbar -->
-  <circle cx="100" cy="50" r="5.5" fill="#818CF8" />
+  <!-- Pupil -->
+  <circle cx="24" cy="24" r="6" stroke="#4F46E5" stroke-width="3" fill="none" />
 </svg>

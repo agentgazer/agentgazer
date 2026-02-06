@@ -9,31 +9,44 @@ export interface RateLimitResult {
 }
 
 /**
- * Sliding-window rate limiter with per-provider tracking.
- * Keeps a list of request timestamps per provider and evicts
+ * Sliding-window rate limiter with per-agent per-provider tracking.
+ * Keeps a list of request timestamps per (agent, provider) key and evicts
  * entries older than the configured window.
  */
 export class RateLimiter {
+  // Key format: "agentId:provider"
   private windows: Map<string, number[]> = new Map();
   private configs: Map<string, RateLimitConfig> = new Map();
 
   constructor(configs?: Record<string, RateLimitConfig>) {
     if (configs) {
-      for (const [provider, config] of Object.entries(configs)) {
-        this.configs.set(provider, config);
+      for (const [key, config] of Object.entries(configs)) {
+        this.configs.set(key, config);
       }
     }
   }
 
   /**
-   * Check if a request for the given provider is allowed.
+   * Update rate limit configurations. Replaces all existing configs.
+   * Key format: "agentId:provider"
+   */
+  updateConfigs(configs: Record<string, RateLimitConfig>): void {
+    this.configs.clear();
+    for (const [key, config] of Object.entries(configs)) {
+      this.configs.set(key, config);
+    }
+  }
+
+  /**
+   * Check if a request for the given agent and provider is allowed.
    * If allowed, records the request timestamp.
    * If denied, returns the number of seconds until a slot opens.
    */
-  check(provider: string): RateLimitResult {
-    const config = this.configs.get(provider);
+  check(agentId: string, provider: string): RateLimitResult {
+    const key = `${agentId}:${provider}`;
+    const config = this.configs.get(key);
     if (!config) {
-      // No rate limit configured for this provider — allow
+      // No rate limit configured for this agent+provider — allow
       return { allowed: true };
     }
 
@@ -41,10 +54,10 @@ export class RateLimiter {
     const windowMs = config.windowSeconds * 1000;
     const cutoff = now - windowMs;
 
-    let timestamps = this.windows.get(provider);
+    let timestamps = this.windows.get(key);
     if (!timestamps) {
       timestamps = [];
-      this.windows.set(provider, timestamps);
+      this.windows.set(key, timestamps);
     }
 
     // Evict expired entries
@@ -65,9 +78,9 @@ export class RateLimiter {
   }
 
   /**
-   * Check whether a rate limit is configured for the given provider.
+   * Check whether a rate limit is configured for the given agent and provider.
    */
-  hasConfig(provider: string): boolean {
-    return this.configs.has(provider);
+  hasConfig(agentId: string, provider: string): boolean {
+    return this.configs.has(`${agentId}:${provider}`);
   }
 }

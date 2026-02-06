@@ -12,7 +12,30 @@
 
 就會有問題。
 
-## 解法：x-agent-id Header
+## 解法 1：路徑式 Agent ID（推薦）
+
+在 URL 路徑中包含 agent ID：
+
+```typescript
+// Coding assistant
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/agents/coding-assistant/openai/v1",
+  apiKey: "dummy",
+});
+
+// Research assistant
+const anthropic = new Anthropic({
+  baseURL: "http://localhost:4000/agents/research-assistant/anthropic",
+  apiKey: "dummy",
+});
+```
+
+這種方式：
+- 適用於任何 SDK（不需要自訂 header）
+- Agent ID 在 logs 和 URL 中可見
+- 首次請求時自動建立 Agent
+
+## 解法 2：x-agent-id Header
 
 在每個請求中加上 `x-agent-id` header 來識別是哪個 Agent 發出的：
 
@@ -115,26 +138,26 @@ response = client.chat.completions.create(
 )
 ```
 
-## 回退行為
+## Agent ID 優先順序
 
-如果請求沒有 `x-agent-id` header，會使用 Proxy 的預設 agent ID：
+當同時使用多種識別方式時，Proxy 依照以下優先順序：
 
-| 情境 | 使用的 Agent ID |
-|------|-----------------|
-| 有 `x-agent-id: my-agent` header | `my-agent` |
-| 沒有 header，啟動時用 `--agent-id foo` | `foo` |
-| 沒有 header，沒有 `--agent-id` | 設定檔中的預設值 |
+| 優先順序 | 方式 | 範例 |
+|----------|------|------|
+| 1（最高） | `x-agent-id` header | `x-agent-id: my-agent` |
+| 2 | 路徑前綴 | `/agents/my-agent/openai/...` |
+| 3（最低） | 預設值 | 啟動時設定或 "default" |
 
-## 何時使用
+## 何時使用哪種方式
 
 | 情境 | 建議 |
 |------|------|
-| 單一 Agent（例如只有 OpenClaw） | 不需要 `x-agent-id` |
-| 多個 Agent，同一個 Provider | 使用 `x-agent-id` |
-| 多個 Agent，不同 Provider | 使用 `x-agent-id` |
-| 測試不同的 prompt/設定 | 用 `x-agent-id` 來比較 |
+| 單一 Agent | 不需要 agent ID — 使用預設值 |
+| 多個 Agent，SDK 支援 header | 使用 `x-agent-id` header |
+| 多個 Agent，SDK 不支援 header | 使用路徑式 `/agents/{id}/...` |
+| OpenClaw（不支援自訂 header） | 使用路徑式 `/agents/{id}/...` |
+| 測試不同的 prompt/設定 | 兩種方式皆可比較 |
 
 ## 限制
 
-- **OpenClaw**：目前不支援自訂 header，所以無法在 OpenClaw 使用 `x-agent-id`。如果需要多個 OpenClaw Agent，請使用多個 Proxy 實例。
-- **部分 SDK**：請確認你的 SDK 是否支援 `defaultHeaders` 或類似功能。
+- **部分 SDK**：如果你的 SDK 不支援 `defaultHeaders`，改用路徑式方式。

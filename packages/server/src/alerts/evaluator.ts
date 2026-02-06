@@ -19,10 +19,29 @@ interface AlertRuleRow {
   rule_type: "agent_down" | "error_rate" | "budget";
   config: string; // JSON text stored by SQLite
   enabled: number;
+  notification_type: string;
   webhook_url: string | null;
   email: string | null;
+  smtp_config: string | null;
+  telegram_config: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface SmtpConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  from: string;
+  to: string;
+}
+
+interface TelegramConfig {
+  bot_token: string;
+  chat_id: string;
+  message_template: string;
 }
 
 interface AgentDownConfig {
@@ -116,7 +135,18 @@ async function postWebhookWithRetry(
 // Email delivery
 // ---------------------------------------------------------------------------
 
-function getSmtpTransport(): nodemailer.Transporter | null {
+function getSmtpTransport(smtpConfig?: SmtpConfig | null): nodemailer.Transporter | null {
+  // Use per-rule SMTP config if provided
+  if (smtpConfig && smtpConfig.host) {
+    return nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port || 587,
+      secure: smtpConfig.secure || false,
+      ...(smtpConfig.user && smtpConfig.pass ? { auth: { user: smtpConfig.user, pass: smtpConfig.pass } } : {}),
+    });
+  }
+
+  // Fall back to environment variables
   const host = process.env.SMTP_HOST;
   if (!host) return null;
 
@@ -134,16 +164,23 @@ function getSmtpTransport(): nodemailer.Transporter | null {
 }
 
 async function sendEmail(
-  to: string,
   payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
+  smtpConfig?: SmtpConfig | null,
+  legacyTo?: string | null,
 ): Promise<void> {
-  const transport = getSmtpTransport();
+  const transport = getSmtpTransport(smtpConfig);
   if (!transport) {
-    log.warn("Email alert skipped: SMTP_HOST not configured");
+    log.warn("Email alert skipped: SMTP not configured");
     return;
   }
 
-  const from = process.env.SMTP_FROM ?? "alerts@agenttrace.dev";
+  const from = smtpConfig?.from ?? process.env.SMTP_FROM ?? "alerts@agenttrace.dev";
+  const to = smtpConfig?.to ?? legacyTo;
+  if (!to) {
+    log.warn("Email alert skipped: no recipient configured");
+    return;
+  }
+
   const ruleLabel = payload.rule_type.replace(/_/g, " ");
   const subject = `[AgentTrace] ${ruleLabel} alert: ${payload.agent_id}`;
   const text = [
@@ -162,6 +199,52 @@ async function sendEmail(
 }
 
 // ---------------------------------------------------------------------------
+// Telegram delivery
+// ---------------------------------------------------------------------------
+
+async function sendTelegram(
+  payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
+  telegramConfig: TelegramConfig,
+): Promise<void> {
+  const { bot_token, chat_id, message_template } = telegramConfig;
+
+  if (!bot_token || !chat_id) {
+    log.warn("Telegram alert skipped: missing bot_token or chat_id");
+    return;
+  }
+
+  // Use template or default message
+  const template = message_template || "[From AgentTrace] Alert: {rule_type} - Agent: {agent_id} - {message}";
+  const text = template
+    .replace(/{agent_id}/g, payload.agent_id)
+    .replace(/{rule_type}/g, payload.rule_type.replace(/_/g, " "))
+    .replace(/{message}/g, payload.message)
+    .replace(/{timestamp}/g, payload.timestamp);
+
+  const url = `https://api.telegram.org/bot${bot_token}/sendMessage`;
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id,
+        text,
+        parse_mode: "HTML",
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      log.error(`Telegram API returned ${res.status}`, { chat_id, body });
+    }
+  } catch (err) {
+    log.error(`Telegram delivery failed`, { chat_id, err: String(err) });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Evaluation helpers
 // ---------------------------------------------------------------------------
 
@@ -171,29 +254,29 @@ function evaluateAgentDown(
   config: AgentDownConfig,
 ): string | null {
   const agent = db.prepare(SQL_AGENT_BY_ID).get(rule.agent_id) as
-    | { last_heartbeat_at: string | null; name: string | null }
+    | { updated_at: string | null; name: string | null }
     | undefined;
 
   if (!agent) {
-    // Agent has never been registered -- treat as down.
-    return `Agent "${rule.agent_id}" has never sent a heartbeat`;
+    // Agent has never been registered -- treat as inactive.
+    return `Agent "${rule.agent_id}" has never been registered`;
   }
 
-  if (!agent.last_heartbeat_at) {
-    return `Agent "${rule.agent_id}" has no recorded heartbeat`;
+  if (!agent.updated_at) {
+    return `Agent "${rule.agent_id}" has no recorded activity`;
   }
 
-  const lastBeat = new Date(
-    agent.last_heartbeat_at.endsWith("Z") || agent.last_heartbeat_at.includes("+")
-      ? agent.last_heartbeat_at
-      : agent.last_heartbeat_at + "Z",
+  const lastActivity = new Date(
+    agent.updated_at.endsWith("Z") || agent.updated_at.includes("+")
+      ? agent.updated_at
+      : agent.updated_at + "Z",
   ).getTime();
   const threshold = config.duration_minutes * 60 * 1000;
   const now = Date.now();
 
-  if (now - lastBeat > threshold) {
-    const minutesAgo = Math.round((now - lastBeat) / 60_000);
-    return `Agent "${rule.agent_id}" last heartbeat was ${minutesAgo} minutes ago (threshold: ${config.duration_minutes}m)`;
+  if (now - lastActivity > threshold) {
+    const minutesAgo = Math.round((now - lastActivity) / 60_000);
+    return `Agent "${rule.agent_id}" has been inactive for ${minutesAgo} minutes (threshold: ${config.duration_minutes}m)`;
   }
 
   return null;
@@ -302,7 +385,9 @@ async function tick(db: Database.Database): Promise<void> {
         timestamp,
       };
 
-      if (rule.webhook_url) {
+      const notificationType = rule.notification_type || "webhook";
+
+      if (notificationType === "webhook" && rule.webhook_url) {
         postWebhook(rule.webhook_url, payload);
         db.prepare(SQL_INSERT_HISTORY).run(
           rule.id,
@@ -311,11 +396,13 @@ async function tick(db: Database.Database): Promise<void> {
           message,
           "webhook",
         );
-      }
-
-      if (rule.email) {
+      } else if (notificationType === "email") {
         try {
-          await sendEmail(rule.email, payload);
+          let smtpConfig: SmtpConfig | null = null;
+          if (rule.smtp_config) {
+            try { smtpConfig = JSON.parse(rule.smtp_config); } catch { /* ignore */ }
+          }
+          await sendEmail(payload, smtpConfig, rule.email);
           db.prepare(SQL_INSERT_HISTORY).run(
             rule.id,
             rule.agent_id,
@@ -325,6 +412,27 @@ async function tick(db: Database.Database): Promise<void> {
           );
         } catch (emailErr) {
           log.error("Email delivery failed, history not recorded", { ruleId: rule.id, err: String(emailErr) });
+        }
+      } else if (notificationType === "telegram") {
+        try {
+          let telegramConfig: TelegramConfig | null = null;
+          if (rule.telegram_config) {
+            try { telegramConfig = JSON.parse(rule.telegram_config); } catch { /* ignore */ }
+          }
+          if (telegramConfig) {
+            await sendTelegram(payload, telegramConfig);
+            db.prepare(SQL_INSERT_HISTORY).run(
+              rule.id,
+              rule.agent_id,
+              rule.rule_type,
+              message,
+              "telegram",
+            );
+          } else {
+            log.warn("Telegram alert skipped: no telegram_config", { ruleId: rule.id });
+          }
+        } catch (tgErr) {
+          log.error("Telegram delivery failed, history not recorded", { ruleId: rule.id, err: String(tgErr) });
         }
       }
     } catch (err) {

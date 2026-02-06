@@ -10,7 +10,30 @@ By default, all requests through the Proxy are attributed to a single agent (the
 - You want to see cost breakdown per agent
 - You need separate alerts for each agent
 
-## Solution: x-agent-id Header
+## Solution 1: Path-based Agent ID (Recommended)
+
+Include the agent ID in the URL path:
+
+```typescript
+// Coding assistant
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/agents/coding-assistant/openai/v1",
+  apiKey: "dummy",
+});
+
+// Research assistant
+const anthropic = new Anthropic({
+  baseURL: "http://localhost:4000/agents/research-assistant/anthropic",
+  apiKey: "dummy",
+});
+```
+
+This approach:
+- Works with any SDK (no custom headers needed)
+- Makes agent ID visible in logs and URLs
+- Auto-creates agents on first request
+
+## Solution 2: x-agent-id Header
 
 Add the `x-agent-id` header to each request to identify which agent made it:
 
@@ -113,26 +136,26 @@ response = client.chat.completions.create(
 )
 ```
 
-## Fallback Behavior
+## Agent ID Priority
 
-If a request doesn't include `x-agent-id`, it uses the Proxy's default agent ID:
+When multiple identification methods are used, the Proxy follows this priority:
 
-| Scenario | Agent ID Used |
-|----------|---------------|
-| `x-agent-id: my-agent` header present | `my-agent` |
-| No header, started with `--agent-id foo` | `foo` |
-| No header, no `--agent-id` flag | Default value from config |
+| Priority | Method | Example |
+|----------|--------|---------|
+| 1 (highest) | `x-agent-id` header | `x-agent-id: my-agent` |
+| 2 | Path prefix | `/agents/my-agent/openai/...` |
+| 3 (lowest) | Default | Configured at startup or "default" |
 
-## When to Use This
+## When to Use Which
 
 | Scenario | Recommendation |
 |----------|----------------|
-| Single agent (e.g., OpenClaw only) | No need for `x-agent-id` |
-| Multiple agents, same provider | Use `x-agent-id` |
-| Multiple agents, different providers | Use `x-agent-id` |
-| Testing different prompts/configs | Use `x-agent-id` to compare |
+| Single agent | No agent ID needed — uses default |
+| Multiple agents, SDK supports headers | Use `x-agent-id` header |
+| Multiple agents, SDK doesn't support headers | Use path-based `/agents/{id}/...` |
+| OpenClaw (no custom header support) | Use path-based `/agents/{id}/...` |
+| Testing different prompts/configs | Use either method to compare |
 
 ## Limitations
 
-- **OpenClaw**: Does not currently support custom headers, so you cannot use `x-agent-id` with OpenClaw. Use separate Proxy instances if you need multiple OpenClaw agents.
-- **Some SDKs**: Check if your SDK supports `defaultHeaders` or equivalent.
+- **Some SDKs**: If your SDK doesn't support `defaultHeaders`, use the path-based approach instead.

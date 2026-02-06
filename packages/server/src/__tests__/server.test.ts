@@ -146,7 +146,7 @@ describe("Database initialization", () => {
 
     const names = tables.map((t) => t.name).sort();
     expect(names).toEqual(
-      ["agent_events", "agents", "alert_history", "alert_rules"].sort(),
+      ["agent_events", "agent_model_rules", "agents", "alert_history", "alert_rules"].sort(),
     );
   });
 
@@ -159,8 +159,7 @@ describe("Database initialization", () => {
     expect(agentColNames).toContain("id");
     expect(agentColNames).toContain("agent_id");
     expect(agentColNames).toContain("name");
-    expect(agentColNames).toContain("status");
-    expect(agentColNames).toContain("last_heartbeat_at");
+    expect(agentColNames).toContain("active");
     expect(agentColNames).toContain("created_at");
     expect(agentColNames).toContain("updated_at");
 
@@ -351,7 +350,7 @@ describe("Event ingestion POST /api/events", () => {
     });
   });
 
-  it("heartbeat event updates agent status to healthy", async () => {
+  it("heartbeat event updates agent updated_at", async () => {
     const agentId = `agent-heartbeat-${randomUUID()}`;
 
     // Send a heartbeat event
@@ -365,12 +364,11 @@ describe("Event ingestion POST /api/events", () => {
     });
     expect(res.status).toBe(200);
 
-    // Verify agent was created with healthy status
+    // Verify agent was created with updated_at set
     const agentRes = await request("GET", `/api/agents/${agentId}`);
     expect(agentRes.status).toBe(200);
     expect(agentRes.body.agent_id).toBe(agentId);
-    expect(agentRes.body.status).toBe("healthy");
-    expect(agentRes.body.last_heartbeat).toBeTruthy();
+    expect(agentRes.body.updated_at).toBeTruthy();
   });
 });
 
@@ -694,5 +692,115 @@ describe("Alert history GET /api/alert-history", () => {
     expect(found.rule_type).toBe("error_rate");
     expect(found.delivered_via).toBe("webhook");
     expect(typeof found.delivered_at).toBe("string");
+  });
+});
+
+// =========================================================================
+// 10. Model override rules
+// =========================================================================
+
+describe("Model override rules API", () => {
+  it("GET /api/agents/:agentId/model-rules returns empty array for new agent", async () => {
+    const agentId = `agent-model-${randomUUID()}`;
+    // Create agent first
+    await request("POST", "/api/events", {
+      body: makeEvent({ agent_id: agentId, provider: "openai" }),
+    });
+
+    const res = await request("GET", `/api/agents/${agentId}/model-rules`);
+    expect(res.status).toBe(200);
+    expect(res.body.rules).toEqual([]);
+  });
+
+  it("PUT /api/agents/:agentId/model-rules/:provider creates override rule", async () => {
+    const agentId = `agent-model-${randomUUID()}`;
+    await request("POST", "/api/events", {
+      body: makeEvent({ agent_id: agentId, provider: "openai" }),
+    });
+
+    const res = await request("PUT", `/api/agents/${agentId}/model-rules/openai`, {
+      body: { model_override: "gpt-4o-mini" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.agent_id).toBe(agentId);
+    expect(res.body.provider).toBe("openai");
+    expect(res.body.model_override).toBe("gpt-4o-mini");
+  });
+
+  it("PUT /api/agents/:agentId/model-rules/:provider updates existing rule", async () => {
+    const agentId = `agent-model-${randomUUID()}`;
+    await request("POST", "/api/events", {
+      body: makeEvent({ agent_id: agentId, provider: "anthropic" }),
+    });
+
+    // Create rule
+    await request("PUT", `/api/agents/${agentId}/model-rules/anthropic`, {
+      body: { model_override: "claude-sonnet-4-5" },
+    });
+
+    // Update rule
+    const res = await request("PUT", `/api/agents/${agentId}/model-rules/anthropic`, {
+      body: { model_override: "claude-haiku" },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.model_override).toBe("claude-haiku");
+  });
+
+  it("DELETE /api/agents/:agentId/model-rules/:provider removes rule", async () => {
+    const agentId = `agent-model-${randomUUID()}`;
+    await request("POST", "/api/events", {
+      body: makeEvent({ agent_id: agentId, provider: "openai" }),
+    });
+
+    // Create rule
+    await request("PUT", `/api/agents/${agentId}/model-rules/openai`, {
+      body: { model_override: "gpt-4o-mini" },
+    });
+
+    // Delete rule
+    const deleteRes = await request("DELETE", `/api/agents/${agentId}/model-rules/openai`);
+    expect(deleteRes.status).toBe(200);
+    expect(deleteRes.body.success).toBe(true);
+
+    // Verify it's gone
+    const listRes = await request("GET", `/api/agents/${agentId}/model-rules`);
+    expect(listRes.body.rules).toEqual([]);
+  });
+
+  it("GET /api/agents/:agentId/providers returns providers with override info", async () => {
+    const agentId = `agent-model-${randomUUID()}`;
+
+    // Create events for multiple providers
+    await request("POST", "/api/events", {
+      body: {
+        events: [
+          makeEvent({ agent_id: agentId, provider: "openai", model: "gpt-4" }),
+          makeEvent({ agent_id: agentId, provider: "anthropic", model: "claude-3" }),
+        ],
+      },
+    });
+
+    // Add override for one provider
+    await request("PUT", `/api/agents/${agentId}/model-rules/openai`, {
+      body: { model_override: "gpt-4o-mini" },
+    });
+
+    const res = await request("GET", `/api/agents/${agentId}/providers`);
+    expect(res.status).toBe(200);
+    expect(res.body.providers).toHaveLength(2);
+
+    const openai = res.body.providers.find((p: any) => p.provider === "openai");
+    const anthropic = res.body.providers.find((p: any) => p.provider === "anthropic");
+
+    expect(openai.model_override).toBe("gpt-4o-mini");
+    expect(anthropic.model_override).toBeNull();
+  });
+
+  it("GET /api/models returns selectable models", async () => {
+    const res = await request("GET", "/api/models");
+    expect(res.status).toBe(200);
+    expect(res.body.openai).toBeDefined();
+    expect(res.body.anthropic).toBeDefined();
+    expect(Array.isArray(res.body.openai)).toBe(true);
   });
 });
