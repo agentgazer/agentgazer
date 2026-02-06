@@ -4,6 +4,9 @@ export default defineConfig({
   title: "AgentTrace",
   description: "AI Agent Observability",
 
+  // Ignore localhost links (they're valid for local development docs)
+  ignoreDeadLinks: [/^http:\/\/localhost/],
+
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
   ],

@@ -9,7 +9,10 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "test": "turbo test"
+    "test": "turbo test",
+    "docs:dev": "npm run dev --workspace=docs",
+    "docs:build": "npm run build --workspace=docs",
+    "docs:preview": "npm run preview --workspace=docs"
   },
   "packageManager": "npm@10.9.2",
   "devDependencies": {
