@@ -92,27 +92,44 @@ agenttrace/
 
 ## 安裝與快速開始
 
-### 環境需求
-
-| 工具 | 版本 | 說明 |
-|------|------|------|
-| Node.js | >= 18 | JavaScript 執行環境 |
-| npm | >= 10 | 套件管理器 |
-
-無需任何雲端帳號或外部服務。
-
 ### 安裝
 
-**方式 A：直接執行（推薦）**
+**方式 A：一鍵安裝（推薦）**
 
 ```bash
-npx agenttrace
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
 ```
 
-**方式 B：全域安裝**
+此腳本會自動偵測平台、在需要時下載 Node.js，並將 AgentTrace 安裝到 `~/.agenttrace/`。無需任何前置條件。
+
+**方式 B：Homebrew（macOS / Linux）**
 
 ```bash
+brew install agenttrace/tap/agenttrace
+```
+
+**方式 C：npm（需要 Node.js >= 18）**
+
+```bash
+# 直接執行
+npx agenttrace
+
+# 或全域安裝
 npm install -g agenttrace
+```
+
+### 解除安裝
+
+```bash
+# 若透過 curl | sh 安裝
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/uninstall.sh | sh
+# 或：agenttrace uninstall
+
+# 若透過 Homebrew 安裝
+brew uninstall agenttrace
+
+# 若透過 npm 安裝
+npm uninstall -g agenttrace
 ```
 
 ### 首次設定
@@ -165,8 +182,7 @@ agenttrace doctor
 
 ## 附錄：快速啟動檢查表
 
-- [ ] 安裝 Node.js >= 18
-- [ ] 執行 `npx agenttrace` 或 `npm install -g agenttrace`
+- [ ] 安裝 AgentTrace（`curl | sh`、Homebrew 或 npm）
 - [ ] 執行 `agenttrace onboard` 完成首次設定
 - [ ] 記下認證 Token
 - [ ] 使用 `agenttrace providers set` 設定 LLM Provider API Key

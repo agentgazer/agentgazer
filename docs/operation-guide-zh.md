@@ -117,30 +117,49 @@ agenttrace/
 
 ## 3. 安裝與快速開始
 
-### 環境需求
-
-| 工具 | 版本 | 說明 |
-|------|------|------|
-| Node.js | >= 18 | JavaScript 執行環境 |
-| npm | >= 10 | 套件管理器 |
-
-無需任何雲端帳號或外部服務。
-
 ### 3.1 安裝
 
-**方式 A：直接執行（推薦）**
+**方式 A：一鍵安裝（推薦）**
 
 ```bash
-npx agenttrace
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
 ```
 
-**方式 B：全域安裝**
+此腳本會自動偵測平台、在需要時下載 Node.js，並將 AgentTrace 安裝到 `~/.agenttrace/`。無需任何前置條件。
+
+**方式 B：Homebrew（macOS / Linux）**
 
 ```bash
+brew install agenttrace/tap/agenttrace
+```
+
+**方式 C：npm（需要 Node.js >= 18）**
+
+```bash
+# 直接執行
+npx agenttrace
+
+# 或全域安裝
 npm install -g agenttrace
 ```
 
-### 3.2 首次設定
+### 3.2 解除安裝
+
+```bash
+# 若透過 curl | sh 安裝
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/uninstall.sh | sh
+# 或：agenttrace uninstall
+
+# 若透過 Homebrew 安裝
+brew uninstall agenttrace
+
+# 若透過 npm 安裝
+npm uninstall -g agenttrace
+```
+
+> 注意：解除安裝**不會**移除使用者資料（`~/.agenttrace/config.json`、`~/.agenttrace/data.db`）。curl 解除安裝程式會詢問是否移除；其他方式請手動刪除 `~/.agenttrace/`。
+
+### 3.3 首次設定
 
 第一次使用時，執行初始化設定精靈：
 
@@ -154,7 +173,7 @@ agenttrace onboard
 2. 產生認證 Token（用於 API 存取與儀表板登入）
 3. 引導你設定 LLM Provider 的 API Key
 
-### 3.3 啟動服務
+### 3.4 啟動服務
 
 ```bash
 agenttrace start
@@ -173,7 +192,7 @@ http://localhost:8080
 | Express 伺服器 + 儀表板 | 8080 | REST API 與 React 儀表板 |
 | LLM Proxy | 4000 | 代理 LLM 請求並擷取指標 |
 
-### 3.4 快速驗證
+### 3.5 快速驗證
 
 啟動後，可以用以下方式快速驗證系統是否正常運作：
 
@@ -207,6 +226,7 @@ agenttrace doctor
 | `doctor` | 系統健康檢查 | `--port`、`--proxy-port` |
 | `agents` | 列出已註冊的 Agent | `--port`、`--proxy-port` |
 | `stats [agentId]` | 顯示 Agent 統計數據 | `--port`、`--proxy-port`、`--range`（1h/24h/7d/30d，預設 24h） |
+| `uninstall` | 移除 curl 安裝的 AgentTrace | `--yes`（跳過確認提示） |
 | `help` | 顯示幫助訊息 | — |
 
 ### 詳細說明
@@ -1051,8 +1071,7 @@ agenttrace start
 
 ## 14. 附錄：快速啟動檢查表
 
-- [ ] 安裝 Node.js >= 18
-- [ ] 執行 `npx agenttrace` 或 `npm install -g agenttrace`
+- [ ] 安裝 AgentTrace（`curl | sh`、Homebrew 或 npm）
 - [ ] 執行 `agenttrace onboard` 完成首次設定
 - [ ] 記下認證 Token
 - [ ] 使用 `agenttrace providers set` 設定 LLM Provider API Key

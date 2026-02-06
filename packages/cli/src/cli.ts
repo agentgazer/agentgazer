@@ -85,6 +85,7 @@ Commands:
   doctor                      Check system health
   agents                      List registered agents
   stats [agentId]             Show agent statistics (auto-selects if only one agent)
+  uninstall                   Remove AgentTrace (curl-installed only)
   help                        Show this help message
 
 Options (for start):
@@ -99,6 +100,9 @@ Options (for doctor, stats, agents):
 
 Options (for stats):
   --range <period>           Time range (default: 24h)
+
+Options (for uninstall):
+  --yes                      Skip confirmation prompts
 
 Examples:
   agenttrace onboard                           First-time setup
@@ -745,6 +749,82 @@ async function cmdStats(flags: Record<string, string>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Uninstall
+// ---------------------------------------------------------------------------
+
+async function cmdUninstall(flags: Record<string, string>): Promise<void> {
+  const home = process.env.AGENTTRACE_HOME || path.join(require("os").homedir(), ".agenttrace");
+  const libDir = path.join(home, "lib");
+  const nodeDir = path.join(home, "node");
+  const wrapperPath = path.join(process.env.AGENTTRACE_BIN || "/usr/local/bin", "agenttrace");
+
+  // Detect install method
+  if (!fs.existsSync(libDir)) {
+    console.log('AgentTrace was not installed via the install script.');
+    console.log('');
+    console.log('  If installed via npm:');
+    console.log('    npm uninstall -g agenttrace');
+    console.log('');
+    console.log('  If installed via Homebrew:');
+    console.log('    brew uninstall agenttrace');
+    console.log('');
+    return;
+  }
+
+  const skipPrompt = "yes" in flags;
+
+  console.log(`
+  AgentTrace — Uninstall
+  ───────────────────────────────────────
+`);
+
+  // Remove embedded Node.js
+  if (fs.existsSync(nodeDir)) {
+    fs.rmSync(nodeDir, { recursive: true, force: true });
+    console.log(`  ✓ Removed embedded Node.js (${nodeDir})`);
+  }
+
+  // Remove lib
+  fs.rmSync(libDir, { recursive: true, force: true });
+  console.log(`  ✓ Removed installation (${libDir})`);
+
+  // Remove wrapper
+  if (fs.existsSync(wrapperPath)) {
+    try {
+      fs.unlinkSync(wrapperPath);
+      console.log(`  ✓ Removed wrapper (${wrapperPath})`);
+    } catch {
+      console.log(`  ! Could not remove ${wrapperPath} — try: sudo rm ${wrapperPath}`);
+    }
+  }
+
+  // Handle user data
+  const configPath = path.join(home, "config.json");
+  const dbPath = path.join(home, "data.db");
+  const hasData = fs.existsSync(configPath) || fs.existsSync(dbPath);
+
+  if (hasData) {
+    let removeData = skipPrompt;
+
+    if (!skipPrompt) {
+      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+      const answer = await ask(rl, "\n  Remove user data (config.json, data.db)? [y/N] ");
+      rl.close();
+      removeData = /^y(es)?$/i.test(answer);
+    }
+
+    if (removeData) {
+      fs.rmSync(home, { recursive: true, force: true });
+      console.log(`  ✓ Removed all data (${home})`);
+    } else {
+      console.log(`  → User data preserved at ${home}`);
+    }
+  }
+
+  console.log("\n  ✓ AgentTrace uninstalled.\n");
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -779,6 +859,9 @@ async function main(): Promise<void> {
       break;
     case "stats":
       await cmdStats(flags);
+      break;
+    case "uninstall":
+      await cmdUninstall(flags);
       break;
     case "--help":
     case "-h":

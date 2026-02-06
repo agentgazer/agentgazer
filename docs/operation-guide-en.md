@@ -117,30 +117,49 @@ agenttrace/
 
 ## 3. Installation and Quick Start
 
-### Prerequisites
-
-| Tool | Version | Description |
-|------|---------|-------------|
-| Node.js | >= 18 | JavaScript runtime |
-| npm | >= 10 | Package manager |
-
-No cloud accounts or external services required.
-
 ### 3.1 Installation
 
-**Option A: Direct execution (Recommended)**
+**Option A: One-line install (Recommended)**
 
 ```bash
-npx agenttrace
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
 ```
 
-**Option B: Global installation**
+This script automatically detects your platform, downloads Node.js if needed, and installs AgentTrace to `~/.agenttrace/`. No prerequisites required.
+
+**Option B: Homebrew (macOS / Linux)**
 
 ```bash
+brew install agenttrace/tap/agenttrace
+```
+
+**Option C: npm (requires Node.js >= 18)**
+
+```bash
+# Direct execution
+npx agenttrace
+
+# Or global install
 npm install -g agenttrace
 ```
 
-### 3.2 Initial Setup
+### 3.2 Uninstalling
+
+```bash
+# If installed via curl | sh
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/uninstall.sh | sh
+# Or: agenttrace uninstall
+
+# If installed via Homebrew
+brew uninstall agenttrace
+
+# If installed via npm
+npm uninstall -g agenttrace
+```
+
+> Note: Uninstalling does **not** remove your data (`~/.agenttrace/config.json`, `~/.agenttrace/data.db`). The curl uninstaller will prompt you; for other methods, manually remove `~/.agenttrace/` if desired.
+
+### 3.3 Initial Setup
 
 On first use, run the setup wizard:
 
@@ -154,7 +173,7 @@ This command will:
 2. Generate an authentication Token (used for API access and dashboard login)
 3. Guide you through setting up LLM Provider API keys
 
-### 3.3 Starting the Service
+### 3.4 Starting the Service
 
 ```bash
 agenttrace start
@@ -173,7 +192,7 @@ Default ports:
 | Express Server + Dashboard | 8080 | REST API and React dashboard |
 | LLM Proxy | 4000 | Proxies LLM requests and extracts metrics |
 
-### 3.4 Quick Verification
+### 3.5 Quick Verification
 
 After startup, use the following methods to verify the system is running properly:
 
@@ -207,6 +226,7 @@ agenttrace doctor
 | `doctor` | Runs a system health check | `--port`, `--proxy-port` |
 | `agents` | Lists registered Agents | `--port`, `--proxy-port` |
 | `stats [agentId]` | Displays Agent statistics | `--port`, `--proxy-port`, `--range` (1h/24h/7d/30d, default 24h) |
+| `uninstall` | Removes a curl-based installation | `--yes` (skip prompts) |
 | `help` | Displays help information | — |
 
 ### Detailed Descriptions
@@ -1051,8 +1071,7 @@ agenttrace start
 
 ## 14. Appendix: Quick Start Checklist
 
-- [ ] Install Node.js >= 18
-- [ ] Run `npx agenttrace` or `npm install -g agenttrace`
+- [ ] Install AgentTrace (`curl | sh`, Homebrew, or npm)
 - [ ] Run `agenttrace onboard` to complete initial setup
 - [ ] Note down the authentication Token
 - [ ] Use `agenttrace providers set` to configure LLM Provider API keys
