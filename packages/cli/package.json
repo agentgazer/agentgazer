@@ -1,6 +1,6 @@
 {
   "name": "@agenttrace/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AgentTrace — AI Agent observability. One command to monitor your agents locally.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -49,7 +49,7 @@
   },
   "dependencies": {
     "@agenttrace/proxy": "^0.1.0",
-    "@agenttrace/server": "^0.1.0",
+    "@agenttrace/server": "^0.1.1",
     "@agenttrace/shared": "^0.1.0",
     "open": "^10.1.0"
   },

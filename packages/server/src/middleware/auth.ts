@@ -16,7 +16,13 @@ setInterval(() => {
 }, 5 * 60_000).unref();
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // Skip auth for public paths (with rate limiting)
+  // Skip auth for non-API paths (static files, dashboard)
+  if (!req.path.startsWith("/api/")) {
+    next();
+    return;
+  }
+
+  // Skip auth for public API paths (with rate limiting)
   if (PUBLIC_PATHS.includes(req.path)) {
     const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
     const now = Date.now();
