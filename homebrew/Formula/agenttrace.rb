@@ -1,8 +1,8 @@
 class Agenttrace < Formula
   desc "Local-first AI agent observability platform"
   homepage "https://github.com/agenttrace/agenttrace"
-  url "https://registry.npmjs.org/agenttrace/-/agenttrace-0.1.0.tgz"
-  sha256 "" # TODO: Fill in after publishing to npm — run: shasum -a 256 agenttrace-0.1.0.tgz
+  url "https://registry.npmjs.org/@agenttrace/cli/-/cli-0.1.0.tgz"
+  sha256 "61d55a59ca4859c6b35de2ec2fe4a0887da7249da3d80deed638113533cec061"
   license "Apache-2.0"
 
   depends_on "node@22"

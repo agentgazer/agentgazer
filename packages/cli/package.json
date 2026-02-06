@@ -1,5 +1,5 @@
 {
-  "name": "agenttrace",
+  "name": "@agenttrace/cli",
   "version": "0.1.0",
   "description": "AgentTrace — AI Agent observability. One command to monitor your agents locally.",
   "license": "Apache-2.0",
