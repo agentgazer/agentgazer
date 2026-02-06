@@ -190,6 +190,12 @@ export class MachineKeyStore implements SecretStore {
 export class KeychainStore implements SecretStore {
   async isAvailable(): Promise<boolean> {
     if (process.platform !== "darwin") return false;
+
+    // SSH sessions can't interact with Keychain even if WindowServer is running
+    if (process.env.SSH_CLIENT || process.env.SSH_CONNECTION || process.env.SSH_TTY) {
+      return false;
+    }
+
     try {
       // Check if WindowServer is running (indicates GUI session)
       execSync("pgrep -x WindowServer", { stdio: "pipe" });
@@ -222,10 +228,20 @@ export class KeychainStore implements SecretStore {
       // OK if it doesn't exist
     }
 
-    execSync(
-      `/usr/bin/security add-generic-password -s ${shellEscape(service)} -a ${shellEscape(account)} -w ${shellEscape(value)} -U`,
-      { stdio: "pipe" }
-    );
+    // Use spawnSync with stdin to avoid shell escaping issues with special characters in the password
+    const { spawnSync } = await import("node:child_process");
+    const result = spawnSync("/usr/bin/security", [
+      "add-generic-password",
+      "-s", service,
+      "-a", account,
+      "-w", value,
+      "-U"
+    ], { stdio: "pipe" });
+
+    if (result.status !== 0) {
+      const stderr = result.stderr?.toString() || "Unknown error";
+      throw new Error(`Command failed: /usr/bin/security add-generic-password: ${stderr}`);
+    }
   }
 
   async delete(service: string, account: string): Promise<void> {
