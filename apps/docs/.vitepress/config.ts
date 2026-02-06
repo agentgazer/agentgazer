@@ -37,6 +37,7 @@ export default defineConfig({
             {
               text: "Introduction",
               items: [
+                { text: "Overview", link: "/en/guide/overview" },
                 { text: "Getting Started", link: "/en/guide/getting-started" },
                 { text: "CLI Reference", link: "/en/guide/cli" },
               ],
@@ -91,6 +92,7 @@ export default defineConfig({
             {
               text: "介紹",
               items: [
+                { text: "概覽", link: "/zh/guide/overview" },
                 { text: "快速開始", link: "/zh/guide/getting-started" },
                 { text: "CLI 指令參考", link: "/zh/guide/cli" },
               ],

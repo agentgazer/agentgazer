@@ -1,0 +1,85 @@
+# Overview
+
+## The Problem
+
+Building AI agents is hard. Debugging them is harder.
+
+- **No visibility** — LLM calls happen in a black box. When something breaks, you grep through logs hoping to find the cause.
+- **Cost surprises** — Token usage adds up fast. You only find out when the bill arrives.
+- **Silent failures** — Agents crash or hang with no notification. Users discover problems before you do.
+- **Privacy concerns** — Cloud observability tools want your prompts and API keys. That's a non-starter for many use cases.
+
+## The Solution
+
+AgentTrace is a **local-first** observability platform for AI agents.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
+agenttrace start
+```
+
+One command gives you:
+
+- **LLM call tracking** — Every request logged with tokens, latency, cost, and model
+- **Real-time dashboard** — See what your agents are doing right now
+- **Cost analysis** — Spend breakdown by provider, model, and agent
+- **Health monitoring** — Heartbeat-based status (healthy / degraded / down)
+- **Alerts** — Webhook and email notifications for downtime, errors, and budget overruns
+
+All data stays on your machine. Prompts and API keys never leave your environment.
+
+## How It Works
+
+Two ways to capture data:
+
+| Method | Description | Best For |
+|--------|-------------|----------|
+| **Proxy** | Point your LLM client at `localhost:4000`. Zero code changes. | Existing codebases, quick setup |
+| **SDK** | Call `track()` manually in your code. | Fine-grained control, custom events |
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Your Machine                             │
+│                                                             │
+│  ┌──────────┐    ┌─────────────────┐                        │
+│  │ AI Agent │───▶│ AgentTrace Proxy│───▶ LLM Provider       │
+│  └──────────┘    │    (:4000)      │     (OpenAI, etc.)     │
+│       │          └────────┬────────┘                        │
+│       │ SDK               │                                 │
+│       ▼                   ▼                                 │
+│  ┌─────────────────────────────────┐                        │
+│  │   Server (:8080) + Dashboard    │                        │
+│  │         SQLite DB               │                        │
+│  └─────────────────────────────────┘                        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Supported Providers
+
+| Provider | Auto-detected |
+|----------|---------------|
+| OpenAI | ✓ |
+| Anthropic | ✓ |
+| Google | ✓ |
+| Mistral | ✓ |
+| Cohere | ✓ |
+| DeepSeek | ✓ |
+
+## Project Structure
+
+```
+~/.agenttrace/
+├── config.json     # Auth token, settings
+├── data.db         # SQLite database (events, agents, alerts)
+└── lib/            # Installed package (curl install only)
+```
+
+AgentTrace is a monorepo:
+
+| Package | Description |
+|---------|-------------|
+| `agenttrace` | CLI — starts server, proxy, dashboard |
+| `@agenttrace/server` | Express API + SQLite |
+| `@agenttrace/proxy` | Transparent LLM proxy |
+| `@agenttrace/sdk` | Client SDK for manual tracking |
+| `@agenttrace/shared` | Types, pricing tables, provider detection |
