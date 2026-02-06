@@ -383,7 +383,23 @@ const message = await anthropic.messages.create({
 
 > 若要自己提供 API Key，設定 `apiKey` 並確保不使用路徑前綴（但此情況下無法自動注入）。
 
-### 5.2 使用 x-target-url Header
+### 5.2 多 Agent 追蹤：x-agent-id
+
+當多個 Agent 共用同一個 Proxy 時，用 `x-agent-id` header 區分各 Agent 的用量：
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",
+  defaultHeaders: {
+    "x-agent-id": "my-agent-name",
+  },
+});
+```
+
+若不設定此 header，所有請求會使用 Proxy 啟動時指定的預設 agent ID（`--agent-id`）。
+
+### 5.3 使用 x-target-url Header
 
 若路徑前綴路由無法滿足需求，可使用 `x-target-url` header 明確指定目標：
 
@@ -395,7 +411,7 @@ curl http://localhost:4000/v1/chat/completions \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
-### 5.3 Provider 偵測優先順序
+### 5.4 Provider 偵測優先順序
 
 Proxy 使用以下順序偵測目標 Provider：
 
@@ -404,11 +420,11 @@ Proxy 使用以下順序偵測目標 Provider：
 3. **路徑模式** — 如 `/v1/chat/completions` 對應 OpenAI
 4. **x-target-url Header** — 手動指定目標 URL
 
-### 5.4 串流支援
+### 5.5 串流支援
 
 Proxy 同時支援串流（SSE, Server-Sent Events）與非串流回應。串流模式下，Proxy 會在串流結束後非同步地解析並擷取指標。
 
-### 5.5 健康檢查
+### 5.6 健康檢查
 
 ```bash
 curl http://localhost:4000/health
@@ -424,7 +440,7 @@ curl http://localhost:4000/health
 }
 ```
 
-### 5.6 隱私保證
+### 5.7 隱私保證
 
 Proxy 只提取以下指標資料：
 

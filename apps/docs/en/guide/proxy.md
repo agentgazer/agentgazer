@@ -70,6 +70,22 @@ const message = await anthropic.messages.create({
 
 > To use your own API Key instead, set `apiKey` and avoid the path prefix (but automatic injection won't work).
 
+## Per-Agent Tracking with x-agent-id
+
+When multiple agents share the same Proxy, use the `x-agent-id` header to attribute usage to each agent:
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",
+  defaultHeaders: {
+    "x-agent-id": "my-agent-name",
+  },
+});
+```
+
+Without this header, all requests use the Proxy's default agent ID (set via `--agent-id` at startup).
+
 ## Using the x-target-url Header
 
 If path prefix routing does not meet your needs, you can use the `x-target-url` header to explicitly specify the target:

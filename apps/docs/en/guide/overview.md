@@ -75,6 +75,8 @@ const openai = new OpenAI({
 
 This also centralizes key rotation: update once with `providers set`, all agents use the new key immediately.
 
+Multiple agents can share the same Proxy and API key while tracking usage separately — just add the `x-agent-id` header to each request.
+
 ## Supported Providers
 
 | Provider | Auto-detected |

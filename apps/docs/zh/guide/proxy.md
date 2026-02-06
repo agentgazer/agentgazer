@@ -70,6 +70,22 @@ const message = await anthropic.messages.create({
 
 > 若要自己提供 API Key，設定 `apiKey` 並確保不使用路徑前綴（但此情況下無法自動注入）。
 
+## 多 Agent 追蹤：x-agent-id
+
+當多個 Agent 共用同一個 Proxy 時，用 `x-agent-id` header 區分各 Agent 的用量：
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",
+  defaultHeaders: {
+    "x-agent-id": "my-agent-name",
+  },
+});
+```
+
+若不設定此 header，所有請求會使用 Proxy 啟動時指定的預設 agent ID（`--agent-id`）。
+
 ## 使用 x-target-url Header
 
 若路徑前綴路由無法滿足需求，可使用 `x-target-url` header 明確指定目標：

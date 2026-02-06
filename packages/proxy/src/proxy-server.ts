@@ -299,6 +299,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
+    // Per-request agent identification: x-agent-id header overrides default agentId
+    const effectiveAgentId = (req.headers["x-agent-id"] as string | undefined) ?? agentId;
+
     // Proxy logic: use x-target-url header if provided, otherwise auto-detect
     // provider from the Host header or request path.
     let targetBase = req.headers["x-target-url"] as string | undefined;
@@ -415,7 +418,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
         // Record rate limit event
         const event: AgentEvent = {
-          agent_id: agentId,
+          agent_id: effectiveAgentId,
           event_type: "error",
           provider: detectedProviderStrict,
           model: null,
@@ -536,7 +539,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           detectedProviderForMetrics,
           providerResponse.status,
           fullBody,
-          latencyMs
+          latencyMs,
+          effectiveAgentId
         );
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
@@ -575,7 +579,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           detectedProviderForMetrics,
           providerResponse.status,
           responseBodyBuffer,
-          latencyMs
+          latencyMs,
+          effectiveAgentId
         );
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
@@ -587,7 +592,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     provider: ProviderName,
     statusCode: number,
     sseBody: Buffer,
-    latencyMs: number
+    latencyMs: number,
+    effectiveAgentId: string
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping streaming metric extraction");
@@ -608,7 +614,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     }
 
     const event: AgentEvent = {
-      agent_id: agentId,
+      agent_id: effectiveAgentId,
       event_type: "llm_call",
       provider,
       model: parsed.model,
@@ -630,7 +636,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     provider: ProviderName,
     statusCode: number,
     responseBody: Buffer,
-    latencyMs: number
+    latencyMs: number,
+    effectiveAgentId: string
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping metric extraction");
@@ -659,7 +666,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     }
 
     const event: AgentEvent = {
-      agent_id: agentId,
+      agent_id: effectiveAgentId,
       event_type: "llm_call",
       provider,
       model: parsed.model,

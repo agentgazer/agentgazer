@@ -533,6 +533,58 @@ describe("Proxy Server Integration", () => {
     expect(event.cost_usd).toBeCloseTo(0.00075, 6);
   });
 
+  it("uses x-agent-id header to override default agentId", async () => {
+    providerServer = await createMockProviderServer();
+    providerServer.responseOverride.body = {
+      id: "chatcmpl-123",
+      model: "gpt-4o",
+      usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 },
+    };
+
+    ingestServer = await createMockIngestServer();
+
+    proxy = startProxy({
+      port: 0,
+      apiKey: "test-api-key",
+      agentId: "default-agent",
+      endpoint: ingestServer.url,
+      flushInterval: 60_000,
+      maxBufferSize: 1,
+    });
+
+    const proxyPort = (proxy.server.address() as { port: number }).port;
+    await waitForServer(proxyPort);
+
+    // Send request with x-agent-id header
+    const fakeOpenAIUrl = `${providerServer.url}?host=api.openai.com`;
+    await httpRequest({
+      hostname: "127.0.0.1",
+      port: proxyPort,
+      path: "/v1/chat/completions",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-target-url": fakeOpenAIUrl,
+        "x-agent-id": "custom-agent-from-header",
+      },
+      body: JSON.stringify({ model: "gpt-4o", messages: [] }),
+    });
+
+    await vi.waitFor(
+      () => {
+        expect(ingestServer!.receivedBatches.length).toBeGreaterThanOrEqual(1);
+      },
+      { timeout: 3000, interval: 50 }
+    );
+
+    const events = ingestServer.receivedBatches[0].events as Array<{
+      agent_id: string;
+    }>;
+
+    expect(events).toHaveLength(1);
+    expect(events[0].agent_id).toBe("custom-agent-from-header");
+  });
+
   it("returns 502 when upstream is unreachable", async () => {
     ingestServer = await createMockIngestServer();
 

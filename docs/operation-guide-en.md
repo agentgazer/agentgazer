@@ -383,7 +383,23 @@ const message = await anthropic.messages.create({
 
 > To use your own API Key instead, set `apiKey` and avoid the path prefix (but automatic injection won't work).
 
-### 5.2 Using the x-target-url Header
+### 5.2 Per-Agent Tracking with x-agent-id
+
+When multiple agents share the same Proxy, use the `x-agent-id` header to attribute usage to each agent:
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/openai/v1",
+  apiKey: "dummy",
+  defaultHeaders: {
+    "x-agent-id": "my-agent-name",
+  },
+});
+```
+
+Without this header, all requests use the Proxy's default agent ID (set via `--agent-id` at startup).
+
+### 5.3 Using the x-target-url Header
 
 If path prefix routing does not meet your needs, you can use the `x-target-url` header to explicitly specify the target:
 
@@ -395,7 +411,7 @@ curl http://localhost:4000/v1/chat/completions \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
-### 5.3 Provider Detection Priority
+### 5.4 Provider Detection Priority
 
 The Proxy detects the target Provider in the following order:
 
@@ -404,11 +420,11 @@ The Proxy detects the target Provider in the following order:
 3. **Path pattern** — e.g., `/v1/chat/completions` maps to OpenAI
 4. **x-target-url header** — manually specified target URL
 
-### 5.4 Streaming Support
+### 5.5 Streaming Support
 
 The Proxy supports both streaming (SSE, Server-Sent Events) and non-streaming responses. In streaming mode, the Proxy asynchronously parses and extracts metrics after the stream ends.
 
-### 5.5 Health Check
+### 5.6 Health Check
 
 ```bash
 curl http://localhost:4000/health
@@ -424,7 +440,7 @@ Response:
 }
 ```
 
-### 5.6 Privacy Guarantee
+### 5.7 Privacy Guarantee
 
 The Proxy only extracts the following metric data:
 

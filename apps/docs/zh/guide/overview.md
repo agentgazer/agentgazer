@@ -75,6 +75,8 @@ const openai = new OpenAI({
 
 這也讓金鑰輪換變得簡單：用 `providers set` 更新一次，所有 Agent 立即使用新金鑰。
 
+多個 Agent 可以共用同一個 Proxy 和 API Key，同時分開追蹤用量 — 只要在請求中加上 `x-agent-id` header。
+
 ## 支援的 Provider
 
 | Provider | 自動偵測 |
