@@ -219,9 +219,9 @@ async function cmdOnboard(): Promise<void> {
   │                                                          │
   └──────────────────────────────────────────────────────────┘
 
-  Or point your LLM client at the proxy:
+  Or point your LLM client at the proxy (with auto API key injection):
 
-    export OPENAI_BASE_URL=http://localhost:4000/v1
+    export OPENAI_BASE_URL=http://localhost:4000/openai/v1
 
   Next: run "agenttrace start" to launch.
 `);
