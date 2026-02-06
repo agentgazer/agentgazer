@@ -6,7 +6,7 @@ Full codebase review revealed 8 bugs across CLI, SDK, server, dashboard, and Sup
 
 - **resetToken() preserves existing config**: Read existing config before overwriting so provider settings (rate limits etc.) survive a token reset
 - **Supabase ingest tests check correct field**: Tests check `status === "ok"` instead of nonexistent `success` field
-- **CLI cmdStats argument parsing**: Properly separate positional args from flags so `agenttrace stats --port 9090 my-agent` works correctly
+- **CLI cmdStats argument parsing**: Properly separate positional args from flags so `agentgazer stats --port 9090 my-agent` works correctly
 - **Dashboard/Server API response format alignment**: Ensure `/api/agents` response shape matches what both CLI and dashboard expect
 - **CLI/Dashboard stats field name alignment**: Unify field names for `/api/stats/:agentId` so CLI and dashboard use the same contract
 - **Auth token constant-time comparison**: Use `crypto.timingSafeEqual()` instead of `===` for token verification

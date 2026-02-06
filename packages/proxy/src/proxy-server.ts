@@ -12,7 +12,7 @@ import {
   type AgentEvent,
   type ParsedResponse,
   type ProviderName,
-} from "@agenttrace/shared";
+} from "@agentgazer/shared";
 import {
   getAgentPolicy,
   getDailySpend,
@@ -22,7 +22,7 @@ import {
   getAllRateLimits,
   type AgentPolicy,
   type InsertEventRow,
-} from "@agenttrace/server";
+} from "@agentgazer/server";
 import type Database from "better-sqlite3";
 
 // ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ export interface ProxyServer {
 }
 
 const DEFAULT_PORT = 4000;
-const DEFAULT_ENDPOINT = "https://ingest.agenttrace.dev/v1/events";
+const DEFAULT_ENDPOINT = "https://ingest.agentgazer.com/v1/events";
 const DEFAULT_FLUSH_INTERVAL = 5000;
 const DEFAULT_MAX_BUFFER_SIZE = 50;
 const MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -394,13 +394,13 @@ function generateOpenAIBlockedResponse(reason: BlockReason, message: string): ob
     id: `chatcmpl-blocked-${Date.now()}`,
     object: "chat.completion",
     created: Math.floor(Date.now() / 1000),
-    model: "agenttrace-policy",
+    model: "agentgazer-policy",
     choices: [
       {
         index: 0,
         message: {
           role: "assistant",
-          content: `[AgentTrace Policy Block] ${message}`,
+          content: `[AgentGazer Policy Block] ${message}`,
         },
         finish_reason: "stop",
       },
@@ -424,10 +424,10 @@ function generateAnthropicBlockedResponse(reason: BlockReason, message: string):
     content: [
       {
         type: "text",
-        text: `[AgentTrace Policy Block] ${message}`,
+        text: `[AgentGazer Policy Block] ${message}`,
       },
     ],
-    model: "agenttrace-policy",
+    model: "agentgazer-policy",
     stop_reason: "end_turn",
     usage: {
       input_tokens: 0,

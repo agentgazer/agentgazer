@@ -1,41 +1,41 @@
-# AgentTrace
+# AgentGazer
 
 Local-first observability for AI agents. One command to monitor LLM calls, costs, errors, and latency across OpenAI, Anthropic, Google, Mistral, and Cohere.
 
-**[Documentation](https://agenttrace.dev)** | **[中文文件](https://agenttrace.dev/zh/)**
+**[Documentation](https://agentgazer.com)** | **[中文文件](https://agentgazer.com/zh/)**
 
 ## Install
 
 ```bash
 # One-line install (recommended) — works without Node.js
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
 
 # Homebrew (macOS / Linux)
-brew install agenttrace/tap/agenttrace
+brew install agentgazer/tap/agentgazer
 
 # npm (requires Node.js >= 18)
-npx agenttrace
+npx agentgazer
 ```
 
 This starts a local Express+SQLite server, an LLM proxy, and a web dashboard — no cloud dependencies.
 
 ## How it works
 
-AgentTrace has two ways to capture data:
+AgentGazer has two ways to capture data:
 
 1. **LLM Proxy** (zero-code) — Point your LLM client's base URL at `http://localhost:4000`. The proxy forwards requests to the real provider, extracts usage metrics from responses (including SSE streams), and records them locally.
 
-2. **SDK** (manual instrumentation) — Import `@agenttrace/sdk` into your agent code and call `track()` to record events with full control over what gets captured.
+2. **SDK** (manual instrumentation) — Import `@agentgazer/sdk` into your agent code and call `track()` to record events with full control over what gets captured.
 
-Both approaches store data in a local SQLite database (`~/.agenttrace/data.db`) and expose it through a REST API and web dashboard.
+Both approaches store data in a local SQLite database (`~/.agentgazer/data.db`) and expose it through a REST API and web dashboard.
 
 ## Quick start
 
 ### Using the proxy (recommended)
 
 ```bash
-# Start AgentTrace
-npx agenttrace
+# Start AgentGazer
+npx agentgazer
 
 # Point your OpenAI client at the proxy
 export OPENAI_BASE_URL=http://localhost:4000/v1
@@ -43,7 +43,7 @@ export OPENAI_BASE_URL=http://localhost:4000/v1
 # Use your LLM client as normal — calls are recorded automatically
 ```
 
-The proxy auto-detects the provider from the request URL and forwards to the correct upstream API. It also supports [rate limiting](https://agenttrace.dev/guide/proxy#rate-limiting), [model override](https://agenttrace.dev/guide/proxy#model-override), and [policy enforcement](https://agenttrace.dev/guide/proxy#policy-enforcement). Supported providers:
+The proxy auto-detects the provider from the request URL and forwards to the correct upstream API. It also supports [rate limiting](https://agentgazer.com/guide/proxy#rate-limiting), [model override](https://agentgazer.com/guide/proxy#model-override), and [policy enforcement](https://agentgazer.com/guide/proxy#policy-enforcement). Supported providers:
 
 | Provider | Host pattern |
 |----------|-------------|
@@ -65,14 +65,14 @@ curl http://localhost:4000/v1/chat/completions \
 ### Using the SDK
 
 ```bash
-npm install @agenttrace/sdk
+npm install @agentgazer/sdk
 ```
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 
-const at = AgentTrace.init({
-  apiKey: "your-token",        // from ~/.agenttrace/config.json
+const at = AgentGazer.init({
+  apiKey: "your-token",        // from ~/.agentgazer/config.json
   agentId: "my-agent",
   endpoint: "http://localhost:8080/api/events",
 });
@@ -115,7 +115,7 @@ await at.shutdown();
 ## CLI options
 
 ```
-agenttrace [options]
+agentgazer [options]
 
 Options:
   --port <number>            Server/dashboard port (default: 8080)
@@ -232,7 +232,7 @@ export SMTP_HOST=smtp.example.com
 export SMTP_PORT=587
 export SMTP_USER=alerts@example.com
 export SMTP_PASS=secret
-export SMTP_FROM=alerts@agenttrace.dev
+export SMTP_FROM=alerts@agentgazer.com
 export SMTP_SECURE=false
 ```
 
@@ -242,13 +242,13 @@ export SMTP_SECURE=false
 docker compose up -d
 ```
 
-This builds and runs AgentTrace with persistent storage. The dashboard is available at `http://localhost:8080` and the proxy at `http://localhost:4000`.
+This builds and runs AgentGazer with persistent storage. The dashboard is available at `http://localhost:8080` and the proxy at `http://localhost:4000`.
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────────┐
-│                   npx agenttrace                 │
+│                   npx agentgazer                 │
 │                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌──────────┐ │
 │  │  Dashboard   │  │   Express   │  │  LLM     │ │
@@ -267,41 +267,41 @@ This builds and runs AgentTrace with persistent storage. The dashboard is availa
 
 | Package | Description |
 |---------|-------------|
-| `agenttrace` | CLI entry point — starts server, proxy, and dashboard |
-| `@agenttrace/server` | Express API server with SQLite storage |
-| `@agenttrace/proxy` | Transparent LLM proxy with metric extraction |
-| `@agenttrace/sdk` | Client SDK for manual instrumentation |
-| `@agenttrace/shared` | Shared types, schemas, provider detection, and pricing |
+| `agentgazer` | CLI entry point — starts server, proxy, and dashboard |
+| `@agentgazer/server` | Express API server with SQLite storage |
+| `@agentgazer/proxy` | Transparent LLM proxy with metric extraction |
+| `@agentgazer/sdk` | Client SDK for manual instrumentation |
+| `@agentgazer/shared` | Shared types, schemas, provider detection, and pricing |
 
 ## Cost tracking
 
-AgentTrace automatically calculates USD cost for known models when token counts are available. Supported models include GPT-4o, GPT-4, Claude Opus/Sonnet/Haiku, Gemini, Mistral, Command-R, and others. See `packages/shared/src/pricing.ts` for the full pricing table.
+AgentGazer automatically calculates USD cost for known models when token counts are available. Supported models include GPT-4o, GPT-4, Claude Opus/Sonnet/Haiku, Gemini, Mistral, Command-R, and others. See `packages/shared/src/pricing.ts` for the full pricing table.
 
 ## Configuration
 
-On first run, AgentTrace creates `~/.agenttrace/config.json` with a randomly generated auth token. The SQLite database is stored at `~/.agenttrace/data.db`.
+On first run, AgentGazer creates `~/.agentgazer/config.json` with a randomly generated auth token. The SQLite database is stored at `~/.agentgazer/data.db`.
 
 To reset the auth token:
 
 ```bash
-agenttrace --reset-token
+agentgazer --reset-token
 ```
 
 ## Uninstall
 
 ```bash
 # If installed via curl | sh
-agenttrace uninstall
-# Or: curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/uninstall.sh | sh
+agentgazer uninstall
+# Or: curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/uninstall.sh | sh
 
 # If installed via Homebrew
-brew uninstall agenttrace
+brew uninstall agentgazer
 
 # If installed via npm
-npm uninstall -g agenttrace
+npm uninstall -g agentgazer
 ```
 
-User data (`~/.agenttrace/`) is preserved by default. The curl uninstaller will prompt you; for other methods, manually remove `~/.agenttrace/` if desired.
+User data (`~/.agentgazer/`) is preserved by default. The curl uninstaller will prompt you; for other methods, manually remove `~/.agentgazer/` if desired.
 
 ## Environment variables
 
@@ -313,7 +313,7 @@ User data (`~/.agenttrace/`) is preserved by default. The curl uninstaller will 
 | `SMTP_PORT` | SMTP port (default: 587) |
 | `SMTP_USER` | SMTP username |
 | `SMTP_PASS` | SMTP password |
-| `SMTP_FROM` | Sender email address (default: `alerts@agenttrace.dev`) |
+| `SMTP_FROM` | Sender email address (default: `alerts@agentgazer.com`) |
 | `SMTP_SECURE` | Use TLS (`true`/`false`, default: `false`) |
 
 ## Development

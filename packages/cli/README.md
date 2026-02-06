@@ -1,31 +1,31 @@
-# agenttrace
+# agentgazer
 
 AI Agent observability. One command to monitor your agents locally.
 
 ## Install
 
 ```bash
-npm install -g agenttrace
+npm install -g agentgazer
 ```
 
 ## Quick start
 
 ```bash
-agenttrace onboard                    # First-time setup + configure provider keys
-agenttrace start                      # Start server, proxy, and dashboard
+agentgazer onboard                    # First-time setup + configure provider keys
+agentgazer start                      # Start server, proxy, and dashboard
 ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `agenttrace onboard` | First-time setup — generate token and configure provider API keys |
-| `agenttrace start` | Start the server, proxy, and dashboard |
-| `agenttrace status` | Show current configuration |
-| `agenttrace reset-token` | Generate a new auth token |
-| `agenttrace providers list` | List configured providers |
-| `agenttrace providers set <name> <key>` | Set/update a provider API key |
-| `agenttrace providers remove <name>` | Remove a provider |
+| `agentgazer onboard` | First-time setup — generate token and configure provider API keys |
+| `agentgazer start` | Start the server, proxy, and dashboard |
+| `agentgazer status` | Show current configuration |
+| `agentgazer reset-token` | Generate a new auth token |
+| `agentgazer providers list` | List configured providers |
+| `agentgazer providers set <name> <key>` | Set/update a provider API key |
+| `agentgazer providers remove <name>` | Remove a provider |
 
 ## Options (for `start`)
 
@@ -41,9 +41,9 @@ agenttrace start                      # Start server, proxy, and dashboard
 The proxy can manage provider API keys so your app doesn't need to know them. Configure keys during `onboard` or with the `providers` subcommand:
 
 ```bash
-agenttrace providers set openai sk-proj-...
-agenttrace providers set anthropic sk-ant-...
-agenttrace providers list
+agentgazer providers set openai sk-proj-...
+agentgazer providers set anthropic sk-ant-...
+agentgazer providers list
 ```
 
 When a request goes through the proxy, the correct auth header is injected automatically:
@@ -65,7 +65,7 @@ Keys are never stored as plaintext in config files. At runtime, keys are decrypt
 
 ## Rate limiting
 
-You can set per-provider rate limits during `onboard`, or edit `~/.agenttrace/config.json` directly:
+You can set per-provider rate limits during `onboard`, or edit `~/.agentgazer/config.json` directly:
 
 ```json
 {
@@ -84,4 +84,4 @@ When the limit is exceeded, the proxy returns `429` with a `Retry-After` header.
 
 Apache-2.0 — see [LICENSE](./LICENSE).
 
-Part of the [AgentTrace](https://github.com/agenttrace/agenttrace) monorepo.
+Part of the [AgentGazer](https://github.com/agentgazer/agentgazer) monorepo.

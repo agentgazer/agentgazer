@@ -1,12 +1,12 @@
 #!/bin/sh
-# AgentTrace uninstall script
-# Removes the curl-installed AgentTrace files.
+# AgentGazer uninstall script
+# Removes the curl-installed AgentGazer files.
 # User data (config.json, data.db) is preserved unless you confirm removal.
 
 set -e
 
-AGENTTRACE_HOME="${AGENTTRACE_HOME:-$HOME/.agenttrace}"
-WRAPPER_PATH="${AGENTTRACE_BIN:-/usr/local/bin}/agenttrace"
+AGENTTRACE_HOME="${AGENTTRACE_HOME:-$HOME/.agentgazer}"
+WRAPPER_PATH="${AGENTTRACE_BIN:-/usr/local/bin}/agentgazer"
 
 info() {
   printf '  \033[1;34m>\033[0m %s\n' "$1"
@@ -21,7 +21,7 @@ warn() {
 }
 
 echo ""
-echo "  AgentTrace Uninstaller"
+echo "  AgentGazer Uninstaller"
 echo "  ─────────────────────────────────"
 echo ""
 
@@ -30,10 +30,10 @@ if [ ! -d "$AGENTTRACE_HOME/lib" ]; then
   warn "No curl-based installation found at $AGENTTRACE_HOME/lib"
   echo ""
   echo "  If you installed via npm, run:"
-  echo "    npm uninstall -g @agenttrace/cli"
+  echo "    npm uninstall -g @agentgazer/cli"
   echo ""
   echo "  If you installed via Homebrew, run:"
-  echo "    brew uninstall agenttrace"
+  echo "    brew uninstall agentgazer"
   echo ""
   exit 0
 fi
@@ -48,7 +48,7 @@ fi
 
 # Remove installed lib
 rm -rf "$AGENTTRACE_HOME/lib"
-success "Removed agenttrace installation ($AGENTTRACE_HOME/lib)"
+success "Removed agentgazer installation ($AGENTTRACE_HOME/lib)"
 
 # Remove wrapper script
 if [ -f "$WRAPPER_PATH" ]; then
@@ -91,5 +91,5 @@ else
 fi
 
 echo ""
-success "AgentTrace uninstalled."
+success "AgentGazer uninstalled."
 echo ""

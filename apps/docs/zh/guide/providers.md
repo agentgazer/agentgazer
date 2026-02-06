@@ -2,27 +2,27 @@
 
 ## 加密儲存
 
-Provider 的 API Key **不會以明文形式**儲存在設定檔中。AgentTrace 使用 **AES-256-GCM** 加密金鑰庫來保護你的 API Key。
+Provider 的 API Key **不會以明文形式**儲存在設定檔中。AgentGazer 使用 **AES-256-GCM** 加密金鑰庫來保護你的 API Key。
 
 ## 儲存與管理
 
 ```bash
 # 儲存 OpenAI API Key（安全加密）
-agenttrace providers set openai sk-xxxxxxxxxxxxx
+agentgazer providers set openai sk-xxxxxxxxxxxxx
 
 # 儲存 Anthropic API Key
-agenttrace providers set anthropic sk-ant-xxxxxxxxxxxxx
+agentgazer providers set anthropic sk-ant-xxxxxxxxxxxxx
 
 # 列出已設定的 Provider
-agenttrace providers list
+agentgazer providers list
 
 # 移除 Provider
-agenttrace providers remove openai
+agentgazer providers remove openai
 ```
 
 ## 金鑰庫後端
 
-AgentTrace 支援多種金鑰庫後端，依以下優先順序自動偵測：
+AgentGazer 支援多種金鑰庫後端，依以下優先順序自動偵測：
 
 | 優先順序 | 後端 | 說明 |
 |----------|------|------|
@@ -33,7 +33,7 @@ AgentTrace 支援多種金鑰庫後端，依以下優先順序自動偵測：
 
 ## 自動遷移
 
-如果 `config.json` 中存在舊版的明文 API Key，AgentTrace 會在啟動時**自動**將其遷移到加密金鑰庫。
+如果 `config.json` 中存在舊版的明文 API Key，AgentGazer 會在啟動時**自動**將其遷移到加密金鑰庫。
 
 ## 安全注入機制
 

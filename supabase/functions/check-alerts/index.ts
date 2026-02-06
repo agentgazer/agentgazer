@@ -131,9 +131,9 @@ async function deliverEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "alerts@agenttrace.dev",
+        from: "alerts@agentgazer.com",
         to: email,
-        subject: `[AgentTrace] ${payload.alert_type}: ${payload.agent_id}`,
+        subject: `[AgentGazer] ${payload.alert_type}: ${payload.agent_id}`,
         text: `${payload.message}\n\nTimestamp: ${payload.timestamp}\nAgent: ${payload.agent_id}\nAlert Type: ${payload.alert_type}\n\nDetails: ${JSON.stringify(payload.details, null, 2)}`,
       }),
     });

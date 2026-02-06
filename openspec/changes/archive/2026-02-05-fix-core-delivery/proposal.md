@@ -1,14 +1,14 @@
 ## Why
 
-`npm install agenttrace` 之後執行 `agenttrace`，使用者看不到 Dashboard、SDK 連不上 server、前端欄位跟後端對不上。核心交付路徑是壞的 — 不修的話這個工具等於不能用。
+`npm install agentgazer` 之後執行 `agentgazer`，使用者看不到 Dashboard、SDK 連不上 server、前端欄位跟後端對不上。核心交付路徑是壞的 — 不修的話這個工具等於不能用。
 
 ## What Changes
 
-- **Dashboard 打包**：將 dashboard-local 的建置產物打包進 CLI 發佈的 npm package，確保 `agenttrace start` 後 localhost 有畫面可看
+- **Dashboard 打包**：將 dashboard-local 的建置產物打包進 CLI 發佈的 npm package，確保 `agentgazer start` 後 localhost 有畫面可看
 - **前端欄位修正**：Dashboard 頁面引用 `agent.last_heartbeat`，但 server 回傳 `last_heartbeat_at`，修正為一致
 - **SDK endpoint 修正**：移除指向 Supabase 的 placeholder，改為 `http://localhost:8080/api/events`
-- **CLI 子命令**：將 `agenttrace` 改為子命令結構（`onboard`、`start`、`status`），取代現有的純 `--flags` 模式
-- **Onboard 流程**：新增 `agenttrace onboard` 互動式首次設定，顯示 token 和 SDK 程式碼片段
+- **CLI 子命令**：將 `agentgazer` 改為子命令結構（`onboard`、`start`、`status`），取代現有的純 `--flags` 模式
+- **Onboard 流程**：新增 `agentgazer onboard` 互動式首次設定，顯示 token 和 SDK 程式碼片段
 - **移除舊 Dashboard**：刪除 `apps/dashboard/`（Next.js + Supabase），避免混淆
 
 ## Capabilities

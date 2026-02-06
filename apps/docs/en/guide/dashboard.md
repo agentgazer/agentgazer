@@ -4,9 +4,9 @@
 
 The dashboard uses **Token authentication**. After starting the service, enter your authentication Token on the login page. Token sources:
 
-- Generated on first run of `agenttrace onboard`
-- Stored in `~/.agenttrace/config.json`
-- Can be regenerated via `agenttrace reset-token`
+- Generated on first run of `agentgazer onboard`
+- Stored in `~/.agentgazer/config.json`
+- Can be regenerated via `agentgazer reset-token`
 
 ## Page Overview
 
@@ -128,7 +128,7 @@ Configure per-provider rate limits to control request frequency. When a limit is
 
 Setting "100 requests per 60 seconds" means the agent can make at most 100 requests to that provider within any 60-second sliding window.
 
-See [Proxy Rate Limiting](/guide/proxy#rate-limiting) for details on response format.
+See [Proxy Rate Limiting](/en/guide/proxy#rate-limiting) for details on response format.
 
 ### Request Log
 

@@ -11,7 +11,7 @@ import { createServer } from "../server.js";
 // ---------------------------------------------------------------------------
 
 const TEST_TOKEN = "test-token-123";
-const tmpDbPath = path.join(os.tmpdir(), `agenttrace-test-${randomUUID()}.sqlite`);
+const tmpDbPath = path.join(os.tmpdir(), `agentgazer-test-${randomUUID()}.sqlite`);
 
 let server: http.Server;
 let base: string;
@@ -146,7 +146,7 @@ describe("Database initialization", () => {
 
     const names = tables.map((t) => t.name).sort();
     expect(names).toEqual(
-      ["agent_events", "agent_model_rules", "agents", "alert_history", "alert_rules"].sort(),
+      ["agent_events", "agent_model_rules", "agent_rate_limits", "agents", "alert_history", "alert_rules"].sort(),
     );
   });
 

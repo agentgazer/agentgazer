@@ -11,11 +11,11 @@ Building AI agents is hard. Debugging them is harder.
 
 ## The Solution
 
-AgentTrace is a **local-first** observability platform for AI agents.
+AgentGazer is a **local-first** observability platform for AI agents.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
-agenttrace start
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
+agentgazer start
 ```
 
 One command gives you:
@@ -42,7 +42,7 @@ Two ways to capture data:
 │                     Your Machine                             │
 │                                                             │
 │  ┌──────────┐    ┌─────────────────┐                        │
-│  │ AI Agent │───▶│ AgentTrace Proxy│───▶ LLM Provider       │
+│  │ AI Agent │───▶│ AgentGazer Proxy│───▶ LLM Provider       │
 │  └──────────┘    │    (:4000)      │     (OpenAI, etc.)     │
 │       │          └────────┬────────┘                        │
 │       │ SDK               │                                 │
@@ -59,8 +59,8 @@ Two ways to capture data:
 Store your API keys once, use them everywhere:
 
 ```bash
-agenttrace providers set openai sk-xxx
-agenttrace providers set anthropic sk-ant-xxx
+agentgazer providers set openai sk-xxx
+agentgazer providers set anthropic sk-ant-xxx
 ```
 
 Keys are encrypted locally (AES-256-GCM) and never leave your machine. When you use the Proxy with path prefix routing (`/openai/...`, `/anthropic/...`), keys are automatically injected into requests — no need to configure each agent separately.
@@ -91,18 +91,18 @@ Multiple agents can share the same Proxy and API key while tracking usage separa
 ## Project Structure
 
 ```
-~/.agenttrace/
+~/.agentgazer/
 ├── config.json     # Auth token, settings
 ├── data.db         # SQLite database (events, agents, alerts)
 └── lib/            # Installed package (curl install only)
 ```
 
-AgentTrace is a monorepo:
+AgentGazer is a monorepo:
 
 | Package | Description |
 |---------|-------------|
-| `agenttrace` | CLI — starts server, proxy, dashboard |
-| `@agenttrace/server` | Express API + SQLite |
-| `@agenttrace/proxy` | Transparent LLM proxy |
-| `@agenttrace/sdk` | Client SDK for manual tracking |
-| `@agenttrace/shared` | Types, pricing tables, provider detection |
+| `agentgazer` | CLI — starts server, proxy, dashboard |
+| `@agentgazer/server` | Express API + SQLite |
+| `@agentgazer/proxy` | Transparent LLM proxy |
+| `@agentgazer/sdk` | Client SDK for manual tracking |
+| `@agentgazer/shared` | Types, pricing tables, provider detection |

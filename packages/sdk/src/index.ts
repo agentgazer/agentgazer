@@ -1,7 +1,7 @@
-export { AgentTrace } from "./agent-trace.js";
+export { AgentGazer } from "./agent-trace.js";
 
 export type {
-  AgentTraceOptions,
+  AgentGazerOptions,
   TrackOptions,
   Trace,
   Span,

@@ -1,5 +1,5 @@
 {
-  "name": "agenttrace",
+  "name": "agentgazer",
   "private": true,
   "workspaces": [
     "apps/*",

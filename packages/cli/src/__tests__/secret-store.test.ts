@@ -17,7 +17,7 @@ describe("MachineKeyStore", () => {
   let secretsPath: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agenttrace-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentgazer-test-"));
     secretsPath = path.join(tmpDir, "secrets.enc");
   });
 
@@ -132,7 +132,7 @@ describe("migrateFromPlaintextConfig", () => {
   let secretsPath: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agenttrace-migrate-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentgazer-migrate-"));
     configPath = path.join(tmpDir, "config.json");
     secretsPath = path.join(tmpDir, "secrets.enc");
   });

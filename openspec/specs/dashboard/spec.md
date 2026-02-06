@@ -151,3 +151,124 @@ THEN the dashboard MUST display the full layout with side navigation and charts 
 
 WHEN a user accesses the dashboard on a viewport between 768px and 1023px wide
 THEN the dashboard MUST remain fully functional with readable text, accessible navigation, and usable charts.
+
+### Requirement: Agents list displays providers
+
+The Agents list page SHALL display a "Providers" column showing which providers each agent has used. The providers MUST be derived from the agent's event history. Providers with active model override rules MUST be visually distinguished (e.g., with an icon or badge).
+
+#### Scenario: Display single provider
+
+- **WHEN** agent "simple-bot" has only used OpenAI
+- **THEN** Providers column MUST show "OpenAI"
+
+#### Scenario: Display multiple providers
+
+- **WHEN** agent "smart-bot" has used OpenAI and Anthropic
+- **THEN** Providers column MUST show both providers (e.g., "OpenAI, Anthropic")
+
+#### Scenario: Indicate override active
+
+- **WHEN** agent "my-bot" has an active model override for OpenAI
+- **THEN** Providers column MUST show OpenAI with an override indicator (e.g., icon, badge, or text)
+
+### Requirement: Agent detail includes model settings
+
+The Agent Detail page SHALL include a "Model Settings" section. This section MUST list each provider the agent has used with a model override dropdown for each. The dropdown options MUST come from the selectable models list for that provider plus a "None" option.
+
+#### Scenario: Display model settings section
+
+- **WHEN** user navigates to Agent Detail for "smart-bot"
+- **THEN** page MUST show "Model Settings" section with controls for each provider used
+
+#### Scenario: Dropdown shows current override
+
+- **WHEN** agent "my-bot" has override "gpt-4o-mini" for OpenAI
+- **THEN** OpenAI dropdown MUST show "gpt-4o-mini" as selected
+
+#### Scenario: Dropdown shows None when no override
+
+- **WHEN** agent "my-bot" has no override for Anthropic
+- **THEN** Anthropic dropdown MUST show "None" as selected
+
+### Requirement: Agent detail includes request log
+
+The Agent Detail page SHALL include a "Request Log" section showing recent LLM calls. Each log entry MUST display: timestamp, provider, requested model, actual model (with visual distinction if different), token count, and cost.
+
+#### Scenario: Display request log entries
+
+- **WHEN** user views Agent Detail for "my-bot" with recent LLM calls
+- **THEN** page MUST show Request Log with entries showing timestamp, provider, models, tokens, cost
+
+#### Scenario: Highlight model override in log
+
+- **WHEN** log entry has requested_model different from model
+- **THEN** entry MUST visually indicate the override (e.g., "gpt-4 → gpt-4o-mini")
+
+### Requirement: Policy settings UI on Agent Detail page
+
+The Agent Detail page SHALL display a Policy Settings section.
+
+#### Scenario: View policy settings
+- **WHEN** user navigates to Agent Detail page
+- **THEN** the page SHALL show current values for active, budget_limit, allowed_hours
+
+#### Scenario: Toggle active status
+- **WHEN** user toggles the active switch
+- **THEN** the agent's active status SHALL be updated via API
+- **AND** the UI SHALL reflect the new status
+
+#### Scenario: Set budget limit
+- **WHEN** user enters a budget limit value and saves
+- **THEN** the agent's budget_limit SHALL be updated via API
+
+#### Scenario: Set allowed hours
+- **WHEN** user selects start and end hours and saves
+- **THEN** the agent's allowed_hours_start and allowed_hours_end SHALL be updated via API
+
+#### Scenario: Clear restrictions
+- **WHEN** user clears budget_limit or allowed_hours
+- **THEN** the corresponding fields SHALL be set to null (no restriction)
+
+### Requirement: Display current daily spend
+
+The Policy Settings section SHALL show the agent's current daily spending.
+
+#### Scenario: Show daily spend
+- **WHEN** viewing an agent with budget_limit set
+- **THEN** the UI SHALL show current spend vs limit (e.g., "$12.34 / $20.00")
+
+#### Scenario: Budget warning
+- **WHEN** daily spend exceeds 80% of budget_limit
+- **THEN** the UI SHALL show a warning indicator
+
+### Requirement: Display timezone info
+
+The allowed hours settings SHALL display timezone information.
+
+#### Scenario: Show server timezone
+- **WHEN** viewing allowed hours settings
+- **THEN** the UI SHALL indicate the timezone (e.g., "Server time: UTC+8")
+
+### Requirement: Blocked events visibility
+
+The Agent Detail page SHALL show blocked event statistics.
+
+#### Scenario: Show blocked count
+- **WHEN** viewing an agent that has blocked events
+- **THEN** the UI SHALL display the count of blocked events
+
+#### Scenario: Show block reasons
+- **WHEN** viewing blocked events
+- **THEN** the UI SHALL show breakdown by block_reason
+
+### Requirement: Agent list shows policy status
+
+The Agents list page SHALL indicate policy status for each agent.
+
+#### Scenario: Show inactive badge
+- **WHEN** an agent is inactive (active=false)
+- **THEN** the agent row SHALL show an "Inactive" badge
+
+#### Scenario: Show budget usage
+- **WHEN** an agent has budget_limit set
+- **THEN** the agent row SHALL show current spend percentage

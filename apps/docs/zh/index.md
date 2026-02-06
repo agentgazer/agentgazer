@@ -2,12 +2,12 @@
 layout: home
 
 hero:
-  name: AgentTrace
+  name: AgentGazer
   text: Keep an eye on your agents.
   tagline: 一個指令，在本機監控你的 AI Agent。追蹤 LLM 呼叫、成本、延遲與錯誤。
   image:
     src: /logo.svg
-    alt: AgentTrace
+    alt: AgentGazer
   actions:
     - theme: brand
       text: 快速開始

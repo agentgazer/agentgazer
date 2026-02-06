@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import nodemailer from "nodemailer";
-import { createLogger } from "@agenttrace/shared";
+import { createLogger } from "@agentgazer/shared";
 
 const log = createLogger("evaluator");
 
@@ -174,7 +174,7 @@ async function sendEmail(
     return;
   }
 
-  const from = smtpConfig?.from ?? process.env.SMTP_FROM ?? "alerts@agenttrace.dev";
+  const from = smtpConfig?.from ?? process.env.SMTP_FROM ?? "alerts@agentgazer.com";
   const to = smtpConfig?.to ?? legacyTo;
   if (!to) {
     log.warn("Email alert skipped: no recipient configured");
@@ -182,7 +182,7 @@ async function sendEmail(
   }
 
   const ruleLabel = payload.rule_type.replace(/_/g, " ");
-  const subject = `[AgentTrace] ${ruleLabel} alert: ${payload.agent_id}`;
+  const subject = `[AgentGazer] ${ruleLabel} alert: ${payload.agent_id}`;
   const text = [
     `Alert: ${ruleLabel}`,
     `Agent: ${payload.agent_id}`,
@@ -214,7 +214,7 @@ async function sendTelegram(
   }
 
   // Use template or default message
-  const template = message_template || "[From AgentTrace] Alert: {rule_type} - Agent: {agent_id} - {message}";
+  const template = message_template || "[From AgentGazer] Alert: {rule_type} - Agent: {agent_id} - {message}";
   const text = template
     .replace(/{agent_id}/g, payload.agent_id)
     .replace(/{rule_type}/g, payload.rule_type.replace(/_/g, " "))

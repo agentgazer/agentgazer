@@ -1,20 +1,20 @@
-# @agenttrace/server
+# @agentgazer/server
 
-Express + SQLite API server for AgentTrace. Handles event ingestion, agent management, statistics, alerting, and serves the web dashboard.
+Express + SQLite API server for AgentGazer. Handles event ingestion, agent management, statistics, alerting, and serves the web dashboard.
 
 ## Usage
 
 ### As part of the CLI (typical)
 
 ```bash
-npx agenttrace
+npx agentgazer
 # Server starts on port 8080
 ```
 
 ### Programmatic
 
 ```typescript
-import { startServer } from "@agenttrace/server";
+import { startServer } from "@agentgazer/server";
 
 const { server, shutdown } = await startServer({
   port: 8080,

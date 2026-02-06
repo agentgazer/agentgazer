@@ -105,21 +105,21 @@ THEN the reported event MUST NOT contain any prompt text, completion text, or me
 
 ### Requirement: CLI startup command
 
-The proxy SHALL be startable via the command `npx agenttrace-proxy --api-key <key> --agent-id <id>`. The `--api-key` and `--agent-id` flags MUST be required. If either is missing, the CLI MUST print a usage error and exit with a non-zero status code.
+The proxy SHALL be startable via the command `npx agentgazer-proxy --api-key <key> --agent-id <id>`. The `--api-key` and `--agent-id` flags MUST be required. If either is missing, the CLI MUST print a usage error and exit with a non-zero status code.
 
 #### Scenario: Start proxy with required flags
 
-WHEN a user runs `npx agenttrace-proxy --api-key ak_test123 --agent-id bot-1`
+WHEN a user runs `npx agentgazer-proxy --api-key ak_test123 --agent-id bot-1`
 THEN the proxy MUST start and begin listening for requests on the configured port.
 
 #### Scenario: Missing api-key flag
 
-WHEN a user runs `npx agenttrace-proxy --agent-id bot-1` without `--api-key`
+WHEN a user runs `npx agentgazer-proxy --agent-id bot-1` without `--api-key`
 THEN the CLI MUST print an error indicating that `--api-key` is required and MUST exit with a non-zero status code.
 
 #### Scenario: Missing agent-id flag
 
-WHEN a user runs `npx agenttrace-proxy --api-key ak_test123` without `--agent-id`
+WHEN a user runs `npx agentgazer-proxy --api-key ak_test123` without `--agent-id`
 THEN the CLI MUST print an error indicating that `--agent-id` is required and MUST exit with a non-zero status code.
 
 ### Requirement: HTTPS provider endpoint support

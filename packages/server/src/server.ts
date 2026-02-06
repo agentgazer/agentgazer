@@ -2,7 +2,7 @@ import * as http from "node:http";
 import * as path from "node:path";
 import express from "express";
 import cors from "cors";
-import { createLogger } from "@agenttrace/shared";
+import { createLogger } from "@agentgazer/shared";
 import { initDatabase, purgeOldData } from "./db.js";
 
 const log = createLogger("server");

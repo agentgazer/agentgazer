@@ -1,7 +1,7 @@
 {
-  "name": "@agenttrace/sdk",
+  "name": "@agentgazer/sdk",
   "version": "0.1.0",
-  "description": "AgentTrace SDK for monitoring AI agent activity",
+  "description": "AgentGazer SDK for monitoring AI agent activity",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -21,15 +21,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/agenttrace/agenttrace.git",
+    "url": "https://github.com/agentgazer/agentgazer.git",
     "directory": "packages/sdk"
   },
-  "homepage": "https://github.com/agenttrace/agenttrace/tree/main/packages/sdk#readme",
+  "homepage": "https://github.com/agentgazer/agentgazer/tree/main/packages/sdk#readme",
   "bugs": {
-    "url": "https://github.com/agenttrace/agenttrace/issues"
+    "url": "https://github.com/agentgazer/agentgazer/issues"
   },
   "keywords": [
-    "agenttrace",
+    "agentgazer",
     "ai-agents",
     "observability",
     "monitoring",
@@ -45,7 +45,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agenttrace/shared": "^0.1.0"
+    "@agentgazer/shared": "^0.1.0"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

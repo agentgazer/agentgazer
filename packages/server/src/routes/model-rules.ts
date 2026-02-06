@@ -8,7 +8,7 @@ import {
   getAgentProviders,
   getAgentByAgentId,
 } from "../db.js";
-import { SELECTABLE_MODELS } from "@agenttrace/shared";
+import { SELECTABLE_MODELS } from "@agentgazer/shared";
 
 const router = Router();
 

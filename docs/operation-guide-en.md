@@ -1,4 +1,4 @@
-# AgentTrace Operation Guide
+# AgentGazer Operation Guide
 
 > Local-first AI Agent observability platform — Complete installation, configuration, and usage manual
 
@@ -25,7 +25,7 @@
 
 ## 1. Platform Overview
 
-AgentTrace is a **local-first** AI Agent observability platform. With a single command `npx agenttrace`, you can launch everything: an Express server, an LLM proxy, and a React dashboard — all data stored locally in SQLite with zero cloud dependencies.
+AgentGazer is a **local-first** AI Agent observability platform. With a single command `npx agentgazer`, you can launch everything: an Express server, an LLM proxy, and a React dashboard — all data stored locally in SQLite with zero cloud dependencies.
 
 ### Core Features
 
@@ -64,7 +64,7 @@ AgentTrace is a **local-first** AI Agent observability platform. With a single c
 │                        User's Machine                           │
 │                                                                 │
 │  ┌──────────┐    ┌────────────────────┐                         │
-│  │ AI Agent │───>│ AgentTrace Proxy   │──> LLM Provider         │
+│  │ AI Agent │───>│ AgentGazer Proxy   │──> LLM Provider         │
 │  │          │<───│ (:4000 default)    │<── (OpenAI, Anthropic   │
 │  └──────────┘    └────────┬───────────┘    Google, Mistral...)   │
 │       │                   │                                     │
@@ -82,30 +82,30 @@ AgentTrace is a **local-first** AI Agent observability platform. With a single c
 │  │        │                            │                        │
 │  │  ┌─────▼─────────────────────────┐  │                        │
 │  │  │      SQLite Database          │  │                        │
-│  │  │  ~/.agenttrace/data.db        │  │                        │
+│  │  │  ~/.agentgazer/data.db        │  │                        │
 │  │  └───────────────────────────────┘  │                        │
 │  └─────────────────────────────────────┘                        │
 │                                                                 │
-│  Config file: ~/.agenttrace/config.json                         │
+│  Config file: ~/.agentgazer/config.json                         │
 │  Encrypted keystore: AES-256-GCM encrypted storage              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Design Principles
 
-- **Single Command Startup**: `agenttrace start` launches the Express server, LLM Proxy, and React dashboard simultaneously
-- **Local SQLite**: All data is stored in `~/.agenttrace/data.db` with no external database required
+- **Single Command Startup**: `agentgazer start` launches the Express server, LLM Proxy, and React dashboard simultaneously
+- **Local SQLite**: All data is stored in `~/.agentgazer/data.db` with no external database required
 - **Privacy Guarantee**: The Proxy only extracts metric data (token counts, model name, latency, cost) — prompt content and API keys never leave the local machine
 
 ### Project Structure (Turborepo Monorepo)
 
 ```
-agenttrace/
+agentgazer/
 ├── packages/
-│   ├── cli/               # CLI entry point (agenttrace command)
+│   ├── cli/               # CLI entry point (agentgazer command)
 │   ├── server/            # Express API + SQLite database
 │   ├── proxy/             # LLM Proxy with metrics extraction
-│   ├── sdk/               # TypeScript SDK (@agenttrace/sdk)
+│   ├── sdk/               # TypeScript SDK (@agentgazer/sdk)
 │   └── shared/            # Shared types, pricing calculations, Provider detection
 ├── apps/
 │   └── dashboard-local/   # React + Vite dashboard
@@ -122,61 +122,61 @@ agenttrace/
 **Option A: One-line install (Recommended)**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
 ```
 
-This script automatically detects your platform, downloads Node.js if needed, and installs AgentTrace to `~/.agenttrace/`. No prerequisites required.
+This script automatically detects your platform, downloads Node.js if needed, and installs AgentGazer to `~/.agentgazer/`. No prerequisites required.
 
 **Option B: Homebrew (macOS / Linux)**
 
 ```bash
-brew install agenttrace/tap/agenttrace
+brew install agentgazer/tap/agentgazer
 ```
 
 **Option C: npm (requires Node.js >= 18)**
 
 ```bash
 # Direct execution
-npx agenttrace
+npx agentgazer
 
 # Or global install
-npm install -g agenttrace
+npm install -g agentgazer
 ```
 
 ### 3.2 Uninstalling
 
 ```bash
 # If installed via curl | sh
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/uninstall.sh | sh
-# Or: agenttrace uninstall
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/uninstall.sh | sh
+# Or: agentgazer uninstall
 
 # If installed via Homebrew
-brew uninstall agenttrace
+brew uninstall agentgazer
 
 # If installed via npm
-npm uninstall -g agenttrace
+npm uninstall -g agentgazer
 ```
 
-> Note: Uninstalling does **not** remove your data (`~/.agenttrace/config.json`, `~/.agenttrace/data.db`). The curl uninstaller will prompt you; for other methods, manually remove `~/.agenttrace/` if desired.
+> Note: Uninstalling does **not** remove your data (`~/.agentgazer/config.json`, `~/.agentgazer/data.db`). The curl uninstaller will prompt you; for other methods, manually remove `~/.agentgazer/` if desired.
 
 ### 3.3 Initial Setup
 
 On first use, run the setup wizard:
 
 ```bash
-agenttrace onboard
+agentgazer onboard
 ```
 
 This command will:
 
-1. Create a `config.json` configuration file in the `~/.agenttrace/` directory
+1. Create a `config.json` configuration file in the `~/.agentgazer/` directory
 2. Generate an authentication Token (used for API access and dashboard login)
 3. Guide you through setting up LLM Provider API keys
 
 ### 3.4 Starting the Service
 
 ```bash
-agenttrace start
+agentgazer start
 ```
 
 After startup, a browser window automatically opens to the dashboard:
@@ -204,7 +204,7 @@ curl http://localhost:8080/api/health
 curl http://localhost:4000/health
 
 # Use the built-in diagnostic tool
-agenttrace doctor
+agentgazer doctor
 ```
 
 ---
@@ -231,23 +231,23 @@ agenttrace doctor
 
 ### Detailed Descriptions
 
-#### `agenttrace onboard`
+#### `agentgazer onboard`
 
-Initial setup wizard. Generates an authentication Token and writes it to `~/.agenttrace/config.json`, then guides the user through configuring Provider API keys.
+Initial setup wizard. Generates an authentication Token and writes it to `~/.agentgazer/config.json`, then guides the user through configuring Provider API keys.
 
-#### `agenttrace start`
+#### `agentgazer start`
 
 Starts all services.
 
 ```bash
 # Start with default ports
-agenttrace start
+agentgazer start
 
 # Custom ports, without auto-opening the browser
-agenttrace start --port 9090 --proxy-port 5000 --no-open
+agentgazer start --port 9090 --proxy-port 5000 --no-open
 
 # Set data retention to 7 days
-agenttrace start --retention-days 7
+agentgazer start --retention-days 7
 ```
 
 | Flag | Default | Description |
@@ -257,56 +257,56 @@ agenttrace start --retention-days 7
 | `--retention-days` | `30` | Event data retention period in days |
 | `--no-open` | `false` | Do not auto-open the browser on startup |
 
-#### `agenttrace status`
+#### `agentgazer status`
 
 Displays current configuration, including Token prefix, configured Providers, database path, and more.
 
-#### `agenttrace reset-token`
+#### `agentgazer reset-token`
 
 Regenerates the authentication Token. The old Token is immediately invalidated. You will need to update all SDK configurations and dashboard logins that use the old Token.
 
-#### `agenttrace providers`
+#### `agentgazer providers`
 
 Manage LLM Provider API keys.
 
 ```bash
 # List all configured Providers
-agenttrace providers list
+agentgazer providers list
 
 # Set OpenAI API Key (securely encrypted)
-agenttrace providers set openai sk-xxxxxxxxxxxxx
+agentgazer providers set openai sk-xxxxxxxxxxxxx
 
 # Remove the Anthropic Provider
-agenttrace providers remove anthropic
+agentgazer providers remove anthropic
 ```
 
-#### `agenttrace doctor`
+#### `agentgazer doctor`
 
 Runs a system health check to verify the server and Proxy are operating correctly.
 
 ```bash
-agenttrace doctor
-agenttrace doctor --port 9090 --proxy-port 5000
+agentgazer doctor
+agentgazer doctor --port 9090 --proxy-port 5000
 ```
 
-#### `agenttrace agents`
+#### `agentgazer agents`
 
 Lists all registered Agents and their current status.
 
 ```bash
-agenttrace agents
+agentgazer agents
 ```
 
-#### `agenttrace stats`
+#### `agentgazer stats`
 
 Displays Agent statistics. If there is only one Agent in the system, it is automatically selected.
 
 ```bash
 # Display statistics for all Agents (default 24 hours)
-agenttrace stats
+agentgazer stats
 
 # Display statistics for a specific Agent over a 7-day range
-agenttrace stats my-agent --range 7d
+agentgazer stats my-agent --range 7d
 ```
 
 ---
@@ -332,7 +332,7 @@ The Proxy supports path prefix routing, which automatically forwards requests to
 
 **Option A: Use stored API Key (Recommended)**
 
-If you've stored your API Key with `agenttrace providers set openai <key>`, use the path prefix for automatic injection:
+If you've stored your API Key with `agentgazer providers set openai <key>`, use the path prefix for automatic injection:
 
 ```bash
 export OPENAI_BASE_URL=http://localhost:4000/openai/v1
@@ -450,7 +450,7 @@ The Proxy only extracts the following metric data:
 - Cost (USD)
 - HTTP status code
 
-**Prompt content and API keys are never sent to the AgentTrace server.**
+**Prompt content and API keys are never sent to the AgentGazer server.**
 
 ---
 
@@ -459,15 +459,15 @@ The Proxy only extracts the following metric data:
 ### 6.1 Installation
 
 ```bash
-npm install @agenttrace/sdk
+npm install @agentgazer/sdk
 ```
 
 ### 6.2 Initialization
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: "your-token",           // Required: Token generated during onboard
   agentId: "my-agent",            // Required: Unique identifier for this Agent
   endpoint: "http://localhost:8080/api/events",  // Optional: Defaults to local server
@@ -564,10 +564,10 @@ The SDK uses a batch sending strategy for efficiency:
 ### 6.10 Complete Example
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 import OpenAI from "openai";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: process.env.AGENTTRACE_TOKEN!,
   agentId: "my-chatbot",
   endpoint: "http://localhost:8080/api/events",
@@ -619,9 +619,9 @@ process.on("SIGTERM", async () => {
 
 The dashboard uses **Token authentication**. After starting the service, enter your authentication Token on the login page. Token sources:
 
-- Generated on first run of `agenttrace onboard`
-- Stored in `~/.agenttrace/config.json`
-- Can be regenerated via `agenttrace reset-token`
+- Generated on first run of `agentgazer onboard`
+- Stored in `~/.agentgazer/config.json`
+- Can be regenerated via `agentgazer reset-token`
 
 ### 7.2 Page Overview
 
@@ -728,27 +728,27 @@ Switch to the "History" tab to view all triggered alert records, including trigg
 
 ### 9.1 Encrypted Storage
 
-Provider API keys are **never stored in plaintext** in the configuration file. AgentTrace uses an **AES-256-GCM** encrypted keystore to protect your API keys.
+Provider API keys are **never stored in plaintext** in the configuration file. AgentGazer uses an **AES-256-GCM** encrypted keystore to protect your API keys.
 
 ### 9.2 Storage and Management
 
 ```bash
 # Store OpenAI API Key (securely encrypted)
-agenttrace providers set openai sk-xxxxxxxxxxxxx
+agentgazer providers set openai sk-xxxxxxxxxxxxx
 
 # Store Anthropic API Key
-agenttrace providers set anthropic sk-ant-xxxxxxxxxxxxx
+agentgazer providers set anthropic sk-ant-xxxxxxxxxxxxx
 
 # List configured Providers
-agenttrace providers list
+agentgazer providers list
 
 # Remove a Provider
-agenttrace providers remove openai
+agentgazer providers remove openai
 ```
 
 ### 9.3 Keystore Backends
 
-AgentTrace supports multiple keystore backends, automatically detected in the following priority order:
+AgentGazer supports multiple keystore backends, automatically detected in the following priority order:
 
 | Priority | Backend | Description |
 |----------|---------|-------------|
@@ -759,7 +759,7 @@ AgentTrace supports multiple keystore backends, automatically detected in the fo
 
 ### 9.4 Automatic Migration
 
-If legacy plaintext API keys exist in `config.json`, AgentTrace will **automatically** migrate them to the encrypted keystore on startup.
+If legacy plaintext API keys exist in `config.json`, AgentGazer will **automatically** migrate them to the encrypted keystore on startup.
 
 ### 9.5 Secure Injection Mechanism
 
@@ -1004,7 +1004,7 @@ docker compose up -d
 
 ### 11.3 Data Persistence
 
-Docker uses an `agenttrace-data` volume to persist the `~/.agenttrace/` directory, ensuring the SQLite database, configuration files, and encrypted keystore are retained across container restarts.
+Docker uses an `agentgazer-data` volume to persist the `~/.agentgazer/` directory, ensuring the SQLite database, configuration files, and encrypted keystore are retained across container restarts.
 
 ---
 
@@ -1018,7 +1018,7 @@ Docker uses an `agenttrace-data` volume to persist the `~/.agenttrace/` director
 | `SMTP_PORT` | SMTP port | `587` |
 | `SMTP_USER` | SMTP username | — |
 | `SMTP_PASS` | SMTP password | — |
-| `SMTP_FROM` | Sender email address | `alerts@agenttrace.dev` |
+| `SMTP_FROM` | Sender email address | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | Whether to use TLS | `false` |
 | `AGENTTRACE_SECRET_BACKEND` | Manually specify the keystore backend | Auto-detected |
 
@@ -1041,7 +1041,7 @@ export SMTP_SECURE=false
 
 ### Events are not appearing in the dashboard
 
-1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agenttrace/config.json`
+1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agentgazer/config.json`
 2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:8080/api/events`
 3. **Ensure the buffer has been flushed**: Events may still be in the buffer. Call `at.shutdown()` to force a flush, or wait for the 5-second auto-flush cycle
 4. **Check console warnings**: SDK network errors do not throw exceptions but are logged as warnings in the console
@@ -1066,13 +1066,13 @@ export SMTP_SECURE=false
 
 ### Dashboard login fails
 
-1. **Verify the Token**: Check the Token in `~/.agenttrace/config.json`
-2. **Regenerate the Token**: Run `agenttrace reset-token` to generate a new Token
-3. **Confirm the server is running**: Run `agenttrace doctor` to check server status
+1. **Verify the Token**: Check the Token in `~/.agentgazer/config.json`
+2. **Regenerate the Token**: Run `agentgazer reset-token` to generate a new Token
+3. **Confirm the server is running**: Run `agentgazer doctor` to check server status
 
 ### Cost calculations are incorrect
 
-1. **Verify model names**: Cost calculation relies on the pricing table in `@agenttrace/shared`. Model names must match the pricing table
+1. **Verify model names**: Cost calculation relies on the pricing table in `@agentgazer/shared`. Model names must match the pricing table
 2. **Manually specify cost_usd**: If automatic calculation is inaccurate, pass the `cost_usd` field manually in `track()`
 
 ### Port conflicts
@@ -1080,36 +1080,36 @@ export SMTP_SECURE=false
 If the default ports are already in use, start with custom ports:
 
 ```bash
-agenttrace start --port 9090 --proxy-port 5000
+agentgazer start --port 9090 --proxy-port 5000
 ```
 
 ### Database issues
 
-The SQLite database is located at `~/.agenttrace/data.db`. To reset it:
+The SQLite database is located at `~/.agentgazer/data.db`. To reset it:
 
 ```bash
 # Stop the service, then delete the database file
-rm ~/.agenttrace/data.db
+rm ~/.agentgazer/data.db
 
 # Restart — the system will automatically create a new database
-agenttrace start
+agentgazer start
 ```
 
 ---
 
 ## 14. Appendix: Quick Start Checklist
 
-- [ ] Install AgentTrace (`curl | sh`, Homebrew, or npm)
-- [ ] Run `agenttrace onboard` to complete initial setup
+- [ ] Install AgentGazer (`curl | sh`, Homebrew, or npm)
+- [ ] Run `agentgazer onboard` to complete initial setup
 - [ ] Note down the authentication Token
-- [ ] Use `agenttrace providers set` to configure LLM Provider API keys
-- [ ] Run `agenttrace start` to launch all services
+- [ ] Use `agentgazer providers set` to configure LLM Provider API keys
+- [ ] Run `agentgazer start` to launch all services
 - [ ] Open `http://localhost:8080` in a browser to log into the dashboard
 - [ ] Configure the Proxy in your AI Agent (point the base URL to `http://localhost:4000`) or integrate the SDK
 - [ ] Verify that event data appears correctly in the dashboard
 - [ ] Set up alert rules (agent_down / error_rate / budget)
-- [ ] Run `agenttrace doctor` to confirm system health
+- [ ] Run `agentgazer doctor` to confirm system health
 
 ---
 
-> AgentTrace — Local-first AI Agent observability platform. One command, full visibility.
+> AgentGazer — Local-first AI Agent observability platform. One command, full visibility.

@@ -1,7 +1,7 @@
 ## 1. SecretStore Interface and Encrypted File Backend
 
 - [x] 1.1 Create `packages/cli/src/secret-store.ts` with `SecretStore` interface (`get`, `set`, `delete`, `list`, `isAvailable`)
-- [x] 1.2 Implement `EncryptedFileStore` class using AES-256-GCM + scrypt KDF, storing to `~/.agenttrace/secrets.enc` with 0600 permissions
+- [x] 1.2 Implement `EncryptedFileStore` class using AES-256-GCM + scrypt KDF, storing to `~/.agentgazer/secrets.enc` with 0600 permissions
 - [x] 1.3 Implement passphrase acquisition: env var `AGENTTRACE_PASSPHRASE` → interactive stdin prompt → error with instructions
 - [x] 1.4 Write unit tests for `EncryptedFileStore` (encrypt/decrypt, wrong passphrase, tampered file, file permissions)
 
@@ -20,15 +20,15 @@
 
 ## 4. CLI Commands Integration
 
-- [x] 4.1 Update `agenttrace start` to initialize secret store, acquire passphrase if needed, and load provider keys into memory before starting proxy
-- [x] 4.2 Update `agenttrace providers set` to write API key to active secret store instead of `config.json`
-- [x] 4.3 Update `agenttrace providers remove` to delete API key from secret store in addition to removing config entry
-- [x] 4.4 Update `agenttrace onboard` to write provider keys to secret store, prompting for new passphrase if encrypted-file backend
+- [x] 4.1 Update `agentgazer start` to initialize secret store, acquire passphrase if needed, and load provider keys into memory before starting proxy
+- [x] 4.2 Update `agentgazer providers set` to write API key to active secret store instead of `config.json`
+- [x] 4.3 Update `agentgazer providers remove` to delete API key from secret store in addition to removing config entry
+- [x] 4.4 Update `agentgazer onboard` to write provider keys to secret store, prompting for new passphrase if encrypted-file backend
 
 ## 5. Migration from Plaintext Config
 
 - [x] 5.1 Implement migration logic: detect plaintext `apiKey` fields in `config.json`, write to secret store, remove from config
-- [x] 5.2 Add migration to `agenttrace start` flow — run before starting services, print migration message
+- [x] 5.2 Add migration to `agentgazer start` flow — run before starting services, print migration message
 - [x] 5.3 Ensure migration is idempotent (safe to re-run, no duplicate writes)
 - [x] 5.4 Write tests for migration (plaintext keys present, already migrated, partial migration recovery)
 
@@ -36,4 +36,4 @@
 
 - [x] 6.1 Run full build (`npm run build`) and fix any TypeScript errors
 - [x] 6.2 Run full test suite (`npm test`) and fix any failures
-- [ ] 6.3 Manual smoke test: `agenttrace start` with encrypted-file backend prompts for passphrase and starts correctly
+- [ ] 6.3 Manual smoke test: `agentgazer start` with encrypted-file backend prompts for passphrase and starts correctly

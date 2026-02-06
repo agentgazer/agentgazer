@@ -3,11 +3,11 @@ export type {
   BatchEvents,
   EventType,
   Source,
-} from "@agenttrace/shared";
+} from "@agentgazer/shared";
 
-export { AgentEventSchema, BatchEventsSchema } from "@agenttrace/shared";
+export { AgentEventSchema, BatchEventsSchema } from "@agentgazer/shared";
 
-export interface AgentTraceOptions {
+export interface AgentGazerOptions {
   apiKey: string;
   agentId: string;
   endpoint?: string;

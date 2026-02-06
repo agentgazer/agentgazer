@@ -3,15 +3,15 @@
 ## Installation
 
 ```bash
-npm install @agenttrace/sdk
+npm install @agentgazer/sdk
 ```
 
 ## Initialization
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: "your-token",           // Required: Token generated during onboard
   agentId: "my-agent",            // Required: Unique identifier for this Agent
   endpoint: "http://localhost:8080/api/events",  // Optional: Defaults to local server
@@ -109,10 +109,10 @@ The SDK uses a batch sending strategy for efficiency:
 ## Complete Example
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 import OpenAI from "openai";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: process.env.AGENTTRACE_TOKEN!,
   agentId: "my-chatbot",
   endpoint: "http://localhost:8080/api/events",

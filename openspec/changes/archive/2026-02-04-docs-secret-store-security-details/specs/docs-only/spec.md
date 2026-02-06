@@ -19,4 +19,4 @@ The documentation SHALL explain that keys are decrypted once at startup, held in
 
 #### Scenario: User reads runtime lifecycle FAQ
 - **WHEN** a user reads the FAQ security section
-- **THEN** they understand that keys live in-memory only after startup and that changing a key requires restarting `agenttrace start`
+- **THEN** they understand that keys live in-memory only after startup and that changing a key requires restarting `agentgazer start`

@@ -27,9 +27,9 @@ The server is the source of truth for API response shapes. Where CLI and dashboa
 **Rationale**: Simplest fix. The alternative (separate token file) would be over-engineering for a one-field fix.
 
 ```typescript
-export function resetToken(): AgentTraceConfig {
+export function resetToken(): AgentGazerConfig {
   const existing = readConfig();
-  const config: AgentTraceConfig = {
+  const config: AgentGazerConfig = {
     ...existing,
     token: generateToken(),
   };
@@ -67,9 +67,9 @@ function safeCompare(a: string, b: string): boolean {
 
 ### D5: EventBuffer warning — use shared logger
 
-**Decision**: Import logger from `@agenttrace/shared` and emit a `warn` log when events are dropped.
+**Decision**: Import logger from `@agentgazer/shared` and emit a `warn` log when events are dropped.
 
-**Rationale**: The SDK already depends on `@agenttrace/shared`. Using the existing logger keeps the approach consistent and avoids adding callback/event-emitter complexity.
+**Rationale**: The SDK already depends on `@agentgazer/shared`. Using the existing logger keeps the approach consistent and avoids adding callback/event-emitter complexity.
 
 ### D6: Ingest test fix — match actual response
 

@@ -2,7 +2,7 @@
 
 The codebase migrated from Supabase + Next.js to a local-first Express + SQLite architecture, but the only documentation (`docs/operation-guide-zh.md`) still describes the old architecture. The README is reasonably accurate but serves as a quick-start, not a comprehensive manual. There is no English operation guide and no integration guide for any real-world agent.
 
-The first real-world test target is OpenClaw — an open-source personal AI assistant (TypeScript, Node.js, multi-provider). OpenClaw supports `baseUrl` override in its `models.providers` config, making AgentTrace proxy integration trivial.
+The first real-world test target is OpenClaw — an open-source personal AI assistant (TypeScript, Node.js, multi-provider). OpenClaw supports `baseUrl` override in its `models.providers` config, making AgentGazer proxy integration trivial.
 
 ## Goals / Non-Goals
 
@@ -42,7 +42,7 @@ The first real-world test target is OpenClaw — an open-source personal AI assi
 
 ### Decision 4: OpenClaw multi-provider — show both Anthropic and OpenAI examples
 
-**Choice**: Include configuration examples for routing both Anthropic and OpenAI calls through AgentTrace proxy.
+**Choice**: Include configuration examples for routing both Anthropic and OpenAI calls through AgentGazer proxy.
 
 **Rationale**: OpenClaw supports model failover across providers. Users running both should see how to monitor all of them.
 

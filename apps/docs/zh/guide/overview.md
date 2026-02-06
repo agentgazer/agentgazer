@@ -11,11 +11,11 @@
 
 ## 解決方案
 
-AgentTrace 是一個**本地優先**的 AI Agent 可觀測性平台。
+AgentGazer 是一個**本地優先**的 AI Agent 可觀測性平台。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
-agenttrace start
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
+agentgazer start
 ```
 
 一條指令給你：
@@ -42,7 +42,7 @@ agenttrace start
 │                       你的機器                               │
 │                                                             │
 │  ┌──────────┐    ┌─────────────────┐                        │
-│  │ AI Agent │───▶│ AgentTrace Proxy│───▶ LLM Provider       │
+│  │ AI Agent │───▶│ AgentGazer Proxy│───▶ LLM Provider       │
 │  └──────────┘    │    (:4000)      │     (OpenAI 等)        │
 │       │          └────────┬────────┘                        │
 │       │ SDK               │                                 │
@@ -59,8 +59,8 @@ agenttrace start
 儲存一次，到處使用：
 
 ```bash
-agenttrace providers set openai sk-xxx
-agenttrace providers set anthropic sk-ant-xxx
+agentgazer providers set openai sk-xxx
+agentgazer providers set anthropic sk-ant-xxx
 ```
 
 金鑰在本機加密儲存（AES-256-GCM），永遠不會離開你的機器。當你使用 Proxy 的路徑前綴路由（`/openai/...`、`/anthropic/...`）時，金鑰會自動注入請求 — 不需要在每個 Agent 中分別設定。
@@ -91,18 +91,18 @@ const openai = new OpenAI({
 ## 專案結構
 
 ```
-~/.agenttrace/
+~/.agentgazer/
 ├── config.json     # 認證 Token、設定
 ├── data.db         # SQLite 資料庫（事件、Agent、告警）
 └── lib/            # 安裝的套件（僅 curl 安裝）
 ```
 
-AgentTrace 是一個 monorepo：
+AgentGazer 是一個 monorepo：
 
 | 套件 | 說明 |
 |------|------|
-| `agenttrace` | CLI — 啟動 server、proxy、dashboard |
-| `@agenttrace/server` | Express API + SQLite |
-| `@agenttrace/proxy` | 透明 LLM proxy |
-| `@agenttrace/sdk` | 手動追蹤用的 Client SDK |
-| `@agenttrace/shared` | 型別、定價表、Provider 偵測 |
+| `agentgazer` | CLI — 啟動 server、proxy、dashboard |
+| `@agentgazer/server` | Express API + SQLite |
+| `@agentgazer/proxy` | 透明 LLM proxy |
+| `@agentgazer/sdk` | 手動追蹤用的 Client SDK |
+| `@agentgazer/shared` | 型別、定價表、Provider 偵測 |

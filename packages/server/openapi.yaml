@@ -1,9 +1,9 @@
 openapi: 3.0.3
 info:
-  title: AgentTrace API
+  title: AgentGazer API
   version: 0.1.0
   description: >
-    AgentTrace is an observability platform for AI agents. It ingests telemetry
+    AgentGazer is an observability platform for AI agents. It ingests telemetry
     events (LLM calls, completions, heartbeats, errors, and custom events),
     tracks agent health, computes usage statistics, and manages alert rules with
     delivery via webhook or email.

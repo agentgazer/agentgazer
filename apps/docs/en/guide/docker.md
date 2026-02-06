@@ -15,7 +15,7 @@ docker compose up -d
 
 ## Data Persistence
 
-Docker uses an `agenttrace-data` volume to persist the `~/.agenttrace/` directory, ensuring the SQLite database, configuration files, and encrypted keystore are retained across container restarts.
+Docker uses an `agentgazer-data` volume to persist the `~/.agentgazer/` directory, ensuring the SQLite database, configuration files, and encrypted keystore are retained across container restarts.
 
 ## Environment Variables
 
@@ -27,7 +27,7 @@ Docker uses an `agenttrace-data` volume to persist the `~/.agenttrace/` director
 | `SMTP_PORT` | SMTP port | `587` |
 | `SMTP_USER` | SMTP username | — |
 | `SMTP_PASS` | SMTP password | — |
-| `SMTP_FROM` | Sender email address | `alerts@agenttrace.dev` |
+| `SMTP_FROM` | Sender email address | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | Whether to use TLS | `false` |
 | `AGENTTRACE_SECRET_BACKEND` | Manually specify the keystore backend | Auto-detected |
 

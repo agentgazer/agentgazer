@@ -19,23 +19,23 @@
 
 ## Detailed Descriptions
 
-### `agenttrace onboard`
+### `agentgazer onboard`
 
-Initial setup wizard. Generates an authentication Token and writes it to `~/.agenttrace/config.json`, then guides the user through configuring Provider API keys.
+Initial setup wizard. Generates an authentication Token and writes it to `~/.agentgazer/config.json`, then guides the user through configuring Provider API keys.
 
-### `agenttrace start`
+### `agentgazer start`
 
 Starts all services.
 
 ```bash
 # Start with default ports
-agenttrace start
+agentgazer start
 
 # Custom ports, without auto-opening the browser
-agenttrace start --port 9090 --proxy-port 5000 --no-open
+agentgazer start --port 9090 --proxy-port 5000 --no-open
 
 # Set data retention to 7 days
-agenttrace start --retention-days 7
+agentgazer start --retention-days 7
 ```
 
 | Flag | Default | Description |
@@ -45,54 +45,54 @@ agenttrace start --retention-days 7
 | `--retention-days` | `30` | Event data retention period in days |
 | `--no-open` | `false` | Do not auto-open the browser on startup |
 
-### `agenttrace status`
+### `agentgazer status`
 
 Displays current configuration, including Token prefix, configured Providers, database path, and more.
 
-### `agenttrace reset-token`
+### `agentgazer reset-token`
 
 Regenerates the authentication Token. The old Token is immediately invalidated. You will need to update all SDK configurations and dashboard logins that use the old Token.
 
-### `agenttrace providers`
+### `agentgazer providers`
 
 Manage LLM Provider API keys.
 
 ```bash
 # List all configured Providers
-agenttrace providers list
+agentgazer providers list
 
 # Set OpenAI API Key (securely encrypted)
-agenttrace providers set openai sk-xxxxxxxxxxxxx
+agentgazer providers set openai sk-xxxxxxxxxxxxx
 
 # Remove the Anthropic Provider
-agenttrace providers remove anthropic
+agentgazer providers remove anthropic
 ```
 
-### `agenttrace doctor`
+### `agentgazer doctor`
 
 Runs a system health check to verify the server and Proxy are operating correctly.
 
 ```bash
-agenttrace doctor
-agenttrace doctor --port 9090 --proxy-port 5000
+agentgazer doctor
+agentgazer doctor --port 9090 --proxy-port 5000
 ```
 
-### `agenttrace agents`
+### `agentgazer agents`
 
 Lists all registered Agents and their current status.
 
 ```bash
-agenttrace agents
+agentgazer agents
 ```
 
-### `agenttrace stats`
+### `agentgazer stats`
 
 Displays Agent statistics. If there is only one Agent in the system, it is automatically selected.
 
 ```bash
 # Display statistics for all Agents (default 24 hours)
-agenttrace stats
+agentgazer stats
 
 # Display statistics for a specific Agent over a 7-day range
-agenttrace stats my-agent --range 7d
+agentgazer stats my-agent --range 7d
 ```

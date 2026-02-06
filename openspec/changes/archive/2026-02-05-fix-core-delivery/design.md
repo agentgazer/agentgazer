@@ -1,6 +1,6 @@
 ## Context
 
-AgentTrace 是一個 local-first AI agent 可觀測性工具。後端（server、proxy、SDK）功能完整且有測試覆蓋，但使用者實際碰到的交付層（CLI、Dashboard、SDK 預設值）有多處斷裂，導致 `npm install agenttrace` 後無法正常使用。
+AgentGazer 是一個 local-first AI agent 可觀測性工具。後端（server、proxy、SDK）功能完整且有測試覆蓋，但使用者實際碰到的交付層（CLI、Dashboard、SDK 預設值）有多處斷裂，導致 `npm install agentgazer` 後無法正常使用。
 
 目前的問題：
 1. CLI 的 npm package 不包含 dashboard 前端檔案 → 啟動後沒有 UI
@@ -12,7 +12,7 @@ AgentTrace 是一個 local-first AI agent 可觀測性工具。後端（server�
 ## Goals / Non-Goals
 
 **Goals:**
-- `npm install -g agenttrace && agenttrace onboard && agenttrace start` 能走完
+- `npm install -g agentgazer && agentgazer onboard && agentgazer start` 能走完
 - Dashboard 在 localhost 有畫面、資料正確
 - SDK 不傳 endpoint 也能連到本地 server
 - 使用者知道怎麼把 SDK 接進自己的程式碼
@@ -61,12 +61,12 @@ AgentTrace 是一個 local-first AI agent 可觀測性工具。後端（server�
 
 ### 5. Onboard 流程：最精簡版
 
-**選擇**：`agenttrace onboard` 做三件事：
+**選擇**：`agentgazer onboard` 做三件事：
 1. 產生 token（如果還沒有）
 2. 顯示 config 摘要（port、token）
 3. 印出可複製的 SDK 程式碼片段
 
-不做互動式選單（選 provider、設 port 等）。使用者要改 port 用 `agenttrace start --port 9090`。
+不做互動式選單（選 provider、設 port 等）。使用者要改 port 用 `agentgazer start --port 9090`。
 
 **理由**：大部分設定用預設就好。Onboard 的價值是讓使用者知道怎麼把 SDK 接進去，不是填一堆設定。
 

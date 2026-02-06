@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { AgentTrace } from "../agent-trace.js";
+import { AgentGazer } from "../agent-trace.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -22,7 +22,7 @@ function setup(overrides: Record<string, unknown> = {}) {
   );
   vi.stubGlobal("fetch", fetchMock);
 
-  const watch = AgentTrace.init({ ...DEFAULT_OPTIONS, ...overrides } as any);
+  const watch = AgentGazer.init({ ...DEFAULT_OPTIONS, ...overrides } as any);
   return { watch, fetchMock };
 }
 
@@ -30,7 +30,7 @@ function setup(overrides: Record<string, unknown> = {}) {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("AgentTrace", () => {
+describe("AgentGazer", () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -46,19 +46,19 @@ describe("AgentTrace", () => {
   describe("init()", () => {
     it("creates an instance with the provided options", () => {
       const { watch } = setup();
-      expect(watch).toBeInstanceOf(AgentTrace);
+      expect(watch).toBeInstanceOf(AgentGazer);
     });
 
     it("throws if apiKey is missing", () => {
       expect(() =>
-        AgentTrace.init({ apiKey: "", agentId: "agent-123", flushInterval: 60_000 })
-      ).toThrow("[AgentTrace] apiKey is required");
+        AgentGazer.init({ apiKey: "", agentId: "agent-123", flushInterval: 60_000 })
+      ).toThrow("[AgentGazer] apiKey is required");
     });
 
     it("throws if agentId is missing", () => {
       expect(() =>
-        AgentTrace.init({ apiKey: "key", agentId: "", flushInterval: 60_000 })
-      ).toThrow("[AgentTrace] agentId is required");
+        AgentGazer.init({ apiKey: "key", agentId: "", flushInterval: 60_000 })
+      ).toThrow("[AgentGazer] agentId is required");
     });
 
     it("uses default endpoint when none is provided", () => {
@@ -67,7 +67,7 @@ describe("AgentTrace", () => {
       );
       vi.stubGlobal("fetch", fetchMock);
 
-      const watch = AgentTrace.init({
+      const watch = AgentGazer.init({
         apiKey: "key",
         agentId: "agent",
         flushInterval: 60_000,
@@ -384,7 +384,7 @@ describe("AgentTrace", () => {
       await expect(watch.flush()).resolves.toBeUndefined();
 
       expect(warnSpy).toHaveBeenCalledOnce();
-      expect(warnSpy.mock.calls[0][0]).toContain("[AgentTrace] flush failed");
+      expect(warnSpy.mock.calls[0][0]).toContain("[AgentGazer] flush failed");
       expect(warnSpy.mock.calls[0][0]).toContain("ECONNREFUSED");
 
       warnSpy.mockRestore();

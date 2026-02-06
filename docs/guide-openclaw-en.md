@@ -1,6 +1,6 @@
-# OpenClaw + AgentTrace Integration Guide
+# OpenClaw + AgentGazer Integration Guide
 
-> Monitor your OpenClaw personal AI assistant with AgentTrace — zero code changes, full observability
+> Monitor your OpenClaw personal AI assistant with AgentGazer — zero code changes, full observability
 
 ---
 
@@ -8,7 +8,7 @@
 
 1. [Overview](#1-overview)
 2. [Prerequisites](#2-prerequisites)
-3. [Starting AgentTrace](#3-starting-agenttrace)
+3. [Starting AgentGazer](#3-starting-agentgazer)
 4. [Architecture Diagram](#4-architecture-diagram)
 5. [Configuring Provider Keys](#5-configuring-provider-keys)
 6. [Anthropic Configuration](#6-anthropic-configuration)
@@ -33,9 +33,9 @@ As an autonomous AI agent, OpenClaw continuously sends requests to LLM providers
 - **Performance degradation**: Increased latency, declining response quality, and similar issues require historical data to diagnose effectively
 - **Service outages**: OpenClaw may stop running for various reasons, and you might not notice for hours
 
-### What AgentTrace Provides
+### What AgentGazer Provides
 
-By integrating OpenClaw with AgentTrace's Proxy mode, you can:
+By integrating OpenClaw with AgentGazer's Proxy mode, you can:
 
 - **Track the cost of every LLM call**: Detailed spending breakdowns by provider and model
 - **Monitor latency and error rates in real time**: Detect anomalies immediately
@@ -44,7 +44,7 @@ By integrating OpenClaw with AgentTrace's Proxy mode, you can:
 
 ### How It Works
 
-OpenClaw's `models.providers` configuration supports `baseUrl` overrides. By pointing `baseUrl` to the AgentTrace Proxy, the proxy transparently intercepts all LLM requests, automatically extracts metrics such as token usage, latency, and cost, then forwards the requests unchanged to the actual LLM provider. The entire process is completely transparent to OpenClaw.
+OpenClaw's `models.providers` configuration supports `baseUrl` overrides. By pointing `baseUrl` to the AgentGazer Proxy, the proxy transparently intercepts all LLM requests, automatically extracts metrics such as token usage, latency, and cost, then forwards the requests unchanged to the actual LLM provider. The entire process is completely transparent to OpenClaw.
 
 ---
 
@@ -55,7 +55,7 @@ OpenClaw's `models.providers` configuration supports `baseUrl` overrides. By poi
 | Item | Requirement | Description |
 |------|-------------|-------------|
 | Node.js | >= 18 | JavaScript runtime |
-| AgentTrace | Latest version | `npm install -g agenttrace` or use `npx agenttrace` |
+| AgentGazer | Latest version | `npm install -g agentgazer` or use `npx agentgazer` |
 | OpenClaw | Installed and running | Obtain from [openclaw.ai](https://openclaw.ai) |
 
 ### API Keys
@@ -79,19 +79,19 @@ openclaw status
 
 ---
 
-## 3. Starting AgentTrace
+## 3. Starting AgentGazer
 
 ### Quick Start
 
 ```bash
-npx agenttrace
+npx agentgazer
 ```
 
 Once started, the terminal will display the following information:
 
 ```
-AgentTrace server running on http://localhost:8080
-AgentTrace proxy running on http://localhost:4000
+AgentGazer server running on http://localhost:8080
+AgentGazer proxy running on http://localhost:4000
 Auth token: at_xxxxxxxxxxxxxxxx
 ```
 
@@ -101,25 +101,25 @@ Make note of the displayed **Auth Token** — you will need it later when config
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| AgentTrace Server | `:8080` | REST API and Dashboard (React) |
-| AgentTrace Proxy | `:4000` | Transparent LLM request proxy |
+| AgentGazer Server | `:8080` | REST API and Dashboard (React) |
+| AgentGazer Proxy | `:4000` | Transparent LLM request proxy |
 
 ### Opening the Dashboard
 
-Navigate to [http://localhost:8080](http://localhost:8080) in your browser to access the AgentTrace real-time monitoring dashboard.
+Navigate to [http://localhost:8080](http://localhost:8080) in your browser to access the AgentGazer real-time monitoring dashboard.
 
 ---
 
 ## 4. Architecture Diagram
 
-The following diagram illustrates the complete data flow of OpenClaw connecting to LLM providers through the AgentTrace Proxy:
+The following diagram illustrates the complete data flow of OpenClaw connecting to LLM providers through the AgentGazer Proxy:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       User's Machine                        │
 │                                                             │
 │  ┌───────────────┐     ┌──────────────────┐                 │
-│  │   OpenClaw     │────▶│  AgentTrace      │                 │
+│  │   OpenClaw     │────▶│  AgentGazer      │                 │
 │  │   Gateway      │     │  Proxy :4000     │                 │
 │  │               │     │                  │                 │
 │  │  openclaw.json:│     │  Auto-captures:  │                 │
@@ -135,7 +135,7 @@ The following diagram illustrates the complete data flow of OpenClaw connecting 
 │                     └───────────────────────┘               │
 │                                                             │
 │  ┌──────────────────────────────────────────┐               │
-│  │  AgentTrace Server :8080                  │               │
+│  │  AgentGazer Server :8080                  │               │
 │  │  ├── REST API  (/api/*)                   │               │
 │  │  ├── SQLite (data.db)                     │               │
 │  │  └── Dashboard (React)                    │               │
@@ -145,7 +145,7 @@ The following diagram illustrates the complete data flow of OpenClaw connecting 
 
 ### Data Flow
 
-1. OpenClaw sends LLM requests to `http://localhost:4000` (AgentTrace Proxy)
+1. OpenClaw sends LLM requests to `http://localhost:4000` (AgentGazer Proxy)
 2. The proxy transparently forwards requests to the actual LLM provider (e.g., `api.anthropic.com`)
 3. Upon receiving the provider's response, the proxy first returns the complete response to OpenClaw
 4. The proxy asynchronously parses the response, extracting metrics such as token usage, model name, latency, and cost
@@ -158,16 +158,16 @@ The following diagram illustrates the complete data flow of OpenClaw connecting 
 
 ## 5. Configuring Provider Keys
 
-The AgentTrace Proxy can automatically inject API keys on your behalf. To enable key injection, you must use **path prefix routing** — include the provider name in the `baseUrl` (e.g., `http://localhost:4000/anthropic`). This allows the proxy to securely identify the provider and inject the correct credentials.
+The AgentGazer Proxy can automatically inject API keys on your behalf. To enable key injection, you must use **path prefix routing** — include the provider name in the `baseUrl` (e.g., `http://localhost:4000/anthropic`). This allows the proxy to securely identify the provider and inject the correct credentials.
 
-### Storing API Keys in AgentTrace
+### Storing API Keys in AgentGazer
 
 ```bash
 # Store your Anthropic API key
-agenttrace providers set anthropic $ANTHROPIC_API_KEY
+agentgazer providers set anthropic $ANTHROPIC_API_KEY
 
 # Store your OpenAI API key
-agenttrace providers set openai $OPENAI_API_KEY
+agentgazer providers set openai $OPENAI_API_KEY
 ```
 
 ### How Auto-Injection Works
@@ -189,7 +189,7 @@ This means you can **omit the `apiKey` field** in your OpenClaw configuration an
 
 ## 6. Anthropic Configuration
 
-Edit `~/.openclaw/openclaw.json` and point the Anthropic provider's `baseUrl` to the AgentTrace Proxy:
+Edit `~/.openclaw/openclaw.json` and point the Anthropic provider's `baseUrl` to the AgentGazer Proxy:
 
 ```json5
 {
@@ -217,14 +217,14 @@ Edit `~/.openclaw/openclaw.json` and point the Anthropic provider's `baseUrl` to
 
 | Field | Description |
 |-------|-------------|
-| `baseUrl` | Points to the AgentTrace Proxy with the provider path prefix (`http://localhost:4000/anthropic`). The proxy strips the `/anthropic` prefix and forwards to `api.anthropic.com` |
-| `apiKey` | Anthropic API key. Can be omitted if already stored via `agenttrace providers set` (requires path prefix in `baseUrl`) |
+| `baseUrl` | Points to the AgentGazer Proxy with the provider path prefix (`http://localhost:4000/anthropic`). The proxy strips the `/anthropic` prefix and forwards to `api.anthropic.com` |
+| `apiKey` | Anthropic API key. Can be omitted if already stored via `agentgazer providers set` (requires path prefix in `baseUrl`) |
 | `api` | Specifies the API protocol as `anthropic-messages`, enabling the proxy to correctly detect the provider |
 | `primary` | The model to use, in the format `<provider-name>/<model-name>` |
 
 ### Simplified Configuration Without apiKey (Recommended)
 
-If you have already stored the key via `agenttrace providers set anthropic`:
+If you have already stored the key via `agentgazer providers set anthropic`:
 
 ```json5
 {
@@ -249,7 +249,7 @@ If you have already stored the key via `agenttrace providers set anthropic`:
 
 ### Supported Anthropic Models
 
-AgentTrace includes built-in pricing data for the following Anthropic models to automatically calculate costs:
+AgentGazer includes built-in pricing data for the following Anthropic models to automatically calculate costs:
 
 | Model | Input Cost (per million tokens) | Output Cost (per million tokens) |
 |-------|--------------------------------|----------------------------------|
@@ -261,7 +261,7 @@ AgentTrace includes built-in pricing data for the following Anthropic models to 
 
 ## 7. OpenAI Configuration
 
-Edit `~/.openclaw/openclaw.json` and point the OpenAI provider's `baseUrl` to the AgentTrace Proxy:
+Edit `~/.openclaw/openclaw.json` and point the OpenAI provider's `baseUrl` to the AgentGazer Proxy:
 
 ```json5
 {
@@ -289,14 +289,14 @@ Edit `~/.openclaw/openclaw.json` and point the OpenAI provider's `baseUrl` to th
 
 | Field | Description |
 |-------|-------------|
-| `baseUrl` | Points to the AgentTrace Proxy with the provider path prefix (`http://localhost:4000/openai`). The proxy strips the `/openai` prefix and forwards to `api.openai.com` |
-| `apiKey` | OpenAI API key. Can be omitted if already stored via `agenttrace providers set` (requires path prefix in `baseUrl`) |
+| `baseUrl` | Points to the AgentGazer Proxy with the provider path prefix (`http://localhost:4000/openai`). The proxy strips the `/openai` prefix and forwards to `api.openai.com` |
+| `apiKey` | OpenAI API key. Can be omitted if already stored via `agentgazer providers set` (requires path prefix in `baseUrl`) |
 | `api` | Specifies the API protocol as `openai-completions`, enabling the proxy to correctly detect the provider |
 | `primary` | The model to use, in the format `<provider-name>/<model-name>` |
 
 ### Supported OpenAI Models
 
-AgentTrace includes built-in pricing data for the following OpenAI models:
+AgentGazer includes built-in pricing data for the following OpenAI models:
 
 | Model | Input Cost (per million tokens) | Output Cost (per million tokens) |
 |-------|--------------------------------|----------------------------------|
@@ -313,7 +313,7 @@ AgentTrace includes built-in pricing data for the following OpenAI models:
 
 ## 8. Multi-Provider Configuration
 
-OpenClaw supports using multiple LLM providers simultaneously. The following configuration enables both Anthropic and OpenAI with all requests routed through the AgentTrace Proxy:
+OpenClaw supports using multiple LLM providers simultaneously. The following configuration enables both Anthropic and OpenAI with all requests routed through the AgentGazer Proxy:
 
 ```json5
 {
@@ -352,7 +352,7 @@ OpenClaw supports using multiple LLM providers simultaneously. The following con
 
 ### Multi-Provider Monitoring Benefits
 
-When using multiple providers simultaneously, the AgentTrace Dashboard can:
+When using multiple providers simultaneously, the AgentGazer Dashboard can:
 
 - Display cost comparisons categorized by provider
 - Track error rate differences across providers
@@ -365,14 +365,14 @@ When using multiple providers simultaneously, the AgentTrace Dashboard can:
 
 After completing the configuration, follow these steps to verify that the integration is working correctly.
 
-### Step 1: Confirm AgentTrace Is Running
+### Step 1: Confirm AgentGazer Is Running
 
 ```bash
-# Start AgentTrace (if not already running)
-npx agenttrace
+# Start AgentGazer (if not already running)
+npx agentgazer
 
 # Or if installed globally
-agenttrace start
+agentgazer start
 ```
 
 Verify that the terminal shows the proxy is listening on `:4000`.
@@ -404,7 +404,7 @@ For example, send the following to the OpenClaw bot in Discord:
 @OpenClaw Hello, this is a test message.
 ```
 
-### Step 4: Check the AgentTrace Dashboard
+### Step 4: Check the AgentGazer Dashboard
 
 1. Open [http://localhost:8080](http://localhost:8080) in your browser
 2. Navigate to the **Agents** page — you should see a new agent entry appear
@@ -447,7 +447,7 @@ Expected response:
 
 ## 10. Setting Up Alerts
 
-AgentTrace provides multiple alert rules to notify you immediately when OpenClaw encounters anomalies. The following are the most practical alert configurations for OpenClaw use cases.
+AgentGazer provides multiple alert rules to notify you immediately when OpenClaw encounters anomalies. The following are the most practical alert configurations for OpenClaw use cases.
 
 ### 10.1 Agent Down Alert — Detecting When OpenClaw Stops Running
 
@@ -455,7 +455,7 @@ When OpenClaw has not sent any LLM requests for an extended period, it may indic
 
 **Configuring via Dashboard:**
 
-1. Open the AgentTrace Dashboard (`http://localhost:8080`)
+1. Open the AgentGazer Dashboard (`http://localhost:8080`)
 2. Navigate to the **Alerts** page
 3. Click **New Alert Rule**
 4. Select the target agent: `openclaw`
@@ -543,10 +543,10 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
 | Problem | Possible Cause | Solution |
 |---------|---------------|----------|
-| OpenClaw calls do not appear in Dashboard | Incorrect `baseUrl` in `openclaw.json` | Confirm `baseUrl` points to the Proxy's `:4000` with a provider path prefix (e.g., `http://localhost:4000/anthropic`), not the Server's `:8080`, and verify that AgentTrace is running |
+| OpenClaw calls do not appear in Dashboard | Incorrect `baseUrl` in `openclaw.json` | Confirm `baseUrl` points to the Proxy's `:4000` with a provider path prefix (e.g., `http://localhost:4000/anthropic`), not the Server's `:8080`, and verify that AgentGazer is running |
 | Provider not detected | Incorrect `api` protocol field | Use `"api": "anthropic-messages"` for Anthropic and `"api": "openai-completions"` for OpenAI |
-| LLM provider returns authentication error | API key not configured or not injected | Store the key via `agenttrace providers set` and ensure `baseUrl` uses a path prefix (e.g., `/anthropic`), or include the `apiKey` field directly in `openclaw.json` |
-| Connection refused | AgentTrace not started or incorrect port | Run `agenttrace doctor` to check service status and verify consistent port configuration |
+| LLM provider returns authentication error | API key not configured or not injected | Store the key via `agentgazer providers set` and ensure `baseUrl` uses a path prefix (e.g., `/anthropic`), or include the `apiKey` field directly in `openclaw.json` |
+| Connection refused | AgentGazer not started or incorrect port | Run `agentgazer doctor` to check service status and verify consistent port configuration |
 | Events appear but cost data is missing | Model name not in the pricing table | Verify the model name matches an entry in `packages/shared/src/pricing.ts` |
 | OpenClaw fails to start after configuration changes | Syntax error in `openclaw.json` | Validate JSON syntax and check for trailing commas |
 
@@ -554,17 +554,17 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
 #### OpenClaw Calls Do Not Appear in Dashboard
 
-1. **Confirm AgentTrace is running**:
+1. **Confirm AgentGazer is running**:
 
    ```bash
    # Check if the proxy is listening
    curl http://localhost:4000/health
    ```
 
-   If a connection error is returned, restart AgentTrace:
+   If a connection error is returned, restart AgentGazer:
 
    ```bash
-   npx agenttrace
+   npx agentgazer
    ```
 
 2. **Confirm the `baseUrl` is set correctly**:
@@ -584,7 +584,7 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
    ```bash
    # List stored provider keys
-   agenttrace providers list
+   agentgazer providers list
    ```
 
 2. **Test proxy forwarding**:
@@ -605,14 +605,14 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
 #### Events Appear but Cost Data Is Missing
 
-AgentTrace calculates costs automatically based on the built-in pricing table (`packages/shared/src/pricing.ts`). If the model name is not in the pricing table, the cost field will appear empty.
+AgentGazer calculates costs automatically based on the built-in pricing table (`packages/shared/src/pricing.ts`). If the model name is not in the pricing table, the cost field will appear empty.
 
 Currently supported model pricing includes:
 
 - **OpenAI**: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-4`, `gpt-3.5-turbo`, `o1`, `o1-mini`, `o3-mini`
 - **Anthropic**: `claude-opus-4-20250514`, `claude-sonnet-4-20250514`, `claude-3-5-haiku-20241022`
 
-> **Note**: The model name in the OpenClaw configuration (e.g., `claude-opus-4-5`) may differ from the full model ID in the AgentTrace pricing table. The proxy attempts to extract the actual model ID from the API response for cost calculation.
+> **Note**: The model name in the OpenClaw configuration (e.g., `claude-opus-4-5`) may differ from the full model ID in the AgentGazer pricing table. The proxy attempts to extract the actual model ID from the API response for cost calculation.
 
 #### OpenClaw Fails to Start After Configuration Changes
 
@@ -631,10 +631,10 @@ node -e "JSON.parse(require('fs').readFileSync('$HOME/.openclaw/openclaw.json','
 
 #### Port Conflicts
 
-If the default ports are already in use by other services, you can specify different ports when starting AgentTrace:
+If the default ports are already in use by other services, you can specify different ports when starting AgentGazer:
 
 ```bash
-npx agenttrace --port 9080 --proxy-port 5000
+npx agentgazer --port 9080 --proxy-port 5000
 ```
 
 Then update the `baseUrl` in `openclaw.json` accordingly:
@@ -658,9 +658,9 @@ Then update the `baseUrl` in `openclaw.json` accordingly:
 
 Complete the following steps in order for a quick integration:
 
-- [ ] Install AgentTrace (`npm install -g agenttrace` or use `npx`)
-- [ ] Start AgentTrace (`npx agenttrace`)
-- [ ] Store provider keys (`agenttrace providers set anthropic <key>`)
+- [ ] Install AgentGazer (`npm install -g agentgazer` or use `npx`)
+- [ ] Start AgentGazer (`npx agentgazer`)
+- [ ] Store provider keys (`agentgazer providers set anthropic <key>`)
 - [ ] Edit `~/.openclaw/openclaw.json` and set `baseUrl` to `http://localhost:4000/<provider>` (e.g., `http://localhost:4000/anthropic`)
 - [ ] Restart the OpenClaw Gateway
 - [ ] Send a test message and confirm events appear in the Dashboard

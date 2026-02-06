@@ -18,12 +18,12 @@ export interface ProviderConfig {
   rateLimit?: ProviderRateLimit;
 }
 
-export interface AgentTraceConfig {
+export interface AgentGazerConfig {
   token: string;
   providers?: Record<string, ProviderConfig>;
 }
 
-const CONFIG_DIR = path.join(os.homedir(), ".agenttrace");
+const CONFIG_DIR = path.join(os.homedir(), ".agentgazer");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 const DB_FILE = path.join(CONFIG_DIR, "data.db");
 
@@ -39,7 +39,7 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
-export function ensureConfig(): AgentTraceConfig {
+export function ensureConfig(): AgentGazerConfig {
   // Create directory if it doesn't exist
   if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
@@ -51,7 +51,7 @@ export function ensureConfig(): AgentTraceConfig {
     return existing;
   }
 
-  const config: AgentTraceConfig = {
+  const config: AgentGazerConfig = {
     token: generateToken(),
   };
 
@@ -59,7 +59,7 @@ export function ensureConfig(): AgentTraceConfig {
   return config;
 }
 
-export function readConfig(): AgentTraceConfig | null {
+export function readConfig(): AgentGazerConfig | null {
   if (!fs.existsSync(CONFIG_FILE)) {
     return null;
   }
@@ -68,7 +68,7 @@ export function readConfig(): AgentTraceConfig | null {
     const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.token === "string" && parsed.token.length > 0) {
-      const config: AgentTraceConfig = { token: parsed.token };
+      const config: AgentGazerConfig = { token: parsed.token };
       if (parsed.providers && typeof parsed.providers === "object") {
         config.providers = parsed.providers;
       }
@@ -80,7 +80,7 @@ export function readConfig(): AgentTraceConfig | null {
   }
 }
 
-export function saveConfig(config: AgentTraceConfig): void {
+export function saveConfig(config: AgentGazerConfig): void {
   if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
   }
@@ -90,7 +90,7 @@ export function saveConfig(config: AgentTraceConfig): void {
 export function setProvider(
   name: string,
   providerConfig: ProviderConfig
-): AgentTraceConfig {
+): AgentGazerConfig {
   const config = ensureConfig();
   if (!config.providers) {
     config.providers = {};
@@ -100,7 +100,7 @@ export function setProvider(
   return config;
 }
 
-export function removeProvider(name: string): AgentTraceConfig {
+export function removeProvider(name: string): AgentGazerConfig {
   const config = ensureConfig();
   if (config.providers) {
     delete config.providers[name];
@@ -117,9 +117,9 @@ export function listProviders(): Record<string, ProviderConfig> {
   return config?.providers ?? {};
 }
 
-export function resetToken(): AgentTraceConfig {
+export function resetToken(): AgentGazerConfig {
   const existing = readConfig();
-  const config: AgentTraceConfig = {
+  const config: AgentGazerConfig = {
     ...existing,
     token: generateToken(),
   };

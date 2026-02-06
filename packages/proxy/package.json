@@ -1,7 +1,7 @@
 {
-  "name": "@agenttrace/proxy",
+  "name": "@agentgazer/proxy",
   "version": "0.1.0",
-  "description": "AgentTrace proxy server for buffering and forwarding agent events",
+  "description": "AgentGazer proxy server for buffering and forwarding agent events",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -12,7 +12,7 @@
     }
   },
   "bin": {
-    "agenttrace-proxy": "./dist/cli.js"
+    "agentgazer-proxy": "./dist/cli.js"
   },
   "files": [
     "dist/",
@@ -24,15 +24,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/agenttrace/agenttrace.git",
+    "url": "https://github.com/agentgazer/agentgazer.git",
     "directory": "packages/proxy"
   },
-  "homepage": "https://github.com/agenttrace/agenttrace/tree/main/packages/proxy#readme",
+  "homepage": "https://github.com/agentgazer/agentgazer/tree/main/packages/proxy#readme",
   "bugs": {
-    "url": "https://github.com/agenttrace/agenttrace/issues"
+    "url": "https://github.com/agentgazer/agentgazer/issues"
   },
   "keywords": [
-    "agenttrace",
+    "agentgazer",
     "ai-agents",
     "observability",
     "proxy",
@@ -48,8 +48,8 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agenttrace/shared": "^0.1.0",
-    "@agenttrace/server": "^0.1.0"
+    "@agentgazer/shared": "^0.1.0",
+    "@agentgazer/server": "^0.1.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",

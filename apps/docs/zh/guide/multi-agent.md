@@ -1,6 +1,6 @@
 # 多 Agent 設定
 
-當你在同一台機器上運行多個 AI Agent 時，可以共用同一個 AgentTrace Proxy，同時分開追蹤各 Agent 的用量。
+當你在同一台機器上運行多個 AI Agent 時，可以共用同一個 AgentGazer Proxy，同時分開追蹤各 Agent 的用量。
 
 ## 問題
 
@@ -97,14 +97,14 @@ await anthropic.messages.create({
 ### 啟動 Proxy
 
 ```bash
-agenttrace start
+agentgazer start
 ```
 
 不需要特殊參數 — `x-agent-id` header 會處理 Agent 識別。
 
 ## Dashboard 顯示
 
-這樣設定後，AgentTrace Dashboard 會顯示：
+這樣設定後，AgentGazer Dashboard 會顯示：
 
 - **Agents 頁面**：`coding-assistant` 和 `research-assistant` 作為獨立的 Agent 列出
 - **各 Agent 統計**：每個 Agent 有自己的成本、Token 用量、延遲指標

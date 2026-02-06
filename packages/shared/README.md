@@ -1,6 +1,6 @@
-# @agenttrace/shared
+# @agentgazer/shared
 
-Shared types, schemas, and utilities used by all AgentTrace packages.
+Shared types, schemas, and utilities used by all AgentGazer packages.
 
 ## Contents
 

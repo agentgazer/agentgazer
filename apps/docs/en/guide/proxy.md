@@ -19,7 +19,7 @@ The Proxy supports path prefix routing, which automatically forwards requests to
 
 **Option A: Use stored API Key (Recommended)**
 
-If you've stored your API Key with `agenttrace providers set openai <key>`, use the path prefix for automatic injection:
+If you've stored your API Key with `agentgazer providers set openai <key>`, use the path prefix for automatic injection:
 
 ```bash
 export OPENAI_BASE_URL=http://localhost:4000/openai/v1
@@ -172,7 +172,7 @@ When blocked, the Proxy returns a valid response in the provider's format:
   "choices": [{
     "message": {
       "role": "assistant",
-      "content": "[AgentTrace] Request blocked: budget_exceeded"
+      "content": "[AgentGazer] Request blocked: budget_exceeded"
     },
     "finish_reason": "stop"
   }]
@@ -187,7 +187,7 @@ When blocked, the Proxy returns a valid response in the provider's format:
   "type": "message",
   "content": [{
     "type": "text",
-    "text": "[AgentTrace] Request blocked: agent_deactivated"
+    "text": "[AgentGazer] Request blocked: agent_deactivated"
   }],
   "stop_reason": "end_turn"
 }
@@ -251,7 +251,7 @@ The `Retry-After` HTTP header is also set.
 
 ### Configuration
 
-Rate limits are configured in the Dashboard's Agent Detail → Rate Limit Settings section. See [Dashboard Rate Limit Settings](/guide/dashboard#rate-limit-settings) for details.
+Rate limits are configured in the Dashboard's Agent Detail → Rate Limit Settings section. See [Dashboard Rate Limit Settings](/en/guide/dashboard#rate-limit-settings) for details.
 
 ### Block Reason
 
@@ -307,4 +307,4 @@ The Proxy only extracts the following metric data:
 - Cost (USD)
 - HTTP status code
 
-**Prompt content and API keys are never sent to the AgentTrace server.**
+**Prompt content and API keys are never sent to the AgentGazer server.**

@@ -1,5 +1,5 @@
 services:
-  agenttrace:
+  agentgazer:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,9 +7,9 @@ services:
       - "8080:8080"
       - "4000:4000"
     volumes:
-      - agenttrace-data:/root/.agenttrace
+      - agentgazer-data:/root/.agentgazer
     # environment:
     #   AGENTTRACE_SECRET_BACKEND: machine  # default; uses encrypted file with machine-derived key
 
 volumes:
-  agenttrace-data:
+  agentgazer-data:

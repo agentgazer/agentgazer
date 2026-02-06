@@ -4,9 +4,9 @@
 
 儀表板使用 **Token 認證**。啟動服務後，在登入頁面輸入你的認證 Token 即可。Token 來源：
 
-- 首次執行 `agenttrace onboard` 時產生
-- 儲存在 `~/.agenttrace/config.json` 中
-- 可透過 `agenttrace reset-token` 重新產生
+- 首次執行 `agentgazer onboard` 時產生
+- 儲存在 `~/.agentgazer/config.json` 中
+- 可透過 `agentgazer reset-token` 重新產生
 
 ## 頁面總覽
 

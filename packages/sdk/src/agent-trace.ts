@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import type { AgentEvent } from "@agenttrace/shared";
-import type { AgentTraceOptions, TrackOptions, Trace, Span } from "./types.js";
+import type { AgentEvent } from "@agentgazer/shared";
+import type { AgentGazerOptions, TrackOptions, Trace, Span } from "./types.js";
 
 const DEFAULT_ENDPOINT = "http://localhost:8080/api/events";
 const DEFAULT_FLUSH_INTERVAL = 5000;
@@ -8,7 +8,7 @@ const DEFAULT_MAX_BUFFER_SIZE = 50;
 const MAX_BUFFER_CAP = 5000; // Hard cap to prevent unbounded memory growth
 const FLUSH_TIMEOUT_MS = 30_000;
 
-export class AgentTrace {
+export class AgentGazer {
   private readonly apiKey: string;
   /** @internal */
   readonly agentId: string;
@@ -17,7 +17,7 @@ export class AgentTrace {
   private buffer: AgentEvent[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  private constructor(options: AgentTraceOptions) {
+  private constructor(options: AgentGazerOptions) {
     this.apiKey = options.apiKey.trim();
     this.agentId = options.agentId.trim();
     this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
@@ -35,14 +35,14 @@ export class AgentTrace {
     }
   }
 
-  static init(options: AgentTraceOptions): AgentTrace {
+  static init(options: AgentGazerOptions): AgentGazer {
     if (!options.apiKey || !options.apiKey.trim()) {
-      throw new Error("[AgentTrace] apiKey is required");
+      throw new Error("[AgentGazer] apiKey is required");
     }
     if (!options.agentId || !options.agentId.trim()) {
-      throw new Error("[AgentTrace] agentId is required");
+      throw new Error("[AgentGazer] agentId is required");
     }
-    return new AgentTrace(options);
+    return new AgentGazer(options);
   }
 
   // -------------------------------------------------------------------
@@ -150,7 +150,7 @@ export class AgentTrace {
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : String(error);
-      console.warn(`[AgentTrace] flush failed: ${message}`);
+      console.warn(`[AgentGazer] flush failed: ${message}`);
       // Buffer is already cleared — intentionally not re-queuing to
       // prevent unbounded growth.
     }
@@ -180,7 +180,7 @@ export class AgentTrace {
       if (this.buffer.length >= MAX_BUFFER_CAP) {
         this.buffer.shift(); // drop oldest to prevent unbounded growth
         console.warn(
-          `[AgentTrace] Buffer overflow: dropping oldest event (buffer size: ${MAX_BUFFER_CAP}). Events are being produced faster than they can be flushed.`,
+          `[AgentGazer] Buffer overflow: dropping oldest event (buffer size: ${MAX_BUFFER_CAP}). Events are being produced faster than they can be flushed.`,
         );
       }
     }
@@ -192,7 +192,7 @@ export class AgentTrace {
 }
 
 function createSpan(
-  client: AgentTrace,
+  client: AgentGazer,
   traceId: string,
   parentSpanId: string | null,
   name?: string,

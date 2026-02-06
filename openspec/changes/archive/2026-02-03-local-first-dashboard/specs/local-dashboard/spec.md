@@ -12,7 +12,7 @@ The dashboard SHALL be a Vite + React single-page application using React Router
 - **THEN** the SPA loads and renders the agent detail page (server returns `index.html` for all non-API routes)
 
 ### Requirement: Dashboard layout
-The dashboard SHALL have a persistent sidebar with navigation links (Overview, Agents, Costs, Alerts) and a main content area. The sidebar SHALL display the AgentTrace logo/name at the top. The layout SHALL use a dark theme consistent with the existing dashboard styling.
+The dashboard SHALL have a persistent sidebar with navigation links (Overview, Agents, Costs, Alerts) and a main content area. The sidebar SHALL display the AgentGazer logo/name at the top. The layout SHALL use a dark theme consistent with the existing dashboard styling.
 
 #### Scenario: Sidebar navigation
 - **WHEN** the dashboard loads

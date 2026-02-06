@@ -1,6 +1,6 @@
-# @agenttrace/proxy
+# @agentgazer/proxy
 
-Transparent HTTP proxy for LLM API calls. Forwards requests to upstream providers, extracts usage metrics from responses (including SSE streams), and buffers them for delivery to an AgentTrace server.
+Transparent HTTP proxy for LLM API calls. Forwards requests to upstream providers, extracts usage metrics from responses (including SSE streams), and buffers them for delivery to an AgentGazer server.
 
 ## Supported providers
 
@@ -25,7 +25,7 @@ Transparent HTTP proxy for LLM API calls. Forwards requests to upstream provider
 5. The request is forwarded to the real upstream API
 6. The response is streamed back to your client in real-time
 7. Token counts, model, latency, and cost are extracted and buffered
-8. Buffered events are flushed to the AgentTrace server periodically
+8. Buffered events are flushed to the AgentGazer server periodically
 
 Both standard JSON responses and SSE streaming responses are supported.
 
@@ -34,14 +34,14 @@ Both standard JSON responses and SSE streaming responses are supported.
 ### As part of the CLI (typical)
 
 ```bash
-npx agenttrace start
+npx agentgazer start
 # Proxy starts on port 4000
 ```
 
 ### Standalone CLI
 
 ```bash
-agenttrace-proxy --api-key <token> --agent-id proxy \
+agentgazer-proxy --api-key <token> --agent-id proxy \
   --provider-keys '{"openai":"sk-..."}' \
   --rate-limits '{"openai":{"maxRequests":100,"windowSeconds":60}}'
 ```
@@ -49,7 +49,7 @@ agenttrace-proxy --api-key <token> --agent-id proxy \
 ### Programmatic
 
 ```typescript
-import { startProxy } from "@agenttrace/proxy";
+import { startProxy } from "@agentgazer/proxy";
 
 const { server, shutdown } = startProxy({
   port: 4000,
@@ -102,7 +102,7 @@ GET http://localhost:4000/health
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `port` | `number` | `4000` | Proxy listen port |
-| `apiKey` | `string` | **required** | Auth token for the AgentTrace server |
+| `apiKey` | `string` | **required** | Auth token for the AgentGazer server |
 | `agentId` | `string` | **required** | Agent ID for recorded events |
 | `endpoint` | `string` | — | Event ingestion URL |
 | `flushInterval` | `number` | `5000` | Event buffer flush interval in ms |

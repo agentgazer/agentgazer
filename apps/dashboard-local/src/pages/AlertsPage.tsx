@@ -125,7 +125,7 @@ function defaultTelegramConfig(): TelegramConfig {
   return {
     bot_token: "",
     chat_id: "",
-    message_template: "[From AgentTrace] Alert: {rule_type} - Agent: {agent_id} - {message}",
+    message_template: "[From AgentGazer] Alert: {rule_type} - Agent: {agent_id} - {message}",
   };
 }
 
@@ -663,7 +663,7 @@ Content-Type: application/json
               value={form.telegram_config.message_template}
               onChange={(e) => handleTelegramChange("message_template", e.target.value)}
               className={inputClass + " h-20 resize-none"}
-              placeholder="[From AgentTrace] Alert: {rule_type} - Agent: {agent_id} - {message}"
+              placeholder="[From AgentGazer] Alert: {rule_type} - Agent: {agent_id} - {message}"
             />
             <p className="mt-1 text-xs text-gray-500">
               Available variables: {"{agent_id}"}, {"{rule_type}"}, {"{message}"}, {"{timestamp}"}

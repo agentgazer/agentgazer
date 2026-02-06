@@ -1,15 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: Dashboard assets included in CLI npm package
-The published `agenttrace` npm package SHALL include pre-built dashboard-local static files so that `agenttrace start` serves the dashboard UI without any additional downloads.
+The published `agentgazer` npm package SHALL include pre-built dashboard-local static files so that `agentgazer start` serves the dashboard UI without any additional downloads.
 
 #### Scenario: npm install includes dashboard
-- **WHEN** a user installs `agenttrace` from npm
+- **WHEN** a user installs `agentgazer` from npm
 - **THEN** the package SHALL contain the dashboard HTML/JS/CSS files in a known location relative to the CLI entry point
 
 #### Scenario: Dashboard served after start
-- **WHEN** user runs `agenttrace start`
-- **THEN** navigating to `http://localhost:8080` in a browser SHALL show the AgentTrace dashboard
+- **WHEN** user runs `agentgazer start`
+- **THEN** navigating to `http://localhost:8080` in a browser SHALL show the AgentGazer dashboard
 
 ### Requirement: Build pipeline produces dashboard before CLI
 The monorepo build pipeline SHALL build `dashboard-local` before `packages/cli`, and the CLI build step SHALL copy dashboard-local dist into its own dist directory.

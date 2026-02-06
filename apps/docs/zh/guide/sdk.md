@@ -3,15 +3,15 @@
 ## 安裝
 
 ```bash
-npm install @agenttrace/sdk
+npm install @agentgazer/sdk
 ```
 
 ## 初始化
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: "your-token",           // 必填：在 onboard 時產生的 Token
   agentId: "my-agent",            // 必填：此 Agent 的唯一識別碼
   endpoint: "http://localhost:8080/api/events",  // 選填：預設指向本地伺服器
@@ -109,10 +109,10 @@ SDK 採用批次發送策略以提升效率：
 ## 完整範例
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 import OpenAI from "openai";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: process.env.AGENTTRACE_TOKEN!,
   agentId: "my-chatbot",
   endpoint: "http://localhost:8080/api/events",

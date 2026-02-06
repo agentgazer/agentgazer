@@ -1,8 +1,8 @@
 ## 1. Operation Guide — Chinese (rewrite)
 
-- [x] 1.1 Rewrite `docs/operation-guide-zh.md` with platform overview section: what AgentTrace is, core features, data collection methods (proxy vs SDK), supported providers table, all reflecting local-first architecture
+- [x] 1.1 Rewrite `docs/operation-guide-zh.md` with platform overview section: what AgentGazer is, core features, data collection methods (proxy vs SDK), supported providers table, all reflecting local-first architecture
 - [x] 1.2 Add system architecture section with ASCII diagram showing CLI → Express server (:8080) + LLM proxy (:4000) + React dashboard + SQLite
-- [x] 1.3 Add installation and quick start section: `npx agenttrace`, onboard flow, token generation, verifying the system is running
+- [x] 1.3 Add installation and quick start section: `npx agentgazer`, onboard flow, token generation, verifying the system is running
 - [x] 1.4 Add CLI reference section documenting all subcommands: onboard, start (with --port, --proxy-port, --retention-days, --no-open), status, reset-token, providers list|set|remove, version, doctor, agents, stats (with --range), help
 - [x] 1.5 Add proxy usage section: path prefix routing table (/openai/, /anthropic/, etc.), x-target-url header, OpenAI baseURL example, provider auto-detection hierarchy, health check endpoint, privacy guarantees
 - [x] 1.6 Add SDK usage section: installation, init, track, heartbeat, error, custom, distributed tracing (startTrace/startSpan), batching behavior, graceful shutdown, complete working example
@@ -22,13 +22,13 @@
 ## 3. OpenClaw Integration Guide — Chinese
 
 - [x] 3.1 Create `docs/guide-openclaw-zh.md` with overview section: why monitor OpenClaw, what you get (cost visibility, error tracking, latency, agent-down detection)
-- [x] 3.2 Add prerequisites section: Node.js >= 18, AgentTrace, OpenClaw installed and running, Anthropic/OpenAI API key
-- [x] 3.3 Add AgentTrace setup section: npx agenttrace, note token and ports
-- [x] 3.4 Add architecture diagram (ASCII): OpenClaw Gateway → AgentTrace Proxy → LLM Provider, with monitoring layer
+- [x] 3.2 Add prerequisites section: Node.js >= 18, AgentGazer, OpenClaw installed and running, Anthropic/OpenAI API key
+- [x] 3.3 Add AgentGazer setup section: npx agentgazer, note token and ports
+- [x] 3.4 Add architecture diagram (ASCII): OpenClaw Gateway → AgentGazer Proxy → LLM Provider, with monitoring layer
 - [x] 3.5 Add Anthropic provider config section: complete openclaw.json snippet with baseUrl pointing to localhost:4000, api: anthropic-messages, agent model selection
 - [x] 3.6 Add OpenAI provider config section: openclaw.json snippet with api: openai-completions
 - [x] 3.7 Add multi-provider config section: both Anthropic and OpenAI in single openclaw.json
-- [x] 3.8 Add provider key setup section: agenttrace providers set anthropic/openai, explain auto-injection
+- [x] 3.8 Add provider key setup section: agentgazer providers set anthropic/openai, explain auto-injection
 - [x] 3.9 Add verification section: send test message to OpenClaw, check dashboard for event
 - [x] 3.10 Add alert setup section: agent-down, error-rate, and budget alert examples relevant to OpenClaw
 - [x] 3.11 Add troubleshooting section: wrong baseUrl, provider not detected, API key issues, connection errors, events not appearing

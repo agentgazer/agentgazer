@@ -2,7 +2,7 @@
 
 ## Events are not appearing in the dashboard
 
-1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agenttrace/config.json`
+1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agentgazer/config.json`
 2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:8080/api/events`
 3. **Ensure the buffer has been flushed**: Events may still be in the buffer. Call `at.shutdown()` to force a flush, or wait for the 5-second auto-flush cycle
 4. **Check console warnings**: SDK network errors do not throw exceptions but are logged as warnings in the console
@@ -27,13 +27,13 @@
 
 ## Dashboard login fails
 
-1. **Verify the Token**: Check the Token in `~/.agenttrace/config.json`
-2. **Regenerate the Token**: Run `agenttrace reset-token` to generate a new Token
-3. **Confirm the server is running**: Run `agenttrace doctor` to check server status
+1. **Verify the Token**: Check the Token in `~/.agentgazer/config.json`
+2. **Regenerate the Token**: Run `agentgazer reset-token` to generate a new Token
+3. **Confirm the server is running**: Run `agentgazer doctor` to check server status
 
 ## Cost calculations are incorrect
 
-1. **Verify model names**: Cost calculation relies on the pricing table in `@agenttrace/shared`. Model name lookup is case-insensitive (e.g., both `GPT-4o` and `gpt-4o` will match)
+1. **Verify model names**: Cost calculation relies on the pricing table in `@agentgazer/shared`. Model name lookup is case-insensitive (e.g., both `GPT-4o` and `gpt-4o` will match)
 2. **Negative token values**: If negative token counts are passed, cost calculation returns `null`
 3. **Manually specify cost_usd**: If automatic calculation is inaccurate, pass the `cost_usd` field manually in `track()`
 
@@ -42,17 +42,17 @@
 If the default ports are already in use, start with custom ports:
 
 ```bash
-agenttrace start --port 9090 --proxy-port 5000
+agentgazer start --port 9090 --proxy-port 5000
 ```
 
 ## Database issues
 
-The SQLite database is located at `~/.agenttrace/data.db`. To reset it:
+The SQLite database is located at `~/.agentgazer/data.db`. To reset it:
 
 ```bash
 # Stop the service, then delete the database file
-rm ~/.agenttrace/data.db
+rm ~/.agentgazer/data.db
 
 # Restart — the system will automatically create a new database
-agenttrace start
+agentgazer start
 ```

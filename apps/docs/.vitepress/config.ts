@@ -1,7 +1,7 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  title: "AgentTrace",
+  title: "AgentGazer",
   description: "AI Agent Observability",
 
   // Ignore localhost links (they're valid for local development docs)
@@ -16,9 +16,9 @@ export default defineConfig({
       light: "/logo.svg",
       dark: "/logo.svg",
     },
-    siteTitle: "AgentTrace",
+    siteTitle: "AgentGazer",
     socialLinks: [
-      { icon: "github", link: "https://github.com/agenttrace/agenttrace" },
+      { icon: "github", link: "https://github.com/agentgazer/agentgazer" },
     ],
     search: {
       provider: "local",

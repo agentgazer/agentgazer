@@ -2,7 +2,7 @@
 
 ## 事件沒有出現在儀表板
 
-1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agenttrace/config.json` 中的一致
+1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agentgazer/config.json` 中的一致
 2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:8080/api/events`
 3. **確認 Buffer 已 Flush**：事件可能還在 buffer 中。呼叫 `at.shutdown()` 強制送出，或等待 5 秒的自動 flush 週期
 4. **查看 console 警告**：SDK 的網路錯誤不會拋出例外，但會在 console 記錄 warning
@@ -27,13 +27,13 @@
 
 ## 儀表板登入失敗
 
-1. **確認 Token**：查看 `~/.agenttrace/config.json` 中的 Token
-2. **重新產生 Token**：執行 `agenttrace reset-token` 產生新的 Token
-3. **確認伺服器已啟動**：執行 `agenttrace doctor` 檢查伺服器狀態
+1. **確認 Token**：查看 `~/.agentgazer/config.json` 中的 Token
+2. **重新產生 Token**：執行 `agentgazer reset-token` 產生新的 Token
+3. **確認伺服器已啟動**：執行 `agentgazer doctor` 檢查伺服器狀態
 
 ## 成本計算不正確
 
-1. **確認模型名稱**：成本計算依賴 `@agenttrace/shared` 中的定價表，模型名稱查詢不區分大小寫（例如 `GPT-4o` 和 `gpt-4o` 皆可匹配）
+1. **確認模型名稱**：成本計算依賴 `@agentgazer/shared` 中的定價表，模型名稱查詢不區分大小寫（例如 `GPT-4o` 和 `gpt-4o` 皆可匹配）
 2. **負數 token 值**：若傳入負數的 token 數量，成本計算會回傳 `null`
 3. **手動指定 cost_usd**：如果自動計算不準確，可在 `track()` 中手動傳入 `cost_usd` 欄位
 
@@ -42,17 +42,17 @@
 如果預設連接埠已被佔用，可使用自訂連接埠啟動：
 
 ```bash
-agenttrace start --port 9090 --proxy-port 5000
+agentgazer start --port 9090 --proxy-port 5000
 ```
 
 ## 資料庫問題
 
-SQLite 資料庫位於 `~/.agenttrace/data.db`。如需重置：
+SQLite 資料庫位於 `~/.agentgazer/data.db`。如需重置：
 
 ```bash
 # 停止服務後刪除資料庫檔案
-rm ~/.agenttrace/data.db
+rm ~/.agentgazer/data.db
 
 # 重新啟動，系統會自動建立新的資料庫
-agenttrace start
+agentgazer start
 ```

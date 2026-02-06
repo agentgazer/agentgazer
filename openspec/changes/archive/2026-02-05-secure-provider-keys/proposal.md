@@ -1,6 +1,6 @@
 ## Why
 
-Provider API keys are stored as plaintext in `~/.agenttrace/config.json` (default permissions 0644). AI agents running on the same machine with local user file-read access can trivially extract all configured provider keys. Additionally, the proxy's path-based provider detection allows key extraction via `x-target-url` pointed at an attacker-controlled server. These vectors must be closed to make AgentTrace safe to run alongside AI coding agents.
+Provider API keys are stored as plaintext in `~/.agentgazer/config.json` (default permissions 0644). AI agents running on the same machine with local user file-read access can trivially extract all configured provider keys. Additionally, the proxy's path-based provider detection allows key extraction via `x-target-url` pointed at an attacker-controlled server. These vectors must be closed to make AgentGazer safe to run alongside AI coding agents.
 
 ## What Changes
 
@@ -9,7 +9,7 @@ Provider API keys are stored as plaintext in `~/.agenttrace/config.json` (defaul
 - **SecretStore abstraction**: Platform-agnostic interface with pluggable backends (encrypted-file, macOS Keychain, libsecret), auto-detected based on OS and session type.
 - **Hostname-only key injection**: Proxy only injects provider API keys when the target URL's hostname matches a known provider. Path-only detection is restricted to metrics extraction only. **BREAKING** for users relying on path-based detection for key injection with custom `x-target-url` targets.
 - **Config migration**: Existing plaintext keys in `config.json` are automatically migrated to the secret store on first run, then removed from the config file.
-- **Passphrase support**: `agenttrace start` prompts for passphrase (stdin). Also accepts `AGENTTRACE_PASSPHRASE` environment variable for scripting/CI.
+- **Passphrase support**: `agentgazer start` prompts for passphrase (stdin). Also accepts `AGENTTRACE_PASSPHRASE` environment variable for scripting/CI.
 
 ## Capabilities
 

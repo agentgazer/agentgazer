@@ -1,4 +1,4 @@
-import { createLogger, type AgentEvent } from "@agenttrace/shared";
+import { createLogger, type AgentEvent } from "@agentgazer/shared";
 
 const log = createLogger("event-buffer");
 

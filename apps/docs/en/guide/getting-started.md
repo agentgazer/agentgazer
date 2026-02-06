@@ -5,7 +5,7 @@
 **Option A: One-line install (Recommended)**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
 ```
 
 Works on macOS and Linux. Automatically downloads Node.js if needed.
@@ -13,14 +13,14 @@ Works on macOS and Linux. Automatically downloads Node.js if needed.
 **Option B: Homebrew (macOS / Linux)**
 
 ```bash
-brew install agenttrace/tap/agenttrace
+brew install agentgazer/tap/agentgazer
 ```
 
 **Option C: npm (requires Node.js >= 18)**
 
 ```bash
-npx agenttrace          # Direct execution
-npm install -g agenttrace   # Or global install
+npx agentgazer          # Direct execution
+npm install -g agentgazer   # Or global install
 ```
 
 ## Initial Setup
@@ -28,15 +28,15 @@ npm install -g agenttrace   # Or global install
 Run the setup wizard:
 
 ```bash
-agenttrace onboard
+agentgazer onboard
 ```
 
-This creates `~/.agenttrace/config.json`, generates an auth token, and guides you through configuring LLM provider API keys.
+This creates `~/.agentgazer/config.json`, generates an auth token, and guides you through configuring LLM provider API keys.
 
 ## Start the Service
 
 ```bash
-agenttrace start
+agentgazer start
 ```
 
 Opens the dashboard at [http://localhost:8080](http://localhost:8080).
@@ -49,23 +49,23 @@ Opens the dashboard at [http://localhost:8080](http://localhost:8080).
 ## Verify
 
 ```bash
-agenttrace doctor
+agentgazer doctor
 ```
 
 ## Uninstall
 
 ```bash
 # curl install
-agenttrace uninstall
+agentgazer uninstall
 
 # Homebrew
-brew uninstall agenttrace
+brew uninstall agentgazer
 
 # npm
-npm uninstall -g agenttrace
+npm uninstall -g agentgazer
 ```
 
-User data (`~/.agenttrace/`) is preserved. Remove manually if needed.
+User data (`~/.agentgazer/`) is preserved. Remove manually if needed.
 
 ## Next Steps
 

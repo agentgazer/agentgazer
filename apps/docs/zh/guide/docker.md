@@ -15,7 +15,7 @@ docker compose up -d
 
 ## 資料持久化
 
-Docker 使用 `agenttrace-data` Volume 來持久化 `~/.agenttrace/` 目錄，確保 SQLite 資料庫、設定檔和加密金鑰庫在容器重啟後不會遺失。
+Docker 使用 `agentgazer-data` Volume 來持久化 `~/.agentgazer/` 目錄，確保 SQLite 資料庫、設定檔和加密金鑰庫在容器重啟後不會遺失。
 
 ## 環境變數
 
@@ -27,7 +27,7 @@ Docker 使用 `agenttrace-data` Volume 來持久化 `~/.agenttrace/` 目錄，�
 | `SMTP_PORT` | SMTP 連接埠 | `587` |
 | `SMTP_USER` | SMTP 使用者名稱 | — |
 | `SMTP_PASS` | SMTP 密碼 | — |
-| `SMTP_FROM` | 寄件者 Email 地址 | `alerts@agenttrace.dev` |
+| `SMTP_FROM` | 寄件者 Email 地址 | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | 是否使用 TLS | `false` |
 | `AGENTTRACE_SECRET_BACKEND` | 手動指定金鑰庫後端 | 自動偵測 |
 

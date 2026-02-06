@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { clearToken } from "../lib/api";
 import Logo from "./Logo";
 
-const SIDEBAR_COLLAPSED_KEY = "agenttrace-sidebar-collapsed";
+const SIDEBAR_COLLAPSED_KEY = "agentgazer-sidebar-collapsed";
 
 const NAV_ITEMS = [
   {

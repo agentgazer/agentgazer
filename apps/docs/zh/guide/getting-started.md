@@ -5,7 +5,7 @@
 **方式 A：一鍵安裝（推薦）**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
 ```
 
 支援 macOS 和 Linux，自動下載 Node.js（如果需要）。
@@ -13,14 +13,14 @@ curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/
 **方式 B：Homebrew（macOS / Linux）**
 
 ```bash
-brew install agenttrace/tap/agenttrace
+brew install agentgazer/tap/agentgazer
 ```
 
 **方式 C：npm（需要 Node.js >= 18）**
 
 ```bash
-npx agenttrace          # 直接執行
-npm install -g agenttrace   # 或全域安裝
+npx agentgazer          # 直接執行
+npm install -g agentgazer   # 或全域安裝
 ```
 
 ## 首次設定
@@ -28,15 +28,15 @@ npm install -g agenttrace   # 或全域安裝
 執行設定精靈：
 
 ```bash
-agenttrace onboard
+agentgazer onboard
 ```
 
-這會建立 `~/.agenttrace/config.json`、產生認證 Token，並引導你設定 LLM Provider API Key。
+這會建立 `~/.agentgazer/config.json`、產生認證 Token，並引導你設定 LLM Provider API Key。
 
 ## 啟動服務
 
 ```bash
-agenttrace start
+agentgazer start
 ```
 
 自動開啟儀表板 [http://localhost:8080](http://localhost:8080)。
@@ -49,23 +49,23 @@ agenttrace start
 ## 驗證
 
 ```bash
-agenttrace doctor
+agentgazer doctor
 ```
 
 ## 解除安裝
 
 ```bash
 # curl 安裝
-agenttrace uninstall
+agentgazer uninstall
 
 # Homebrew
-brew uninstall agenttrace
+brew uninstall agentgazer
 
 # npm
-npm uninstall -g agenttrace
+npm uninstall -g agentgazer
 ```
 
-使用者資料（`~/.agenttrace/`）會保留，如需移除請手動刪除。
+使用者資料（`~/.agentgazer/`）會保留，如需移除請手動刪除。
 
 ## 下一步
 

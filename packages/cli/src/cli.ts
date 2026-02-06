@@ -21,9 +21,9 @@ import {
   loadProviderKeys,
   PROVIDER_SERVICE,
 } from "./secret-store.js";
-import { startServer } from "@agenttrace/server";
-import { startProxy } from "@agenttrace/proxy";
-import { KNOWN_PROVIDER_NAMES } from "@agenttrace/shared";
+import { startServer } from "@agentgazer/server";
+import { startProxy } from "@agentgazer/proxy";
+import { KNOWN_PROVIDER_NAMES } from "@agentgazer/shared";
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -69,9 +69,9 @@ function parsePositional(argv: string[]): string[] {
 
 function printUsage(): void {
   console.log(`
-AgentTrace — AI Agent Observability
+AgentGazer — AI Agent Observability
 
-Usage: agenttrace <command> [options]
+Usage: agentgazer <command> [options]
 
 Commands:
   onboard                     First-time setup — generate token and configure providers
@@ -86,7 +86,7 @@ Commands:
   doctor                      Check system health
   agents                      List registered agents
   stats [agentId]             Show agent statistics (auto-selects if only one agent)
-  uninstall                   Remove AgentTrace (curl-installed only)
+  uninstall                   Remove AgentGazer (curl-installed only)
   help                        Show this help message
 
 Options (for start):
@@ -106,13 +106,13 @@ Options (for uninstall):
   --yes                      Skip confirmation prompts
 
 Examples:
-  agenttrace onboard                           First-time setup
-  agenttrace start                             Start with defaults
-  agenttrace start --port 9090                 Use custom server port
-  agenttrace providers set-key                 Interactive provider setup
-  agenttrace providers list                    List configured providers
-  agenttrace stats                             Show stats (auto-selects agent)
-  agenttrace stats my-agent --range 7d         Show stats for specific agent
+  agentgazer onboard                           First-time setup
+  agentgazer start                             Start with defaults
+  agentgazer start --port 9090                 Use custom server port
+  agentgazer providers set-key                 Interactive provider setup
+  agentgazer providers list                    List configured providers
+  agentgazer stats                             Show stats (auto-selects agent)
+  agentgazer stats my-agent --range 7d         Show stats for specific agent
 `);
 }
 
@@ -132,7 +132,7 @@ async function cmdOnboard(): Promise<void> {
   const saved = ensureConfig();
 
   console.log(`
-  AgentTrace — Setup
+  AgentGazer — Setup
   ───────────────────────────────────────
 
   Token:    ${saved.token}
@@ -186,9 +186,9 @@ async function cmdOnboard(): Promise<void> {
 
   ┌──────────────────────────────────────────────────────────┐
   │                                                          │
-  │  import { AgentTrace } from "@agenttrace/sdk";           │
+  │  import { AgentGazer } from "@agentgazer/sdk";           │
   │                                                          │
-  │  const at = AgentTrace.init({                            │
+  │  const at = AgentGazer.init({                            │
   │    apiKey: "${saved.token.slice(0, 20)}...",│
   │    agentId: "my-agent",                                  │
   │  });                                                     │
@@ -207,7 +207,7 @@ async function cmdOnboard(): Promise<void> {
 
     export OPENAI_BASE_URL=http://localhost:4000/openai/v1
 
-  Next: run "agenttrace start" to launch.
+  Next: run "agentgazer start" to launch.
 `);
 }
 
@@ -220,14 +220,14 @@ async function cmdProviders(args: string[]): Promise<void> {
       const providers = listProviders();
       const names = Object.keys(providers);
       if (names.length === 0) {
-        console.log("No providers configured. Use \"agenttrace providers set-key\" to add one.");
+        console.log("No providers configured. Use \"agentgazer providers set-key\" to add one.");
         return;
       }
       console.log("\n  Configured providers:");
       console.log("  ───────────────────────────────────────");
       for (const name of names) {
         const p = providers[name];
-        const keyStatus = p.apiKey ? "(plaintext — run \"agenttrace start\" to migrate)" : "(secured)";
+        const keyStatus = p.apiKey ? "(plaintext — run \"agentgazer start\" to migrate)" : "(secured)";
         const rateInfo = p.rateLimit
           ? ` (rate limit: ${p.rateLimit.maxRequests} req / ${p.rateLimit.windowSeconds}s)`
           : "";
@@ -240,7 +240,7 @@ async function cmdProviders(args: string[]): Promise<void> {
       const name = args[1];
       const key = args[2];
       if (!name || !key) {
-        console.error("Usage: agenttrace providers set <provider-name> <api-key>");
+        console.error("Usage: agentgazer providers set <provider-name> <api-key>");
         process.exit(1);
       }
       if (!(KNOWN_PROVIDERS as readonly string[]).includes(name)) {
@@ -307,7 +307,7 @@ async function cmdProviders(args: string[]): Promise<void> {
     case "remove": {
       const name = args[1];
       if (!name) {
-        console.error("Usage: agenttrace providers remove <provider-name>");
+        console.error("Usage: agentgazer providers remove <provider-name>");
         process.exit(1);
       }
       const { store } = await detectSecretStore(getConfigDir());
@@ -319,7 +319,7 @@ async function cmdProviders(args: string[]): Promise<void> {
       break;
     }
     default:
-      console.error("Usage: agenttrace providers <list|set-key|set|remove>");
+      console.error("Usage: agentgazer providers <list|set-key|set|remove>");
       process.exit(1);
   }
 }
@@ -327,12 +327,12 @@ async function cmdProviders(args: string[]): Promise<void> {
 function cmdStatus(): void {
   const config = readConfig();
   if (!config) {
-    console.log("No configuration found. Run \"agenttrace onboard\" first.");
+    console.log("No configuration found. Run \"agentgazer onboard\" first.");
     process.exit(1);
   }
 
   console.log(`
-  AgentTrace — Status
+  AgentGazer — Status
   ───────────────────────────────────────
 
   Token:    ${config.token}
@@ -439,7 +439,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
   console.log(`
   ╔════════════════════════════════════════════════════╗
-  ║              AgentTrace running                    ║
+  ║              AgentGazer running                    ║
   ╠════════════════════════════════════════════════════╣
   ║                                                    ║
   ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}                ║
@@ -537,7 +537,7 @@ async function apiGet(urlPath: string, port: number): Promise<unknown> {
       (err as NodeJS.ErrnoException & { cause?: { code?: string } }).cause
         ?.code === "ECONNREFUSED"
     ) {
-      console.error('Server not running. Run "agenttrace start" first.');
+      console.error('Server not running. Run "agentgazer start" first.');
       process.exit(1);
     }
     throw err;
@@ -551,7 +551,7 @@ async function apiGet(urlPath: string, port: number): Promise<unknown> {
 function cmdVersion(): void {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const pkg = require(path.resolve(__dirname, "../package.json")) as { version: string };
-  console.log(`agenttrace ${pkg.version}`);
+  console.log(`agentgazer ${pkg.version}`);
 }
 
 async function cmdDoctor(flags: Record<string, string>): Promise<void> {
@@ -570,7 +570,7 @@ async function cmdDoctor(flags: Record<string, string>): Promise<void> {
   }
 
   console.log(`
-  AgentTrace — Doctor
+  AgentGazer — Doctor
   ───────────────────────────────────────
 `);
 
@@ -715,7 +715,7 @@ async function cmdStats(flags: Record<string, string>): Promise<void> {
     } else {
       console.log("Multiple agents found. Please specify one:\n");
       for (const a of agents) {
-        console.log(`  agenttrace stats ${a.agent_id}`);
+        console.log(`  agentgazer stats ${a.agent_id}`);
       }
       console.log();
       process.exit(1);
@@ -743,7 +743,7 @@ async function cmdStats(flags: Record<string, string>): Promise<void> {
       : "0.00";
 
   console.log(`
-  AgentTrace — Stats for "${agentId}" (last ${range})
+  AgentGazer — Stats for "${agentId}" (last ${range})
   ───────────────────────────────────────
 
   Requests:   ${formatNumber(data.total_requests)}
@@ -770,20 +770,20 @@ async function cmdStats(flags: Record<string, string>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function cmdUninstall(flags: Record<string, string>): Promise<void> {
-  const home = process.env.AGENTTRACE_HOME || path.join(require("os").homedir(), ".agenttrace");
+  const home = process.env.AGENTTRACE_HOME || path.join(require("os").homedir(), ".agentgazer");
   const libDir = path.join(home, "lib");
   const nodeDir = path.join(home, "node");
-  const wrapperPath = path.join(process.env.AGENTTRACE_BIN || "/usr/local/bin", "agenttrace");
+  const wrapperPath = path.join(process.env.AGENTTRACE_BIN || "/usr/local/bin", "agentgazer");
 
   // Detect install method
   if (!fs.existsSync(libDir)) {
-    console.log('AgentTrace was not installed via the install script.');
+    console.log('AgentGazer was not installed via the install script.');
     console.log('');
     console.log('  If installed via npm:');
-    console.log('    npm uninstall -g agenttrace');
+    console.log('    npm uninstall -g agentgazer');
     console.log('');
     console.log('  If installed via Homebrew:');
-    console.log('    brew uninstall agenttrace');
+    console.log('    brew uninstall agentgazer');
     console.log('');
     return;
   }
@@ -791,7 +791,7 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
   const skipPrompt = "yes" in flags;
 
   console.log(`
-  AgentTrace — Uninstall
+  AgentGazer — Uninstall
   ───────────────────────────────────────
 `);
 
@@ -838,7 +838,7 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
     }
   }
 
-  console.log("\n  ✓ AgentTrace uninstalled.\n");
+  console.log("\n  ✓ AgentGazer uninstalled.\n");
 }
 
 // ---------------------------------------------------------------------------

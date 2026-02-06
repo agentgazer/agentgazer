@@ -1,18 +1,18 @@
 ## ADDED Requirements
 
 ### Requirement: Token auto-generation on first run
-The CLI SHALL generate a cryptographically random token (32 bytes, hex-encoded) on first run and store it in `~/.agenttrace/config.json` as `{ "token": "<hex>" }`. If the config file already exists with a valid token, the existing token SHALL be reused.
+The CLI SHALL generate a cryptographically random token (32 bytes, hex-encoded) on first run and store it in `~/.agentgazer/config.json` as `{ "token": "<hex>" }`. If the config file already exists with a valid token, the existing token SHALL be reused.
 
 #### Scenario: First run generates token
-- **WHEN** the CLI starts and `~/.agenttrace/config.json` does not exist
+- **WHEN** the CLI starts and `~/.agentgazer/config.json` does not exist
 - **THEN** a new random token is generated, saved to config, and printed to the terminal
 
 #### Scenario: Subsequent run reuses token
-- **WHEN** the CLI starts and `~/.agenttrace/config.json` exists with a valid token
+- **WHEN** the CLI starts and `~/.agentgazer/config.json` exists with a valid token
 - **THEN** the existing token is used and printed to the terminal
 
 ### Requirement: Token reset command
-The CLI SHALL support a `--reset-token` flag that generates a new token, replacing the existing one in `~/.agenttrace/config.json`.
+The CLI SHALL support a `--reset-token` flag that generates a new token, replacing the existing one in `~/.agentgazer/config.json`.
 
 #### Scenario: Reset token
 - **WHEN** the CLI is invoked with `--reset-token`

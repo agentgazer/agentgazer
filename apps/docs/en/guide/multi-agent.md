@@ -1,6 +1,6 @@
 # Multi-Agent Setup
 
-When running multiple AI agents on the same machine, you can share a single AgentTrace Proxy while tracking each agent's usage separately.
+When running multiple AI agents on the same machine, you can share a single AgentGazer Proxy while tracking each agent's usage separately.
 
 ## The Problem
 
@@ -95,14 +95,14 @@ await anthropic.messages.create({
 ### Start the Proxy
 
 ```bash
-agenttrace start
+agentgazer start
 ```
 
 No special flags needed — the `x-agent-id` header handles agent identification.
 
 ## Dashboard View
 
-With this setup, the AgentTrace Dashboard shows:
+With this setup, the AgentGazer Dashboard shows:
 
 - **Agents page**: Lists both `coding-assistant` and `research-assistant` as separate agents
 - **Per-agent stats**: Each agent has its own cost, token usage, latency metrics

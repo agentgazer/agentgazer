@@ -1,4 +1,4 @@
-# AgentTrace 操作指南
+# AgentGazer 操作指南
 
 > 本地優先的 AI Agent 可觀測性平台 — 完整安裝、設定與使用手冊
 
@@ -25,7 +25,7 @@
 
 ## 1. 平台概覽
 
-AgentTrace 是一個**本地優先**的 AI Agent 可觀測性平台。只需一條指令 `npx agenttrace` 即可啟動一切：Express 伺服器、LLM 代理、React 儀表板，全部資料儲存於本機 SQLite，無需任何雲端依賴。
+AgentGazer 是一個**本地優先**的 AI Agent 可觀測性平台。只需一條指令 `npx agentgazer` 即可啟動一切：Express 伺服器、LLM 代理、React 儀表板，全部資料儲存於本機 SQLite，無需任何雲端依賴。
 
 ### 核心功能
 
@@ -64,7 +64,7 @@ AgentTrace 是一個**本地優先**的 AI Agent 可觀測性平台。只需一�
 │                        使用者的機器                              │
 │                                                                 │
 │  ┌──────────┐    ┌────────────────────┐                         │
-│  │ AI Agent │───>│ AgentTrace Proxy   │──> LLM Provider         │
+│  │ AI Agent │───>│ AgentGazer Proxy   │──> LLM Provider         │
 │  │          │<───│ (:4000 預設)        │<── (OpenAI, Anthropic   │
 │  └──────────┘    └────────┬───────────┘    Google, Mistral...)   │
 │       │                   │                                     │
@@ -82,30 +82,30 @@ AgentTrace 是一個**本地優先**的 AI Agent 可觀測性平台。只需一�
 │  │        │                            │                        │
 │  │  ┌─────▼─────────────────────────┐  │                        │
 │  │  │      SQLite 資料庫             │  │                        │
-│  │  │  ~/.agenttrace/data.db        │  │                        │
+│  │  │  ~/.agentgazer/data.db        │  │                        │
 │  │  └───────────────────────────────┘  │                        │
 │  └─────────────────────────────────────┘                        │
 │                                                                 │
-│  設定檔：~/.agenttrace/config.json                               │
+│  設定檔：~/.agentgazer/config.json                               │
 │  加密金鑰庫：AES-256-GCM 加密儲存                                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### 關鍵設計
 
-- **單一指令啟動**：`agenttrace start` 同時啟動 Express 伺服器、LLM Proxy、React 儀表板
-- **本地 SQLite**：所有資料儲存於 `~/.agenttrace/data.db`，無需外部資料庫
+- **單一指令啟動**：`agentgazer start` 同時啟動 Express 伺服器、LLM Proxy、React 儀表板
+- **本地 SQLite**：所有資料儲存於 `~/.agentgazer/data.db`，無需外部資料庫
 - **隱私保證**：Proxy 只提取指標資料（token 數量、模型名稱、延遲、成本），Prompt 內容與 API Key 永遠不離開本機
 
 ### 專案結構（Turborepo Monorepo）
 
 ```
-agenttrace/
+agentgazer/
 ├── packages/
-│   ├── cli/               # CLI 進入點（agenttrace 指令）
+│   ├── cli/               # CLI 進入點（agentgazer 指令）
 │   ├── server/            # Express API + SQLite 資料庫
 │   ├── proxy/             # LLM Proxy，含指標擷取
-│   ├── sdk/               # TypeScript SDK (@agenttrace/sdk)
+│   ├── sdk/               # TypeScript SDK (@agentgazer/sdk)
 │   └── shared/            # 共用型別、定價計算、Provider 偵測
 ├── apps/
 │   └── dashboard-local/   # React + Vite 儀表板
@@ -122,61 +122,61 @@ agenttrace/
 **方式 A：一鍵安裝（推薦）**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
 ```
 
-此腳本會自動偵測平台、在需要時下載 Node.js，並將 AgentTrace 安裝到 `~/.agenttrace/`。無需任何前置條件。
+此腳本會自動偵測平台、在需要時下載 Node.js，並將 AgentGazer 安裝到 `~/.agentgazer/`。無需任何前置條件。
 
 **方式 B：Homebrew（macOS / Linux）**
 
 ```bash
-brew install agenttrace/tap/agenttrace
+brew install agentgazer/tap/agentgazer
 ```
 
 **方式 C：npm（需要 Node.js >= 18）**
 
 ```bash
 # 直接執行
-npx agenttrace
+npx agentgazer
 
 # 或全域安裝
-npm install -g agenttrace
+npm install -g agentgazer
 ```
 
 ### 3.2 解除安裝
 
 ```bash
 # 若透過 curl | sh 安裝
-curl -fsSL https://raw.githubusercontent.com/agenttrace/agenttrace/main/scripts/uninstall.sh | sh
-# 或：agenttrace uninstall
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/uninstall.sh | sh
+# 或：agentgazer uninstall
 
 # 若透過 Homebrew 安裝
-brew uninstall agenttrace
+brew uninstall agentgazer
 
 # 若透過 npm 安裝
-npm uninstall -g agenttrace
+npm uninstall -g agentgazer
 ```
 
-> 注意：解除安裝**不會**移除使用者資料（`~/.agenttrace/config.json`、`~/.agenttrace/data.db`）。curl 解除安裝程式會詢問是否移除；其他方式請手動刪除 `~/.agenttrace/`。
+> 注意：解除安裝**不會**移除使用者資料（`~/.agentgazer/config.json`、`~/.agentgazer/data.db`）。curl 解除安裝程式會詢問是否移除；其他方式請手動刪除 `~/.agentgazer/`。
 
 ### 3.3 首次設定
 
 第一次使用時，執行初始化設定精靈：
 
 ```bash
-agenttrace onboard
+agentgazer onboard
 ```
 
 此指令會：
 
-1. 在 `~/.agenttrace/` 目錄下建立 `config.json` 設定檔
+1. 在 `~/.agentgazer/` 目錄下建立 `config.json` 設定檔
 2. 產生認證 Token（用於 API 存取與儀表板登入）
 3. 引導你設定 LLM Provider 的 API Key
 
 ### 3.4 啟動服務
 
 ```bash
-agenttrace start
+agentgazer start
 ```
 
 啟動後會自動開啟瀏覽器，前往儀表板：
@@ -204,7 +204,7 @@ curl http://localhost:8080/api/health
 curl http://localhost:4000/health
 
 # 使用內建診斷工具
-agenttrace doctor
+agentgazer doctor
 ```
 
 ---
@@ -226,28 +226,28 @@ agenttrace doctor
 | `doctor` | 系統健康檢查 | `--port`、`--proxy-port` |
 | `agents` | 列出已註冊的 Agent | `--port`、`--proxy-port` |
 | `stats [agentId]` | 顯示 Agent 統計數據 | `--port`、`--proxy-port`、`--range`（1h/24h/7d/30d，預設 24h） |
-| `uninstall` | 移除 curl 安裝的 AgentTrace | `--yes`（跳過確認提示） |
+| `uninstall` | 移除 curl 安裝的 AgentGazer | `--yes`（跳過確認提示） |
 | `help` | 顯示幫助訊息 | — |
 
 ### 詳細說明
 
-#### `agenttrace onboard`
+#### `agentgazer onboard`
 
-首次設定精靈。產生認證 Token 並寫入 `~/.agenttrace/config.json`，引導使用者設定 Provider API Key。
+首次設定精靈。產生認證 Token 並寫入 `~/.agentgazer/config.json`，引導使用者設定 Provider API Key。
 
-#### `agenttrace start`
+#### `agentgazer start`
 
 啟動所有服務。
 
 ```bash
 # 使用預設連接埠啟動
-agenttrace start
+agentgazer start
 
 # 自訂連接埠，不自動開啟瀏覽器
-agenttrace start --port 9090 --proxy-port 5000 --no-open
+agentgazer start --port 9090 --proxy-port 5000 --no-open
 
 # 設定資料保留天數為 7 天
-agenttrace start --retention-days 7
+agentgazer start --retention-days 7
 ```
 
 | 旗標 | 預設值 | 說明 |
@@ -257,56 +257,56 @@ agenttrace start --retention-days 7
 | `--retention-days` | `30` | 事件資料保留天數 |
 | `--no-open` | `false` | 啟動時不自動開啟瀏覽器 |
 
-#### `agenttrace status`
+#### `agentgazer status`
 
 顯示目前的設定，包括 Token 前綴、已設定的 Provider、資料庫路徑等。
 
-#### `agenttrace reset-token`
+#### `agentgazer reset-token`
 
 重新產生認證 Token。舊 Token 將立即失效，需要更新所有使用舊 Token 的 SDK 設定與儀表板登入。
 
-#### `agenttrace providers`
+#### `agentgazer providers`
 
 管理 LLM Provider 的 API Key。
 
 ```bash
 # 列出所有已設定的 Provider
-agenttrace providers list
+agentgazer providers list
 
 # 設定 OpenAI API Key（安全加密儲存）
-agenttrace providers set openai sk-xxxxxxxxxxxxx
+agentgazer providers set openai sk-xxxxxxxxxxxxx
 
 # 移除 Anthropic Provider
-agenttrace providers remove anthropic
+agentgazer providers remove anthropic
 ```
 
-#### `agenttrace doctor`
+#### `agentgazer doctor`
 
 執行系統健康檢查，驗證伺服器與 Proxy 是否正常運作。
 
 ```bash
-agenttrace doctor
-agenttrace doctor --port 9090 --proxy-port 5000
+agentgazer doctor
+agentgazer doctor --port 9090 --proxy-port 5000
 ```
 
-#### `agenttrace agents`
+#### `agentgazer agents`
 
 列出所有已註冊的 Agent 及其狀態。
 
 ```bash
-agenttrace agents
+agentgazer agents
 ```
 
-#### `agenttrace stats`
+#### `agentgazer stats`
 
 顯示 Agent 的統計數據。如果系統中只有一個 Agent，會自動選擇該 Agent。
 
 ```bash
 # 顯示所有 Agent 的統計（預設 24 小時）
-agenttrace stats
+agentgazer stats
 
 # 顯示特定 Agent 的統計，時間範圍 7 天
-agenttrace stats my-agent --range 7d
+agentgazer stats my-agent --range 7d
 ```
 
 ---
@@ -332,7 +332,7 @@ Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 
 **方式 A：使用儲存的 API Key（推薦）**
 
-如果你已經用 `agenttrace providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
+如果你已經用 `agentgazer providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
 
 ```bash
 export OPENAI_BASE_URL=http://localhost:4000/openai/v1
@@ -450,7 +450,7 @@ Proxy 只提取以下指標資料：
 - 成本（USD）
 - HTTP 狀態碼
 
-**Prompt 內容和 API Key 永遠不會傳送到 AgentTrace 伺服器。**
+**Prompt 內容和 API Key 永遠不會傳送到 AgentGazer 伺服器。**
 
 ---
 
@@ -459,15 +459,15 @@ Proxy 只提取以下指標資料：
 ### 6.1 安裝
 
 ```bash
-npm install @agenttrace/sdk
+npm install @agentgazer/sdk
 ```
 
 ### 6.2 初始化
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: "your-token",           // 必填：在 onboard 時產生的 Token
   agentId: "my-agent",            // 必填：此 Agent 的唯一識別碼
   endpoint: "http://localhost:8080/api/events",  // 選填：預設指向本地伺服器
@@ -564,10 +564,10 @@ SDK 採用批次發送策略以提升效率：
 ### 6.10 完整範例
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 import OpenAI from "openai";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: process.env.AGENTTRACE_TOKEN!,
   agentId: "my-chatbot",
   endpoint: "http://localhost:8080/api/events",
@@ -619,9 +619,9 @@ process.on("SIGTERM", async () => {
 
 儀表板使用 **Token 認證**。啟動服務後，在登入頁面輸入你的認證 Token 即可。Token 來源：
 
-- 首次執行 `agenttrace onboard` 時產生
-- 儲存在 `~/.agenttrace/config.json` 中
-- 可透過 `agenttrace reset-token` 重新產生
+- 首次執行 `agentgazer onboard` 時產生
+- 儲存在 `~/.agentgazer/config.json` 中
+- 可透過 `agentgazer reset-token` 重新產生
 
 ### 7.2 頁面總覽
 
@@ -728,27 +728,27 @@ Agent 詳情頁提供以下資訊：
 
 ### 9.1 加密儲存
 
-Provider 的 API Key **不會以明文形式**儲存在設定檔中。AgentTrace 使用 **AES-256-GCM** 加密金鑰庫來保護你的 API Key。
+Provider 的 API Key **不會以明文形式**儲存在設定檔中。AgentGazer 使用 **AES-256-GCM** 加密金鑰庫來保護你的 API Key。
 
 ### 9.2 儲存與管理
 
 ```bash
 # 儲存 OpenAI API Key（安全加密）
-agenttrace providers set openai sk-xxxxxxxxxxxxx
+agentgazer providers set openai sk-xxxxxxxxxxxxx
 
 # 儲存 Anthropic API Key
-agenttrace providers set anthropic sk-ant-xxxxxxxxxxxxx
+agentgazer providers set anthropic sk-ant-xxxxxxxxxxxxx
 
 # 列出已設定的 Provider
-agenttrace providers list
+agentgazer providers list
 
 # 移除 Provider
-agenttrace providers remove openai
+agentgazer providers remove openai
 ```
 
 ### 9.3 金鑰庫後端
 
-AgentTrace 支援多種金鑰庫後端，依以下優先順序自動偵測：
+AgentGazer 支援多種金鑰庫後端，依以下優先順序自動偵測：
 
 | 優先順序 | 後端 | 說明 |
 |----------|------|------|
@@ -759,7 +759,7 @@ AgentTrace 支援多種金鑰庫後端，依以下優先順序自動偵測：
 
 ### 9.4 自動遷移
 
-如果 `config.json` 中存在舊版的明文 API Key，AgentTrace 會在啟動時**自動**將其遷移到加密金鑰庫。
+如果 `config.json` 中存在舊版的明文 API Key，AgentGazer 會在啟動時**自動**將其遷移到加密金鑰庫。
 
 ### 9.5 安全注入機制
 
@@ -1004,7 +1004,7 @@ docker compose up -d
 
 ### 11.3 資料持久化
 
-Docker 使用 `agenttrace-data` Volume 來持久化 `~/.agenttrace/` 目錄，確保 SQLite 資料庫、設定檔和加密金鑰庫在容器重啟後不會遺失。
+Docker 使用 `agentgazer-data` Volume 來持久化 `~/.agentgazer/` 目錄，確保 SQLite 資料庫、設定檔和加密金鑰庫在容器重啟後不會遺失。
 
 ---
 
@@ -1018,7 +1018,7 @@ Docker 使用 `agenttrace-data` Volume 來持久化 `~/.agenttrace/` 目錄，�
 | `SMTP_PORT` | SMTP 連接埠 | `587` |
 | `SMTP_USER` | SMTP 使用者名稱 | — |
 | `SMTP_PASS` | SMTP 密碼 | — |
-| `SMTP_FROM` | 寄件者 Email 地址 | `alerts@agenttrace.dev` |
+| `SMTP_FROM` | 寄件者 Email 地址 | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | 是否使用 TLS | `false` |
 | `AGENTTRACE_SECRET_BACKEND` | 手動指定金鑰庫後端 | 自動偵測 |
 
@@ -1041,7 +1041,7 @@ export SMTP_SECURE=false
 
 ### 事件沒有出現在儀表板
 
-1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agenttrace/config.json` 中的一致
+1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agentgazer/config.json` 中的一致
 2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:8080/api/events`
 3. **確認 Buffer 已 Flush**：事件可能還在 buffer 中。呼叫 `at.shutdown()` 強制送出，或等待 5 秒的自動 flush 週期
 4. **查看 console 警告**：SDK 的網路錯誤不會拋出例外，但會在 console 記錄 warning
@@ -1066,13 +1066,13 @@ export SMTP_SECURE=false
 
 ### 儀表板登入失敗
 
-1. **確認 Token**：查看 `~/.agenttrace/config.json` 中的 Token
-2. **重新產生 Token**：執行 `agenttrace reset-token` 產生新的 Token
-3. **確認伺服器已啟動**：執行 `agenttrace doctor` 檢查伺服器狀態
+1. **確認 Token**：查看 `~/.agentgazer/config.json` 中的 Token
+2. **重新產生 Token**：執行 `agentgazer reset-token` 產生新的 Token
+3. **確認伺服器已啟動**：執行 `agentgazer doctor` 檢查伺服器狀態
 
 ### 成本計算不正確
 
-1. **確認模型名稱**：成本計算依賴 `@agenttrace/shared` 中的定價表，模型名稱必須與定價表匹配
+1. **確認模型名稱**：成本計算依賴 `@agentgazer/shared` 中的定價表，模型名稱必須與定價表匹配
 2. **手動指定 cost_usd**：如果自動計算不準確，可在 `track()` 中手動傳入 `cost_usd` 欄位
 
 ### 連接埠衝突
@@ -1080,36 +1080,36 @@ export SMTP_SECURE=false
 如果預設連接埠已被佔用，可使用自訂連接埠啟動：
 
 ```bash
-agenttrace start --port 9090 --proxy-port 5000
+agentgazer start --port 9090 --proxy-port 5000
 ```
 
 ### 資料庫問題
 
-SQLite 資料庫位於 `~/.agenttrace/data.db`。如需重置：
+SQLite 資料庫位於 `~/.agentgazer/data.db`。如需重置：
 
 ```bash
 # 停止服務後刪除資料庫檔案
-rm ~/.agenttrace/data.db
+rm ~/.agentgazer/data.db
 
 # 重新啟動，系統會自動建立新的資料庫
-agenttrace start
+agentgazer start
 ```
 
 ---
 
 ## 14. 附錄：快速啟動檢查表
 
-- [ ] 安裝 AgentTrace（`curl | sh`、Homebrew 或 npm）
-- [ ] 執行 `agenttrace onboard` 完成首次設定
+- [ ] 安裝 AgentGazer（`curl | sh`、Homebrew 或 npm）
+- [ ] 執行 `agentgazer onboard` 完成首次設定
 - [ ] 記下認證 Token
-- [ ] 使用 `agenttrace providers set` 設定 LLM Provider API Key
-- [ ] 執行 `agenttrace start` 啟動所有服務
+- [ ] 使用 `agentgazer providers set` 設定 LLM Provider API Key
+- [ ] 執行 `agentgazer start` 啟動所有服務
 - [ ] 在瀏覽器中開啟 `http://localhost:8080` 登入儀表板
 - [ ] 在 AI Agent 中設定 Proxy（將 base URL 指向 `http://localhost:4000`）或整合 SDK
 - [ ] 確認事件資料正常出現在儀表板
 - [ ] 設定告警規則（agent_down / error_rate / budget）
-- [ ] 執行 `agenttrace doctor` 確認系統健康
+- [ ] 執行 `agentgazer doctor` 確認系統健康
 
 ---
 
-> AgentTrace — 本地優先的 AI Agent 可觀測性平台。一條指令，全面掌握。
+> AgentGazer — 本地優先的 AI Agent 可觀測性平台。一條指令，全面掌握。

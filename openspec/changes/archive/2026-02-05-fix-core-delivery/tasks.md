@@ -35,4 +35,4 @@
 
 - [x] 6.1 全部 build 通過
 - [x] 6.2 全部測試通過
-- [x] 6.3 手動測試：`agenttrace onboard` → `agenttrace start` → 瀏覽器開 localhost:8080 看到 dashboard
+- [x] 6.3 手動測試：`agentgazer onboard` → `agentgazer start` → 瀏覽器開 localhost:8080 看到 dashboard

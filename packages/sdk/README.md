@@ -1,19 +1,19 @@
-# @agenttrace/sdk
+# @agentgazer/sdk
 
-TypeScript SDK for recording AI agent activity to an AgentTrace server.
+TypeScript SDK for recording AI agent activity to an AgentGazer server.
 
 ## Install
 
 ```bash
-npm install @agenttrace/sdk
+npm install @agentgazer/sdk
 ```
 
 ## Usage
 
 ```typescript
-import { AgentTrace } from "@agenttrace/sdk";
+import { AgentGazer } from "@agentgazer/sdk";
 
-const at = AgentTrace.init({
+const at = AgentGazer.init({
   apiKey: "your-token",
   agentId: "my-agent",
   endpoint: "http://localhost:8080/api/events",
@@ -64,7 +64,7 @@ at.track({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `apiKey` | `string` | **required** | Auth token for the AgentTrace server |
+| `apiKey` | `string` | **required** | Auth token for the AgentGazer server |
 | `agentId` | `string` | **required** | Unique identifier for this agent |
 | `endpoint` | `string` | — | Event ingestion URL |
 | `flushInterval` | `number` | `5000` | Buffer flush interval in ms |
@@ -72,7 +72,7 @@ at.track({
 
 ## API
 
-### `AgentTrace.init(options): AgentTrace`
+### `AgentGazer.init(options): AgentGazer`
 
 Create a new client instance.
 

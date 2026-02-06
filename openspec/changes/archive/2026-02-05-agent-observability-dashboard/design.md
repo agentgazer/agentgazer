@@ -176,7 +176,7 @@ Native Slack and Discord integrations are intentionally deferred. They add OAuth
 
 **Risk:** Requiring users to run an additional local process (the proxy) adds setup friction and operational overhead. Some users may not want to manage another background service.
 
-**Mitigation:** The proxy is strictly optional. The SDK alone provides agent health monitoring (heartbeats), error tracking, and manual event reporting. The proxy adds automated LLM call tracking, but agents work on the dashboard without it. For users who do adopt the proxy, the setup is a single command (`npx @agenttrace/proxy start`) and one environment variable change. The proxy also provides a CLI health check (`agenttrace-proxy status`) so users can verify it is running.
+**Mitigation:** The proxy is strictly optional. The SDK alone provides agent health monitoring (heartbeats), error tracking, and manual event reporting. The proxy adds automated LLM call tracking, but agents work on the dashboard without it. For users who do adopt the proxy, the setup is a single command (`npx @agentgazer/proxy start`) and one environment variable change. The proxy also provides a CLI health check (`agentgazer-proxy status`) so users can verify it is running.
 
 ### Cost calculation accuracy
 

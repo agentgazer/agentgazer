@@ -1,7 +1,7 @@
 ## 1. Project scaffolding
 
 - [x] 1.1 Create `packages/server/` with `package.json` (express, better-sqlite3, cors), `tsconfig.json`, and src directory structure (`src/db.ts`, `src/server.ts`, `src/routes/`)
-- [x] 1.2 Create `packages/cli/` with `package.json` (bin: `agenttrace`), `tsconfig.json`, and src directory structure (`src/cli.ts`, `src/config.ts`)
+- [x] 1.2 Create `packages/cli/` with `package.json` (bin: `agentgazer`), `tsconfig.json`, and src directory structure (`src/cli.ts`, `src/config.ts`)
 - [x] 1.3 Create `apps/dashboard-local/` with Vite + React + TypeScript + Tailwind CSS + React Router scaffold
 - [x] 1.4 Add new workspaces to root `package.json` and configure `turbo.json` build pipeline
 
@@ -43,7 +43,7 @@
 
 ## 8. CLI — config and startup
 
-- [x] 8.1 Implement `packages/cli/src/config.ts`: ensure `~/.agenttrace/` exists, read/write `config.json`, generate random token on first run
+- [x] 8.1 Implement `packages/cli/src/config.ts`: ensure `~/.agentgazer/` exists, read/write `config.json`, generate random token on first run
 - [x] 8.2 Implement `packages/cli/src/cli.ts`: parse args (`--port`, `--proxy-port`, `--no-open`, `--reset-token`, `--help`), init config, start server (from `packages/server`), start proxy (from `packages/proxy`), print URLs and token, handle SIGINT/SIGTERM graceful shutdown
 - [x] 8.3 Implement auto-open browser using `open` package (or `child_process` exec for platform-specific open)
 - [x] 8.4 Write tests for config management (first run, subsequent run, token reset)

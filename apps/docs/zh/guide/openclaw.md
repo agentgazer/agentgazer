@@ -1,6 +1,6 @@
 # OpenClaw 整合指南
 
-> 使用 AgentTrace 監控你的 OpenClaw 個人 AI 助手 — 零程式碼修改，完整可觀測性
+> 使用 AgentGazer 監控你的 OpenClaw 個人 AI 助手 — 零程式碼修改，完整可觀測性
 
 ## 概述
 
@@ -15,9 +15,9 @@ OpenClaw 作為一個自主運行的 AI Agent，會持續地向 LLM Provider 發
 - **效能劣化**：延遲增加、回應品質下降等問題需要歷史數據才能有效診斷
 - **服務中斷**：OpenClaw 可能因各種原因停止運作，而你可能數小時後才發現
 
-### AgentTrace 提供的解決方案
+### AgentGazer 提供的解決方案
 
-透過 AgentTrace 的 Proxy 模式整合 OpenClaw，你可以：
+透過 AgentGazer 的 Proxy 模式整合 OpenClaw，你可以：
 
 - **追蹤每筆 LLM 呼叫的成本**：按 Provider、按模型分類的花費明細
 - **即時監控延遲與錯誤率**：第一時間發現異常
@@ -26,7 +26,7 @@ OpenClaw 作為一個自主運行的 AI Agent，會持續地向 LLM Provider 發
 
 ### 運作原理
 
-OpenClaw 的 `models.providers` 設定支援 `baseUrl` 覆蓋。我們只需將 `baseUrl` 指向 AgentTrace Proxy，Proxy 便會透明地攔截所有 LLM 請求，自動提取 token 用量、延遲、成本等指標，再將請求原樣轉發到實際的 LLM Provider。整個過程對 OpenClaw 完全透明。
+OpenClaw 的 `models.providers` 設定支援 `baseUrl` 覆蓋。我們只需將 `baseUrl` 指向 AgentGazer Proxy，Proxy 便會透明地攔截所有 LLM 請求，自動提取 token 用量、延遲、成本等指標，再將請求原樣轉發到實際的 LLM Provider。整個過程對 OpenClaw 完全透明。
 
 ## 前置準備
 
@@ -35,7 +35,7 @@ OpenClaw 的 `models.providers` 設定支援 `baseUrl` 覆蓋。我們只需將 
 | 項目 | 需求 | 說明 |
 |------|------|------|
 | Node.js | >= 18 | JavaScript 執行環境 |
-| AgentTrace | 最新版 | `npm install -g agenttrace` 或使用 `npx agenttrace` |
+| AgentGazer | 最新版 | `npm install -g agentgazer` 或使用 `npx agentgazer` |
 | OpenClaw | 已安裝並運行 | 從 [openclaw.ai](https://openclaw.ai) 取得 |
 
 ### API 金鑰
@@ -57,19 +57,19 @@ ls ~/.openclaw/openclaw.json
 openclaw status
 ```
 
-## 啟動 AgentTrace
+## 啟動 AgentGazer
 
 ### 快速啟動
 
 ```bash
-npx agenttrace
+npx agentgazer
 ```
 
 啟動後，終端機會顯示以下資訊：
 
 ```
-AgentTrace server running on http://localhost:8080
-AgentTrace proxy running on http://localhost:4000
+AgentGazer server running on http://localhost:8080
+AgentGazer proxy running on http://localhost:4000
 Auth token: at_xxxxxxxxxxxxxxxx
 ```
 
@@ -79,23 +79,23 @@ Auth token: at_xxxxxxxxxxxxxxxx
 
 | 服務 | 連接埠 | 用途 |
 |------|--------|------|
-| AgentTrace Server | `:8080` | REST API 與 Dashboard（React） |
-| AgentTrace Proxy | `:4000` | LLM 請求透明代理 |
+| AgentGazer Server | `:8080` | REST API 與 Dashboard（React） |
+| AgentGazer Proxy | `:4000` | LLM 請求透明代理 |
 
 ### 開啟 Dashboard
 
-在瀏覽器中前往 [http://localhost:8080](http://localhost:8080)，即可看到 AgentTrace 的即時監控儀表板。
+在瀏覽器中前往 [http://localhost:8080](http://localhost:8080)，即可看到 AgentGazer 的即時監控儀表板。
 
 ## 架構圖
 
-以下圖示說明 OpenClaw 透過 AgentTrace Proxy 連接 LLM Provider 的完整資料流：
+以下圖示說明 OpenClaw 透過 AgentGazer Proxy 連接 LLM Provider 的完整資料流：
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        使用者的機器                            │
 │                                                             │
 │  ┌───────────────┐     ┌──────────────────┐                 │
-│  │   OpenClaw     │────▶│  AgentTrace      │                 │
+│  │   OpenClaw     │────▶│  AgentGazer      │                 │
 │  │   Gateway      │     │  Proxy :4000     │                 │
 │  │               │     │                  │                 │
 │  │  openclaw.json:│     │  自動擷取：        │                 │
@@ -111,7 +111,7 @@ Auth token: at_xxxxxxxxxxxxxxxx
 │                     └───────────────────────┘               │
 │                                                             │
 │  ┌──────────────────────────────────────────┐               │
-│  │  AgentTrace Server :8080                  │               │
+│  │  AgentGazer Server :8080                  │               │
 │  │  ├── REST API  (/api/*)                   │               │
 │  │  ├── SQLite (data.db)                     │               │
 │  │  └── Dashboard (React)                    │               │
@@ -121,7 +121,7 @@ Auth token: at_xxxxxxxxxxxxxxxx
 
 ### 資料流程
 
-1. OpenClaw 發送 LLM 請求到 `http://localhost:4000`（AgentTrace Proxy）
+1. OpenClaw 發送 LLM 請求到 `http://localhost:4000`（AgentGazer Proxy）
 2. Proxy 透明地將請求轉發到實際的 LLM Provider（如 `api.anthropic.com`）
 3. Proxy 接收到 Provider 回應後，先將完整回應回傳給 OpenClaw
 4. Proxy 非同步地解析回應，提取 token 用量、模型名稱、延遲、成本等指標
@@ -132,16 +132,16 @@ Auth token: at_xxxxxxxxxxxxxxxx
 
 ## 設定 Provider 金鑰
 
-AgentTrace Proxy 可以為你自動注入 API 金鑰。要啟用金鑰注入，你必須使用**路徑前綴路由** — 在 `baseUrl` 中包含 Provider 名稱（例如 `http://localhost:4000/anthropic`）。這讓 Proxy 能安全地識別 Provider 並注入正確的憑證。
+AgentGazer Proxy 可以為你自動注入 API 金鑰。要啟用金鑰注入，你必須使用**路徑前綴路由** — 在 `baseUrl` 中包含 Provider 名稱（例如 `http://localhost:4000/anthropic`）。這讓 Proxy 能安全地識別 Provider 並注入正確的憑證。
 
-### 儲存 API 金鑰到 AgentTrace
+### 儲存 API 金鑰到 AgentGazer
 
 ```bash
 # 儲存 Anthropic API 金鑰
-agenttrace providers set anthropic $ANTHROPIC_API_KEY
+agentgazer providers set anthropic $ANTHROPIC_API_KEY
 
 # 儲存 OpenAI API 金鑰
-agenttrace providers set openai $OPENAI_API_KEY
+agentgazer providers set openai $OPENAI_API_KEY
 ```
 
 ### 自動注入的運作方式
@@ -161,7 +161,7 @@ agenttrace providers set openai $OPENAI_API_KEY
 
 ## Anthropic 設定
 
-編輯 `~/.openclaw/openclaw.json`，將 Anthropic Provider 的 `baseUrl` 指向 AgentTrace Proxy：
+編輯 `~/.openclaw/openclaw.json`，將 Anthropic Provider 的 `baseUrl` 指向 AgentGazer Proxy：
 
 ```json5
 {
@@ -189,14 +189,14 @@ agenttrace providers set openai $OPENAI_API_KEY
 
 | 欄位 | 說明 |
 |------|------|
-| `baseUrl` | 指向 AgentTrace Proxy 並包含 Provider 路徑前綴（`http://localhost:4000/anthropic`）。Proxy 會去除 `/anthropic` 前綴並轉發到 `api.anthropic.com` |
-| `apiKey` | Anthropic API 金鑰。若已透過 `agenttrace providers set` 儲存，可省略此欄位（需要 `baseUrl` 包含路徑前綴） |
+| `baseUrl` | 指向 AgentGazer Proxy 並包含 Provider 路徑前綴（`http://localhost:4000/anthropic`）。Proxy 會去除 `/anthropic` 前綴並轉發到 `api.anthropic.com` |
+| `apiKey` | Anthropic API 金鑰。若已透過 `agentgazer providers set` 儲存，可省略此欄位（需要 `baseUrl` 包含路徑前綴） |
 | `api` | 指定 API 協定為 `anthropic-messages`，讓 Proxy 能正確偵測 Provider |
 | `primary` | 使用的模型，格式為 `<provider-name>/<model-name>` |
 
 ### 重要：apiKey 不能為空
 
-OpenClaw 在發送請求前會驗證 `apiKey` 不為空。即使使用 AgentTrace 的金鑰注入功能，你仍需提供一個 placeholder 值：
+OpenClaw 在發送請求前會驗證 `apiKey` 不為空。即使使用 AgentGazer 的金鑰注入功能，你仍需提供一個 placeholder 值：
 
 ```json5
 {
@@ -239,7 +239,7 @@ OpenClaw 在發送請求前會驗證 `apiKey` 不為空。即使使用 AgentTrac
 ```
 
 ::: warning 注意事項
-- **`apiKey`**：使用 `"placeholder"` — AgentTrace proxy 會用你的真實金鑰替換它
+- **`apiKey`**：使用 `"placeholder"` — AgentGazer proxy 會用你的真實金鑰替換它
 - **`models`**：必填的陣列，定義此 Provider 可用的模型
 - **`baseUrl`**：不能包含 `/v1` — OpenClaw 會自動加上 API 路徑
 :::
@@ -271,7 +271,7 @@ openclaw models auth api-key --provider anthropic
 
 ### 支援的 Anthropic 模型
 
-AgentTrace 內建以下 Anthropic 模型的定價資料，可自動計算成本：
+AgentGazer 內建以下 Anthropic 模型的定價資料，可自動計算成本：
 
 | 模型 | 輸入成本 (每百萬 token) | 輸出成本 (每百萬 token) |
 |------|------------------------|------------------------|
@@ -281,7 +281,7 @@ AgentTrace 內建以下 Anthropic 模型的定價資料，可自動計算成本�
 
 ## OpenAI 設定
 
-編輯 `~/.openclaw/openclaw.json`，將 OpenAI Provider 的 `baseUrl` 指向 AgentTrace Proxy：
+編輯 `~/.openclaw/openclaw.json`，將 OpenAI Provider 的 `baseUrl` 指向 AgentGazer Proxy：
 
 ```json5
 {
@@ -309,14 +309,14 @@ AgentTrace 內建以下 Anthropic 模型的定價資料，可自動計算成本�
 
 | 欄位 | 說明 |
 |------|------|
-| `baseUrl` | 指向 AgentTrace Proxy 並包含 Provider 路徑前綴（`http://localhost:4000/openai`）。Proxy 會去除 `/openai` 前綴並轉發到 `api.openai.com` |
-| `apiKey` | OpenAI API 金鑰。若已透過 `agenttrace providers set` 儲存，可省略此欄位（需要 `baseUrl` 包含路徑前綴） |
+| `baseUrl` | 指向 AgentGazer Proxy 並包含 Provider 路徑前綴（`http://localhost:4000/openai`）。Proxy 會去除 `/openai` 前綴並轉發到 `api.openai.com` |
+| `apiKey` | OpenAI API 金鑰。若已透過 `agentgazer providers set` 儲存，可省略此欄位（需要 `baseUrl` 包含路徑前綴） |
 | `api` | 指定 API 協定為 `openai-completions`，讓 Proxy 能正確偵測 Provider |
 | `primary` | 使用的模型，格式為 `<provider-name>/<model-name>` |
 
 ### 支援的 OpenAI 模型
 
-AgentTrace 內建以下 OpenAI 模型的定價資料：
+AgentGazer 內建以下 OpenAI 模型的定價資料：
 
 | 模型 | 輸入成本 (每百萬 token) | 輸出成本 (每百萬 token) |
 |------|------------------------|------------------------|
@@ -331,7 +331,7 @@ AgentTrace 內建以下 OpenAI 模型的定價資料：
 
 ## 多 Provider 設定
 
-OpenClaw 支援同時使用多個 LLM Provider。以下設定同時啟用 Anthropic 和 OpenAI，並讓所有請求都經過 AgentTrace Proxy：
+OpenClaw 支援同時使用多個 LLM Provider。以下設定同時啟用 Anthropic 和 OpenAI，並讓所有請求都經過 AgentGazer Proxy：
 
 ```json5
 {
@@ -370,7 +370,7 @@ OpenClaw 支援同時使用多個 LLM Provider。以下設定同時啟用 Anthro
 
 ### 多 Provider 的監控優勢
 
-當同時使用多個 Provider 時，AgentTrace Dashboard 可以：
+當同時使用多個 Provider 時，AgentGazer Dashboard 可以：
 
 - 按 Provider 分類顯示成本比較
 - 追蹤各 Provider 的錯誤率差異
@@ -379,7 +379,7 @@ OpenClaw 支援同時使用多個 LLM Provider。以下設定同時啟用 Anthro
 
 ## Agent 治理（選用）
 
-AgentTrace 支援 Agent 層級的治理策略，讓你可以針對每個 Agent 控制和限制 LLM 使用。使用治理功能時，你需要使用 Agent 路徑路由來識別發出請求的 Agent。
+AgentGazer 支援 Agent 層級的治理策略，讓你可以針對每個 Agent 控制和限制 LLM 使用。使用治理功能時，你需要使用 Agent 路徑路由來識別發出請求的 Agent。
 
 ### Agent 路徑路由
 
@@ -422,7 +422,7 @@ http://localhost:4000/agents/{agent-id}/{provider}
 
 ### 治理功能
 
-當請求透過 Agent 路徑路由後，你可以在 AgentTrace Dashboard 中設定策略：
+當請求透過 Agent 路徑路由後，你可以在 AgentGazer Dashboard 中設定策略：
 
 | 功能 | 說明 |
 |------|------|
@@ -458,14 +458,14 @@ curl -X PUT http://localhost:8080/api/agents/openclaw/policy \
 
 完成設定後，依照以下步驟驗證整合是否成功。
 
-### 步驟 1：確認 AgentTrace 正在運行
+### 步驟 1：確認 AgentGazer 正在運行
 
 ```bash
-# 啟動 AgentTrace（如果尚未啟動）
-npx agenttrace
+# 啟動 AgentGazer（如果尚未啟動）
+npx agentgazer
 
 # 或者如果已全域安裝
-agenttrace start
+agentgazer start
 ```
 
 確認終端機顯示 Proxy 已在 `:4000` 監聽。
@@ -497,7 +497,7 @@ openclaw start
 @OpenClaw 你好，這是一則測試訊息。
 ```
 
-### 步驟 4：檢查 AgentTrace Dashboard
+### 步驟 4：檢查 AgentGazer Dashboard
 
 1. 在瀏覽器中開啟 [http://localhost:8080](http://localhost:8080)
 2. 前往 **Agents** 頁面 — 你應該會看到一個新的 Agent 項目出現
@@ -538,7 +538,7 @@ curl http://localhost:4000/health
 
 ## 設定告警
 
-AgentTrace 提供多種告警規則，讓你在 OpenClaw 出現異常時即時收到通知。以下是針對 OpenClaw 使用情境最實用的告警設定。
+AgentGazer 提供多種告警規則，讓你在 OpenClaw 出現異常時即時收到通知。以下是針對 OpenClaw 使用情境最實用的告警設定。
 
 ### Agent Down 告警 — 偵測 OpenClaw 停止運作
 
@@ -546,7 +546,7 @@ AgentTrace 提供多種告警規則，讓你在 OpenClaw 出現異常時即時�
 
 **透過 Dashboard 設定：**
 
-1. 開啟 AgentTrace Dashboard（`http://localhost:8080`）
+1. 開啟 AgentGazer Dashboard（`http://localhost:8080`）
 2. 前往 **Alerts** 頁面
 3. 點擊 **New Alert Rule**
 4. 選擇目標 Agent：`openclaw`
@@ -635,11 +635,11 @@ curl -X POST http://localhost:8080/api/alerts \
 | "No API key found for provider" | 設定中的 `apiKey` 為空 | 使用 `"apiKey": "placeholder"` — 不能是空字串 |
 | "No API key found for provider" | 缺少 `auth-profiles.json` | 建立 `~/.openclaw/agents/main/agent/auth-profiles.json` 並填入 placeholder 金鑰 |
 | 404 Not Found | `baseUrl` 包含 `/v1` | 從 baseUrl 移除 `/v1`（例如使用 `/anthropic` 而非 `/anthropic/v1`） |
-| 401 Unauthorized | AgentTrace 沒有真正的金鑰 | 執行 `agenttrace providers set-key` 儲存你的真實 API 金鑰 |
-| OpenClaw 的呼叫未出現在 Dashboard | `openclaw.json` 中的 `baseUrl` 設定錯誤 | 確認 `baseUrl` 指向 Proxy 的 `:4000` 並包含 Provider 路徑前綴（例如 `http://localhost:4000/anthropic`），而非 Server 的 `:8080`，並確認 AgentTrace 正在運行 |
+| 401 Unauthorized | AgentGazer 沒有真正的金鑰 | 執行 `agentgazer providers set-key` 儲存你的真實 API 金鑰 |
+| OpenClaw 的呼叫未出現在 Dashboard | `openclaw.json` 中的 `baseUrl` 設定錯誤 | 確認 `baseUrl` 指向 Proxy 的 `:4000` 並包含 Provider 路徑前綴（例如 `http://localhost:4000/anthropic`），而非 Server 的 `:8080`，並確認 AgentGazer 正在運行 |
 | Provider 無法被偵測 | `api` 協定欄位設定錯誤 | Anthropic 使用 `"api": "anthropic-messages"`，OpenAI 使用 `"api": "openai-completions"` |
 | Provider 無法被偵測 | 缺少 `models` 陣列 | 加入 `models` 陣列並定義至少一個模型 |
-| 連線被拒絕 (Connection Refused) | AgentTrace 未啟動或連接埠不正確 | 執行 `agenttrace doctor` 檢查服務狀態，確認連接埠設定一致 |
+| 連線被拒絕 (Connection Refused) | AgentGazer 未啟動或連接埠不正確 | 執行 `agentgazer doctor` 檢查服務狀態，確認連接埠設定一致 |
 | 事件出現但沒有成本資料 | 模型名稱不在定價表中 | 檢查模型名稱是否與 `packages/shared/src/pricing.ts` 中的定價表匹配 |
 | 修改設定後 OpenClaw 無法啟動 | `openclaw.json` 語法錯誤 | 驗證 JSON 語法，檢查是否有多餘的逗號（trailing commas） |
 
@@ -647,17 +647,17 @@ curl -X POST http://localhost:8080/api/alerts \
 
 #### OpenClaw 的呼叫未出現在 Dashboard
 
-1. **確認 AgentTrace 正在運行**：
+1. **確認 AgentGazer 正在運行**：
 
    ```bash
    # 檢查 Proxy 是否在監聽
    curl http://localhost:4000/health
    ```
 
-   如果回傳連線錯誤，請重新啟動 AgentTrace：
+   如果回傳連線錯誤，請重新啟動 AgentGazer：
 
    ```bash
-   npx agenttrace
+   npx agentgazer
    ```
 
 2. **確認 `baseUrl` 設定正確**：
@@ -677,7 +677,7 @@ curl -X POST http://localhost:8080/api/alerts \
 
    ```bash
    # 列出已儲存的 Provider 金鑰
-   agenttrace providers list
+   agentgazer providers list
    ```
 
 2. **測試 Proxy 轉發**：
@@ -698,14 +698,14 @@ curl -X POST http://localhost:8080/api/alerts \
 
 #### 事件出現但沒有成本資料
 
-AgentTrace 依據內建的定價表（`packages/shared/src/pricing.ts`）自動計算成本。如果模型名稱不在定價表中，成本欄位會顯示為空。
+AgentGazer 依據內建的定價表（`packages/shared/src/pricing.ts`）自動計算成本。如果模型名稱不在定價表中，成本欄位會顯示為空。
 
 目前支援的模型定價包括：
 
 - **OpenAI**：`gpt-4o`、`gpt-4o-mini`、`gpt-4-turbo`、`gpt-4`、`gpt-3.5-turbo`、`o1`、`o1-mini`、`o3-mini`
 - **Anthropic**：`claude-opus-4-20250514`、`claude-sonnet-4-20250514`、`claude-3-5-haiku-20241022`
 
-> **注意**：OpenClaw 設定中的模型名稱（如 `claude-opus-4-5`）可能與 AgentTrace 定價表中的完整模型 ID 不同。Proxy 會嘗試從 API 回應中提取實際的模型 ID 進行成本計算。
+> **注意**：OpenClaw 設定中的模型名稱（如 `claude-opus-4-5`）可能與 AgentGazer 定價表中的完整模型 ID 不同。Proxy 會嘗試從 API 回應中提取實際的模型 ID 進行成本計算。
 
 #### 修改設定後 OpenClaw 無法啟動
 
@@ -724,10 +724,10 @@ node -e "JSON.parse(require('fs').readFileSync('$HOME/.openclaw/openclaw.json','
 
 #### 連接埠衝突
 
-如果預設連接埠已被其他服務佔用，你可以在啟動 AgentTrace 時指定不同的連接埠：
+如果預設連接埠已被其他服務佔用，你可以在啟動 AgentGazer 時指定不同的連接埠：
 
 ```bash
-npx agenttrace --port 9080 --proxy-port 5000
+npx agentgazer --port 9080 --proxy-port 5000
 ```
 
 然後相應地更新 `openclaw.json` 中的 `baseUrl`：
@@ -749,9 +749,9 @@ npx agenttrace --port 9080 --proxy-port 5000
 
 依序完成以下步驟即可快速完成整合：
 
-- [ ] 安裝 AgentTrace（`npm install -g agenttrace` 或使用 `npx`）
-- [ ] 啟動 AgentTrace（`npx agenttrace`）
-- [ ] 儲存 Provider 金鑰（`agenttrace providers set anthropic <key>`）
+- [ ] 安裝 AgentGazer（`npm install -g agentgazer` 或使用 `npx`）
+- [ ] 啟動 AgentGazer（`npx agentgazer`）
+- [ ] 儲存 Provider 金鑰（`agentgazer providers set anthropic <key>`）
 - [ ] 編輯 `~/.openclaw/openclaw.json`，設定 `baseUrl` 為 `http://localhost:4000/<provider>`（例如 `http://localhost:4000/anthropic`）
 - [ ] 重新啟動 OpenClaw Gateway
 - [ ] 發送測試訊息，確認事件出現在 Dashboard

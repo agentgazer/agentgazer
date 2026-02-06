@@ -2,7 +2,7 @@
 
 import { startProxy } from "./proxy-server.js";
 import type { RateLimitConfig } from "./rate-limiter.js";
-import { KNOWN_PROVIDER_NAMES } from "@agenttrace/shared";
+import { KNOWN_PROVIDER_NAMES } from "@agentgazer/shared";
 
 function parseArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {};
@@ -24,15 +24,15 @@ function parseArgs(argv: string[]): Record<string, string> {
 
 function printUsage(): void {
   console.log(`
-Usage: agenttrace-proxy --api-key <key> --agent-id <id> [options]
+Usage: agentgazer-proxy --api-key <key> --agent-id <id> [options]
 
 Required:
-  --api-key          AgentTrace API key
+  --api-key          AgentGazer API key
   --agent-id         Agent identifier
 
 Options:
   --port             Port to listen on (default: 4000)
-  --endpoint         AgentTrace ingest API URL
+  --endpoint         AgentGazer ingest API URL
   --provider-keys    Provider API keys as JSON, e.g. '{"openai":"sk-...","anthropic":"sk-ant-..."}'
   --rate-limits      Rate limits as JSON, e.g. '{"openai":{"maxRequests":100,"windowSeconds":60}}'
   --help             Show this help message
@@ -99,7 +99,7 @@ function main(): void {
 
   const listenPort = port ?? 4000;
   console.log(
-    `AgentTrace Proxy running on http://localhost:${listenPort}`
+    `AgentGazer Proxy running on http://localhost:${listenPort}`
   );
   if (providerKeys) {
     const names = Object.keys(providerKeys);
@@ -121,14 +121,14 @@ function main(): void {
   function handleShutdown(): void {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log("\n[agenttrace-proxy] Shutting down gracefully...");
+    console.log("\n[agentgazer-proxy] Shutting down gracefully...");
     shutdown()
       .then(() => {
-        console.log("[agenttrace-proxy] Shutdown complete.");
+        console.log("[agentgazer-proxy] Shutdown complete.");
         process.exit(0);
       })
       .catch((err) => {
-        console.error("[agenttrace-proxy] Error during shutdown:", err);
+        console.error("[agentgazer-proxy] Error during shutdown:", err);
         process.exit(1);
       });
   }

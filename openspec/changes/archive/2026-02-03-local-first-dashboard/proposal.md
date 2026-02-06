@@ -1,14 +1,14 @@
 ## Why
 
-AgentTrace currently requires Supabase (Auth, PostgreSQL, Realtime, Edge Functions) as its backend, meaning users must set up a cloud account before seeing any data. This creates high onboarding friction and contradicts the "privacy-first" positioning — the proxy keeps prompts local, but all metrics still flow to a third-party cloud. Rewriting as a local-first developer tool (`npx agenttrace`) removes the cloud dependency, drops onboarding to under 30 seconds, and keeps all data on the user's machine.
+AgentGazer currently requires Supabase (Auth, PostgreSQL, Realtime, Edge Functions) as its backend, meaning users must set up a cloud account before seeing any data. This creates high onboarding friction and contradicts the "privacy-first" positioning — the proxy keeps prompts local, but all metrics still flow to a third-party cloud. Rewriting as a local-first developer tool (`npx agentgazer`) removes the cloud dependency, drops onboarding to under 30 seconds, and keeps all data on the user's machine.
 
 ## What Changes
 
-- **New unified CLI** (`npx agenttrace`): single command starts local API server, LLM proxy, and dashboard
+- **New unified CLI** (`npx agentgazer`): single command starts local API server, LLM proxy, and dashboard
 - **New local API server** (Express + SQLite): replaces Supabase Edge Functions and PostgreSQL; stores all events, agents, alert rules, and alert history in a local SQLite database
 - **New Vite + React dashboard**: replaces the Next.js + Supabase dashboard; pure client-side SPA served as static files by the local server; uses HTTP fetch + polling instead of Supabase Realtime
-- **Token-based auth**: generates a local bearer token on first run; required for all API and dashboard access; stored in `~/.agenttrace/config.json`
-- **SDK and Proxy unchanged**: existing `@agenttrace/sdk` and `@agenttrace/proxy` packages work as-is — only the `endpoint` parameter changes to `http://localhost:<port>/api/events`
+- **Token-based auth**: generates a local bearer token on first run; required for all API and dashboard access; stored in `~/.agentgazer/config.json`
+- **SDK and Proxy unchanged**: existing `@agentgazer/sdk` and `@agentgazer/proxy` packages work as-is — only the `endpoint` parameter changes to `http://localhost:<port>/api/events`
 - **`packages/shared` unchanged**: types, provider detection, pricing, parsers are fully backend-agnostic
 - **BREAKING**: the Supabase-based dashboard (`apps/dashboard`) is not removed but is no longer the primary distribution path; the new `apps/dashboard-local` + `packages/server` + `packages/cli` become the default experience
 

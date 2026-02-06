@@ -67,7 +67,7 @@ export class MachineKeyStore implements SecretStore {
     this.filePath = filePath;
     const machineId = getMachineId();
     const username = os.userInfo().username;
-    const salt = Buffer.from("agenttrace-machine-key-v1");
+    const salt = Buffer.from("agentgazer-machine-key-v1");
     this.key = crypto.scryptSync(
       `${machineId}:${username}`,
       salt,
@@ -293,7 +293,7 @@ export class LibsecretStore implements SecretStore {
     try {
       // Actually attempt a lookup — will fail without D-Bus session
       execSync(
-        "secret-tool lookup service com.agenttrace.probe 2>/dev/null",
+        "secret-tool lookup service com.agentgazer.probe 2>/dev/null",
         { stdio: "pipe", timeout: 3000 }
       );
       return true;
@@ -465,7 +465,7 @@ export async function migrateFromPlaintextConfig(
 // Helpers
 // ---------------------------------------------------------------------------
 
-export const PROVIDER_SERVICE = "com.agenttrace.provider";
+export const PROVIDER_SERVICE = "com.agentgazer.provider";
 
 export async function loadProviderKeys(
   store: SecretStore

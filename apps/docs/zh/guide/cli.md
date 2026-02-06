@@ -19,23 +19,23 @@
 
 ## 詳細說明
 
-### `agenttrace onboard`
+### `agentgazer onboard`
 
-首次設定精靈。產生認證 Token 並寫入 `~/.agenttrace/config.json`，引導使用者設定 Provider API Key。
+首次設定精靈。產生認證 Token 並寫入 `~/.agentgazer/config.json`，引導使用者設定 Provider API Key。
 
-### `agenttrace start`
+### `agentgazer start`
 
 啟動所有服務。
 
 ```bash
 # 使用預設連接埠啟動
-agenttrace start
+agentgazer start
 
 # 自訂連接埠，不自動開啟瀏覽器
-agenttrace start --port 9090 --proxy-port 5000 --no-open
+agentgazer start --port 9090 --proxy-port 5000 --no-open
 
 # 設定資料保留天數為 7 天
-agenttrace start --retention-days 7
+agentgazer start --retention-days 7
 ```
 
 | 旗標 | 預設值 | 說明 |
@@ -45,54 +45,54 @@ agenttrace start --retention-days 7
 | `--retention-days` | `30` | 事件資料保留天數 |
 | `--no-open` | `false` | 啟動時不自動開啟瀏覽器 |
 
-### `agenttrace status`
+### `agentgazer status`
 
 顯示目前的設定，包括 Token 前綴、已設定的 Provider、資料庫路徑等。
 
-### `agenttrace reset-token`
+### `agentgazer reset-token`
 
 重新產生認證 Token。舊 Token 將立即失效，需要更新所有使用舊 Token 的 SDK 設定與儀表板登入。
 
-### `agenttrace providers`
+### `agentgazer providers`
 
 管理 LLM Provider 的 API Key。
 
 ```bash
 # 列出所有已設定的 Provider
-agenttrace providers list
+agentgazer providers list
 
 # 設定 OpenAI API Key（安全加密儲存）
-agenttrace providers set openai sk-xxxxxxxxxxxxx
+agentgazer providers set openai sk-xxxxxxxxxxxxx
 
 # 移除 Anthropic Provider
-agenttrace providers remove anthropic
+agentgazer providers remove anthropic
 ```
 
-### `agenttrace doctor`
+### `agentgazer doctor`
 
 執行系統健康檢查，驗證伺服器與 Proxy 是否正常運作。
 
 ```bash
-agenttrace doctor
-agenttrace doctor --port 9090 --proxy-port 5000
+agentgazer doctor
+agentgazer doctor --port 9090 --proxy-port 5000
 ```
 
-### `agenttrace agents`
+### `agentgazer agents`
 
 列出所有已註冊的 Agent 及其狀態。
 
 ```bash
-agenttrace agents
+agentgazer agents
 ```
 
-### `agenttrace stats`
+### `agentgazer stats`
 
 顯示 Agent 的統計數據。如果系統中只有一個 Agent，會自動選擇該 Agent。
 
 ```bash
 # 顯示所有 Agent 的統計（預設 24 小時）
-agenttrace stats
+agentgazer stats
 
 # 顯示特定 Agent 的統計，時間範圍 7 天
-agenttrace stats my-agent --range 7d
+agentgazer stats my-agent --range 7d
 ```

@@ -54,7 +54,7 @@ describe("Integration: SDK -> Local Server", () => {
   let port: number;
   let db: ReturnType<typeof createServer>["db"];
   const token = `integ-sdk-${randomUUID().slice(0, 8)}`;
-  const dbPath = path.join(os.tmpdir(), `agenttrace-integ-sdk-${randomUUID()}.db`);
+  const dbPath = path.join(os.tmpdir(), `agentgazer-integ-sdk-${randomUUID()}.db`);
 
   beforeAll(async () => {
     const { app, db: database } = createServer({ token, dbPath });
@@ -74,11 +74,11 @@ describe("Integration: SDK -> Local Server", () => {
 
   it("SDK events appear in server API responses", async () => {
     // Dynamically import SDK so workspace resolution finds the built dist
-    const { AgentTrace } = await import("@agenttrace/sdk");
+    const { AgentGazer } = await import("@agentgazer/sdk");
 
     const agentId = `sdk-test-${randomUUID().slice(0, 8)}`;
 
-    const watch = AgentTrace.init({
+    const watch = AgentGazer.init({
       apiKey: token,
       agentId,
       endpoint: `http://localhost:${port}/api/events`,
@@ -153,11 +153,11 @@ describe("Integration: SDK -> Local Server", () => {
   });
 
   it("SDK custom events and tags round-trip through the server", async () => {
-    const { AgentTrace } = await import("@agenttrace/sdk");
+    const { AgentGazer } = await import("@agentgazer/sdk");
 
     const agentId = `sdk-custom-${randomUUID().slice(0, 8)}`;
 
-    const watch = AgentTrace.init({
+    const watch = AgentGazer.init({
       apiKey: token,
       agentId,
       endpoint: `http://localhost:${port}/api/events`,
@@ -188,11 +188,11 @@ describe("Integration: SDK -> Local Server", () => {
   });
 
   it("SDK track events feed into the stats endpoint", async () => {
-    const { AgentTrace } = await import("@agenttrace/sdk");
+    const { AgentGazer } = await import("@agentgazer/sdk");
 
     const agentId = `sdk-stats-${randomUUID().slice(0, 8)}`;
 
-    const watch = AgentTrace.init({
+    const watch = AgentGazer.init({
       apiKey: token,
       agentId,
       endpoint: `http://localhost:${port}/api/events`,
@@ -254,7 +254,7 @@ describe("Integration: Alert evaluation", () => {
   let port: number;
   let db: ReturnType<typeof createServer>["db"];
   const token = `integ-alert-${randomUUID().slice(0, 8)}`;
-  const dbPath = path.join(os.tmpdir(), `agenttrace-integ-alert-${randomUUID()}.db`);
+  const dbPath = path.join(os.tmpdir(), `agentgazer-integ-alert-${randomUUID()}.db`);
   let base: string;
 
   beforeAll(async () => {
@@ -531,7 +531,7 @@ describe("Integration: Proxy -> Local Server", () => {
   let localPort: number;
   let db: ReturnType<typeof createServer>["db"];
   const token = `integ-proxy-${randomUUID().slice(0, 8)}`;
-  const dbPath = path.join(os.tmpdir(), `agenttrace-integ-proxy-${randomUUID()}.db`);
+  const dbPath = path.join(os.tmpdir(), `agentgazer-integ-proxy-${randomUUID()}.db`);
 
   beforeAll(async () => {
     const { app, db: database } = createServer({ token, dbPath });
@@ -550,7 +550,7 @@ describe("Integration: Proxy -> Local Server", () => {
   });
 
   it("proxy health check returns ok with agent_id", async () => {
-    const { startProxy } = await import("@agenttrace/proxy");
+    const { startProxy } = await import("@agentgazer/proxy");
 
     const agentId = `proxy-health-${randomUUID().slice(0, 8)}`;
 
@@ -591,7 +591,7 @@ describe("Integration: Proxy -> Local Server", () => {
   });
 
   it("proxy EventBuffer sends events to the local server", async () => {
-    const { EventBuffer } = await import("@agenttrace/proxy");
+    const { EventBuffer } = await import("@agentgazer/proxy");
 
     const agentId = `proxy-buffer-${randomUUID().slice(0, 8)}`;
 
@@ -687,7 +687,7 @@ describe("Integration: Proxy -> Local Server", () => {
   });
 
   it("proxy EventBuffer retries on auth failure", async () => {
-    const { EventBuffer } = await import("@agenttrace/proxy");
+    const { EventBuffer } = await import("@agentgazer/proxy");
 
     const agentId = `proxy-retry-${randomUUID().slice(0, 8)}`;
 

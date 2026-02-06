@@ -19,18 +19,18 @@ The operation guide SHALL describe the current architecture: local Express serve
 - **THEN** the diagram shows CLI starting Express server (:8080), LLM proxy (:4000), and React dashboard, all backed by local SQLite
 
 ### Requirement: Platform overview section
-The guide SHALL include a platform overview section covering: what AgentTrace is, core features (monitoring, cost tracking, health detection, alerting, privacy), data collection methods (proxy vs SDK), and supported LLM providers table.
+The guide SHALL include a platform overview section covering: what AgentGazer is, core features (monitoring, cost tracking, health detection, alerting, privacy), data collection methods (proxy vs SDK), and supported LLM providers table.
 
 #### Scenario: Provider table is complete
 - **WHEN** a user reads the supported providers table
 - **THEN** it lists at minimum: OpenAI, Anthropic, Google, Mistral, Cohere with their host patterns
 
 ### Requirement: Installation and quick start section
-The guide SHALL include installation instructions via `npx agenttrace`, covering the onboard flow, first-time token generation, and how to verify the system is running.
+The guide SHALL include installation instructions via `npx agentgazer`, covering the onboard flow, first-time token generation, and how to verify the system is running.
 
 #### Scenario: First run walkthrough
 - **WHEN** a new user follows the quick start section
-- **THEN** they can run `npx agenttrace`, see the dashboard open in a browser, and know where to find their auth token
+- **THEN** they can run `npx agentgazer`, see the dashboard open in a browser, and know where to find their auth token
 
 ### Requirement: CLI reference section
 The guide SHALL document all CLI subcommands: `onboard`, `start`, `status`, `reset-token`, `providers list|set|remove`, `version`, `doctor`, `agents`, `stats`, and `help`, with their flags and usage examples.
@@ -55,7 +55,7 @@ The guide SHALL document proxy usage including: path prefix routing (`/openai/v1
 - **THEN** the guide shows setting `OPENAI_BASE_URL=http://localhost:4000/v1` or configuring the SDK's `baseURL`
 
 ### Requirement: SDK usage section
-The guide SHALL document the SDK with: installation, initialization (`AgentTrace.init`), `track()`, `heartbeat()`, `error()`, `custom()`, distributed tracing (`startTrace`/`startSpan`), batching behavior, graceful shutdown, and a complete working example.
+The guide SHALL document the SDK with: installation, initialization (`AgentGazer.init`), `track()`, `heartbeat()`, `error()`, `custom()`, distributed tracing (`startTrace`/`startSpan`), batching behavior, graceful shutdown, and a complete working example.
 
 #### Scenario: Complete SDK example
 - **WHEN** a user reads the SDK section
@@ -90,7 +90,7 @@ The guide SHALL document all REST API endpoints: events (POST ingest, GET query,
 - **THEN** they see the POST /api/events endpoint with request/response format, field descriptions, event types, rate limits, and status codes (200, 207, 400, 401, 429)
 
 ### Requirement: Docker deployment section
-The guide SHALL document deployment via `docker compose up -d` with port mapping, persistent volume for `~/.agenttrace/`, and environment variable configuration.
+The guide SHALL document deployment via `docker compose up -d` with port mapping, persistent volume for `~/.agentgazer/`, and environment variable configuration.
 
 #### Scenario: Docker quick start
 - **WHEN** a user reads the Docker section

@@ -19,7 +19,7 @@ Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 
 **方式 A：使用儲存的 API Key（推薦）**
 
-如果你已經用 `agenttrace providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
+如果你已經用 `agentgazer providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
 
 ```bash
 export OPENAI_BASE_URL=http://localhost:4000/openai/v1
@@ -172,7 +172,7 @@ Proxy 在轉發請求前會檢查 Agent 政策。當政策阻擋請求時，Prox
   "choices": [{
     "message": {
       "role": "assistant",
-      "content": "[AgentTrace] Request blocked: budget_exceeded"
+      "content": "[AgentGazer] Request blocked: budget_exceeded"
     },
     "finish_reason": "stop"
   }]
@@ -187,7 +187,7 @@ Proxy 在轉發請求前會檢查 Agent 政策。當政策阻擋請求時，Prox
   "type": "message",
   "content": [{
     "type": "text",
-    "text": "[AgentTrace] Request blocked: agent_deactivated"
+    "text": "[AgentGazer] Request blocked: agent_deactivated"
   }],
   "stop_reason": "end_turn"
 }
@@ -307,4 +307,4 @@ Proxy 只提取以下指標資料：
 - 成本（USD）
 - HTTP 狀態碼
 
-**Prompt 內容和 API Key 永遠不會傳送到 AgentTrace 伺服器。**
+**Prompt 內容和 API Key 永遠不會傳送到 AgentGazer 伺服器。**

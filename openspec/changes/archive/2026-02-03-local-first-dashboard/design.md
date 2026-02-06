@@ -1,6 +1,6 @@
 ## Context
 
-AgentTrace is currently a Supabase-dependent stack: Next.js dashboard + Supabase Auth/DB/Realtime/Edge Functions. The SDK and Proxy already communicate via plain HTTP POST, making the backend swappable. The goal is to build a parallel local-first stack that lets developers run `npx agenttrace` and have a fully functional observability dashboard on localhost with zero cloud dependencies.
+AgentGazer is currently a Supabase-dependent stack: Next.js dashboard + Supabase Auth/DB/Realtime/Edge Functions. The SDK and Proxy already communicate via plain HTTP POST, making the backend swappable. The goal is to build a parallel local-first stack that lets developers run `npx agentgazer` and have a fully functional observability dashboard on localhost with zero cloud dependencies.
 
 Existing packages that are 100% reusable without modification:
 - `packages/shared` — types (Zod schemas), provider detection, pricing tables, response parsers
@@ -12,8 +12,8 @@ The Supabase-based dashboard (`apps/dashboard`) remains in the repo for a potent
 ## Goals / Non-Goals
 
 **Goals:**
-- Single command (`npx agenttrace`) starts everything: API server, LLM proxy, dashboard
-- All data stored locally in SQLite at `~/.agenttrace/data.db`
+- Single command (`npx agentgazer`) starts everything: API server, LLM proxy, dashboard
+- All data stored locally in SQLite at `~/.agentgazer/data.db`
 - Token-based auth protecting all endpoints (auto-generated on first run)
 - Dashboard feature parity with current Supabase dashboard: agent list, agent detail (stats, charts, cost breakdown), cost overview, alerts management
 - SDK and Proxy work unchanged — only `endpoint` URL differs
@@ -33,7 +33,7 @@ The Supabase-based dashboard (`apps/dashboard`) remains in the repo for a potent
 
 **Alternatives considered**:
 - *Next.js `output: "export"`*: Too many limitations (no middleware, no server components, no API routes). Would require extensive workarounds.
-- *Next.js standalone*: Running a full Next.js server inside `npx agenttrace` is heavy and slow to start.
+- *Next.js standalone*: Running a full Next.js server inside `npx agentgazer` is heavy and slow to start.
 
 **Rationale**: Vite produces static files that Express can serve directly. Fast build, fast startup, small bundle. The existing React components (charts, cards, tables) can be ported with minimal changes — only the data-fetching layer changes (Supabase client → `fetch()`).
 
@@ -49,7 +49,7 @@ The Supabase-based dashboard (`apps/dashboard`) remains in the repo for a potent
 
 ### D3: Token-based auth with auto-generation
 
-**Choice**: On first run, generate a random token, store in `~/.agenttrace/config.json`, print to terminal. All API requests require `Authorization: Bearer <token>`. Dashboard serves a login page that accepts the token and stores it in localStorage.
+**Choice**: On first run, generate a random token, store in `~/.agentgazer/config.json`, print to terminal. All API requests require `Authorization: Bearer <token>`. Dashboard serves a login page that accepts the token and stores it in localStorage.
 
 **Alternatives considered**:
 - *No auth*: Risky if someone binds to `0.0.0.0` or is on a shared network.
@@ -76,8 +76,8 @@ The Supabase-based dashboard (`apps/dashboard`) remains in the repo for a potent
 
 ### D6: Unified CLI orchestrates all processes
 
-**Choice**: `packages/cli` exports a single bin (`agenttrace`) that:
-1. Ensures `~/.agenttrace/` exists with config and DB
+**Choice**: `packages/cli` exports a single bin (`agentgazer`) that:
+1. Ensures `~/.agentgazer/` exists with config and DB
 2. Starts the Express server (API + static dashboard)
 3. Starts the LLM proxy (reuses `startProxy()` from `packages/proxy`)
 4. Prints token + URLs to terminal
@@ -102,7 +102,7 @@ packages/server/       # Express + SQLite + API routes
 packages/cli/          # Unified entry point
   src/
     cli.ts             # Parse args, init config, start server + proxy
-    config.ts          # ~/.agenttrace/ management
+    config.ts          # ~/.agentgazer/ management
 
 apps/dashboard-local/  # Vite + React SPA
   src/
@@ -122,7 +122,7 @@ apps/dashboard-local/  # Vite + React SPA
 
 **[Risk] Maintaining two dashboards (Supabase + local)** → Accept this for now. The local dashboard is the primary product. The Supabase dashboard can be deprecated or extracted later if a cloud offering materializes.
 
-**[Risk] Token leaked in terminal output** → Acceptable for local dev tool. User can regenerate with `agenttrace token --reset`. Token is only valid for localhost.
+**[Risk] Token leaked in terminal output** → Acceptable for local dev tool. User can regenerate with `agentgazer token --reset`. Token is only valid for localhost.
 
 **[Trade-off] No email alerts in local version** → Webhook-only. Users can use webhook-to-email bridges if needed. Keeps dependencies minimal.
 
@@ -130,5 +130,5 @@ apps/dashboard-local/  # Vite + React SPA
 
 ## Open Questions
 
-- Should `npx agenttrace` auto-open the browser? (Leaning yes, with `--no-open` flag)
-- Data retention policy? (Leaning: keep all data, user can manually delete `~/.agenttrace/data.db`)
+- Should `npx agentgazer` auto-open the browser? (Leaning yes, with `--no-open` flag)
+- Data retention policy? (Leaning: keep all data, user can manually delete `~/.agentgazer/data.db`)

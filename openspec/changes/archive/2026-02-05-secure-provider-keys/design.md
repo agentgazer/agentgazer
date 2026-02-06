@@ -1,6 +1,6 @@
 ## Context
 
-Provider API keys are currently stored as plaintext in `~/.agenttrace/config.json` with default file permissions (0644). AI coding agents running on the same machine as the local user can read this file directly, extracting all configured provider keys. The proxy also has a path-based key injection fallback that allows an agent to extract keys via HTTP by pointing `x-target-url` at a server it controls.
+Provider API keys are currently stored as plaintext in `~/.agentgazer/config.json` with default file permissions (0644). AI coding agents running on the same machine as the local user can read this file directly, extracting all configured provider keys. The proxy also has a path-based key injection fallback that allows an agent to extract keys via HTTP by pointing `x-target-url` at a server it controls.
 
 The system needs to protect provider keys from co-resident AI agents while maintaining a practical developer experience, including SSH access to headless machines.
 
@@ -73,7 +73,7 @@ The passphrase is used with `crypto.scryptSync(passphrase, salt, 32)` to derive 
 
 ### 5. Encrypted file format
 
-**Decision:** Secrets stored in `~/.agenttrace/secrets.enc` as JSON encrypted with AES-256-GCM:
+**Decision:** Secrets stored in `~/.agentgazer/secrets.enc` as JSON encrypted with AES-256-GCM:
 
 ```
 {
@@ -110,7 +110,7 @@ The `apiKey` field is removed from each provider entry. The `secretBackend` fiel
 
 ## Risks / Trade-offs
 
-- **[UX friction]** Encrypted-file backend requires passphrase on every `agenttrace start`. → Mitigated by `AGENTTRACE_PASSPHRASE` env var for scripting. Users on GUI desktops can opt into Keychain/libsecret for passphrase-free experience.
+- **[UX friction]** Encrypted-file backend requires passphrase on every `agentgazer start`. → Mitigated by `AGENTTRACE_PASSPHRASE` env var for scripting. Users on GUI desktops can opt into Keychain/libsecret for passphrase-free experience.
 
 - **[Env var passphrase visible on Linux /proc]** `AGENTTRACE_PASSPHRASE` is readable via `/proc/<pid>/environ` on Linux by the same user. → macOS has no /proc; on Linux this is documented as a known limitation. Using stdin prompt is more secure.
 
