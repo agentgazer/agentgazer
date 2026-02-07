@@ -30,7 +30,7 @@ interface TelegramConfig {
 interface AlertRule {
   id: string;
   agent_id: string;
-  rule_type: "agent_down" | "error_rate" | "budget";
+  rule_type: "agent_down" | "error_rate" | "budget" | "kill_switch";
   config: Record<string, number>;
   notification_type: NotificationType;
   webhook_url?: string;
@@ -68,7 +68,7 @@ interface AgentsResponse {
 
 type Tab = "rules" | "history";
 
-type RuleType = "agent_down" | "error_rate" | "budget";
+type RuleType = "agent_down" | "error_rate" | "budget" | "kill_switch";
 
 interface FormState {
   agent_id: string;
@@ -93,6 +93,8 @@ function configSummary(
       return `Errors > ${config.threshold ?? "?"}% / ${config.window_minutes ?? "?"}min`;
     case "budget":
       return `Cost > $${(config.threshold ?? 0).toFixed(2)}`;
+    case "kill_switch":
+      return "Loop detected";
     default:
       return JSON.stringify(config);
   }
@@ -106,6 +108,8 @@ function defaultConfig(ruleType: RuleType): Record<string, number> {
       return { threshold: 10, window_minutes: 15 };
     case "budget":
       return { threshold: 100 };
+    case "kill_switch":
+      return {}; // No config needed - triggers on any kill_switch event
   }
 }
 
@@ -135,6 +139,7 @@ const RULE_TYPE_STYLES: Record<string, string> = {
   agent_down: "bg-red-900/50 text-red-400 border-red-700",
   error_rate: "bg-yellow-900/50 text-yellow-400 border-yellow-700",
   budget: "bg-blue-900/50 text-blue-400 border-blue-700",
+  kill_switch: "bg-purple-900/50 text-purple-400 border-purple-700",
 };
 
 function RuleTypeBadge({ type }: { type: string }) {
@@ -191,12 +196,14 @@ const RULE_TYPE_OPTIONS = [
   { value: "agent_down", label: "Agent Inactive" },
   { value: "error_rate", label: "Error Rate" },
   { value: "budget", label: "Budget Exceeded" },
+  { value: "kill_switch", label: "Kill Switch (Loop)" },
 ];
 
 const RULE_TYPE_LABELS: Record<string, string> = {
   agent_down: "Agent Inactive",
   error_rate: "Error Rate",
   budget: "Budget Exceeded",
+  kill_switch: "Kill Switch",
 };
 
 const NOTIFICATION_TYPE_OPTIONS = [
@@ -401,6 +408,7 @@ function AlertForm({
             <option value="agent_down">Agent Inactive (no activity for X minutes)</option>
             <option value="error_rate">Error Rate (% errors in time window)</option>
             <option value="budget">Budget Exceeded (daily spend threshold)</option>
+            <option value="kill_switch">Kill Switch (notify when loop detected)</option>
           </select>
         </div>
       </div>
@@ -478,6 +486,20 @@ function AlertForm({
             <p className="mt-1 text-xs text-gray-500">
               Alert when daily spend exceeds this amount
             </p>
+          </div>
+        )}
+        {form.rule_type === "kill_switch" && (
+          <div className="sm:col-span-2">
+            <div className="rounded-md border border-purple-700 bg-purple-900/20 p-4">
+              <p className="text-sm font-medium text-purple-300">Kill Switch Alert</p>
+              <p className="mt-1 text-xs text-purple-300/80">
+                This alert fires automatically when the kill switch detects an agent stuck in an infinite loop.
+                Enable Kill Switch in the agent's detail page first, then create this alert rule to receive notifications.
+              </p>
+              <p className="mt-2 text-xs text-gray-400">
+                No additional configuration required - the alert triggers on any loop detection event.
+              </p>
+            </div>
           </div>
         )}
       </div>

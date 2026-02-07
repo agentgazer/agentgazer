@@ -38,5 +38,26 @@ export {
 
 export {
   SELECTABLE_MODELS,
+  PROVIDER_MODELS,
   getSelectableModels,
 } from "./models.js";
+
+export {
+  validateProviderKey,
+  testProviderModel,
+  type ValidationResult,
+} from "./provider-validator.js";
+
+export {
+  computeSimHash,
+  hammingDistance,
+  isSimilar,
+} from "./simhash.js";
+
+export {
+  normalizePrompt,
+  extractUserMessage,
+  extractToolCalls,
+  extractAndNormalizePrompt,
+  type ChatMessage,
+} from "./normalize.js";

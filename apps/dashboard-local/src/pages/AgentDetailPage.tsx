@@ -8,6 +8,7 @@ import ErrorBanner from "../components/ErrorBanner";
 import TimeRangeSelector from "../components/TimeRangeSelector";
 import TokenBarChart from "../components/charts/TokenBarChart";
 import PolicySettings from "../components/PolicySettings";
+import KillSwitchSettings from "../components/KillSwitchSettings";
 import ModelSettings from "../components/ModelSettings";
 import RateLimitSettings from "../components/RateLimitSettings";
 import RequestLog from "../components/RequestLog";
@@ -117,6 +118,11 @@ export default function AgentDetailPage() {
       {/* Policy Settings */}
       <div className="mt-6">
         <PolicySettings agentId={agentId!} />
+      </div>
+
+      {/* Kill Switch Settings */}
+      <div className="mt-6">
+        <KillSwitchSettings agentId={agentId!} />
       </div>
 
       {/* Model Settings */}

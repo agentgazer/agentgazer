@@ -20,8 +20,10 @@ import {
   upsertAgent,
   getModelRule,
   getAllRateLimits,
+  getProviderSettings,
   type AgentPolicy,
   type InsertEventRow,
+  type ProviderSettingsRow,
 } from "@agentgazer/server";
 import type Database from "better-sqlite3";
 
@@ -69,6 +71,7 @@ function getModelOverride(
 const log = createLogger("proxy");
 import { EventBuffer } from "./event-buffer.js";
 import { RateLimiter, type RateLimitConfig } from "./rate-limiter.js";
+import { loopDetector, type KillSwitchConfig } from "./loop-detector.js";
 
 export interface ProxyOptions {
   port?: number;
@@ -314,7 +317,7 @@ function parseSSEResponse(
 // Policy enforcement helpers
 // ---------------------------------------------------------------------------
 
-type BlockReason = "inactive" | "budget_exceeded" | "outside_hours";
+type BlockReason = "inactive" | "budget_exceeded" | "outside_hours" | "provider_deactivated" | "provider_rate_limited" | "loop_detected";
 
 interface PolicyCheckResult {
   allowed: boolean;
@@ -386,6 +389,133 @@ function checkAgentPolicy(
   return { allowed: true };
 }
 
+// ---------------------------------------------------------------------------
+// Provider-Level Policy
+// ---------------------------------------------------------------------------
+
+interface ProviderPolicyCache {
+  [provider: string]: {
+    settings: ProviderSettingsRow | null;
+    expiresAt: number;
+  };
+}
+
+const providerPolicyCache: ProviderPolicyCache = {};
+const PROVIDER_POLICY_CACHE_TTL_MS = 30_000; // 30 seconds
+
+// Provider-level rate limiter (separate from agent rate limiter)
+const providerRateLimiter = new RateLimiter();
+
+function checkProviderPolicy(
+  db: Database.Database | undefined,
+  provider: ProviderName,
+): PolicyCheckResult {
+  if (!db || provider === "unknown") {
+    return { allowed: true };
+  }
+
+  // Check cache first
+  const cached = providerPolicyCache[provider];
+  let settings: ProviderSettingsRow | null | undefined;
+
+  if (cached && cached.expiresAt > Date.now()) {
+    settings = cached.settings;
+  } else {
+    settings = getProviderSettings(db, provider);
+    providerPolicyCache[provider] = {
+      settings: settings ?? null,
+      expiresAt: Date.now() + PROVIDER_POLICY_CACHE_TTL_MS,
+    };
+  }
+
+  if (!settings) {
+    // No settings means default (active, no rate limit)
+    return { allowed: true };
+  }
+
+  // Check if provider is active
+  if (settings.active === 0) {
+    return {
+      allowed: false,
+      reason: "provider_deactivated",
+      message: `Provider "${provider}" is currently deactivated`,
+    };
+  }
+
+  // Check provider rate limit
+  if (settings.rate_limit_max_requests && settings.rate_limit_window_seconds) {
+    const isAllowed = providerRateLimiter.checkAndRecord(
+      provider, // Use provider as the key
+      provider,
+      settings.rate_limit_max_requests,
+      settings.rate_limit_window_seconds,
+    );
+
+    if (!isAllowed) {
+      const retryAfter = providerRateLimiter.getRetryAfter(provider, provider);
+      return {
+        allowed: false,
+        reason: "provider_rate_limited",
+        message: `Provider "${provider}" rate limit exceeded. Retry after ${retryAfter} seconds.`,
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+// ---------------------------------------------------------------------------
+// Kill Switch Config Cache
+// ---------------------------------------------------------------------------
+
+interface KillSwitchConfigCache {
+  [agentId: string]: {
+    config: KillSwitchConfig;
+    expiresAt: number;
+  };
+}
+
+const killSwitchConfigCache: KillSwitchConfigCache = {};
+const KILL_SWITCH_CACHE_TTL_MS = 30_000; // 30 seconds
+
+function getKillSwitchConfig(
+  db: Database.Database | undefined,
+  agentId: string,
+): KillSwitchConfig {
+  const defaultConfig: KillSwitchConfig = {
+    enabled: false,
+    windowSize: 20,
+    threshold: 10.0,
+  };
+
+  if (!db) return defaultConfig;
+
+  // Check cache first
+  const cached = killSwitchConfigCache[agentId];
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.config;
+  }
+
+  // Fetch from DB
+  const policy = getAgentPolicy(db, agentId);
+  const config: KillSwitchConfig = {
+    enabled: policy?.kill_switch_enabled === 1,
+    windowSize: policy?.kill_switch_window_size ?? 20,
+    threshold: policy?.kill_switch_threshold ?? 10.0,
+  };
+
+  // Update loop detector config
+  loopDetector.setConfig(agentId, config);
+
+  // Cache the result
+  killSwitchConfigCache[agentId] = {
+    config,
+    expiresAt: Date.now() + KILL_SWITCH_CACHE_TTL_MS,
+  };
+
+  return config;
+}
+
 /**
  * Generate a blocked response in OpenAI format.
  */
@@ -449,6 +579,39 @@ function generateBlockedResponse(
   }
   // Default to OpenAI format (used by most providers)
   return generateOpenAIBlockedResponse(reason, message);
+}
+
+/**
+ * Generate a rate limit response based on provider format.
+ */
+function generateRateLimitResponse(
+  provider: ProviderName,
+  agentId: string,
+  retryAfterSeconds: number,
+): object {
+  const message = `Rate limit exceeded for provider "${provider}". Please retry after ${retryAfterSeconds} seconds.`;
+
+  if (provider === "anthropic") {
+    return {
+      type: "error",
+      error: {
+        type: "rate_limit_error",
+        message,
+      },
+      retry_after_seconds: retryAfterSeconds,
+    };
+  }
+
+  // OpenAI-style error format (used by most providers)
+  return {
+    error: {
+      message,
+      type: "rate_limit_error",
+      param: null,
+      code: "rate_limit_exceeded",
+    },
+    retry_after_seconds: retryAfterSeconds,
+  };
 }
 
 /**
@@ -669,7 +832,28 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     // Detect provider early for policy enforcement response format
     const earlyProvider: ProviderName = pathPrefixProvider ?? detectProvider(targetUrl);
 
-    // Policy check: verify agent is allowed to make requests
+    // Provider policy check: verify provider is active and within rate limits
+    const providerPolicyResult = checkProviderPolicy(db, earlyProvider);
+    if (!providerPolicyResult.allowed && providerPolicyResult.reason && providerPolicyResult.message) {
+      log.info(`[PROXY] Request blocked for provider "${earlyProvider}": ${providerPolicyResult.reason}`);
+
+      // Record blocked event
+      recordBlockedEvent(db, effectiveAgentId, earlyProvider, providerPolicyResult.reason, providerPolicyResult.message);
+
+      // Return appropriate response based on block reason
+      if (providerPolicyResult.reason === "provider_rate_limited") {
+        const retryAfter = providerRateLimiter.getRetryAfter(earlyProvider, earlyProvider);
+        const rateLimitResponse = generateRateLimitResponse(earlyProvider, effectiveAgentId, retryAfter);
+        res.setHeader("Retry-After", String(retryAfter));
+        sendJson(res, 429, rateLimitResponse);
+      } else {
+        const blockedResponse = generateBlockedResponse(earlyProvider, providerPolicyResult.reason, providerPolicyResult.message);
+        sendJson(res, 200, blockedResponse);
+      }
+      return;
+    }
+
+    // Agent policy check: verify agent is allowed to make requests
     const policyResult = checkAgentPolicy(db, effectiveAgentId);
     if (!policyResult.allowed && policyResult.reason && policyResult.message) {
       log.info(`[PROXY] Request blocked for agent "${effectiveAgentId}": ${policyResult.reason}`);
@@ -701,6 +885,73 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     // Path prefix is definitively trusted (we resolved the provider ourselves).
     const detectedProviderStrict: ProviderName = pathPrefixProvider
       ?? detectProviderByHostname(targetUrl);
+
+    // Kill Switch: Check for infinite loop patterns
+    const killSwitchConfig = getKillSwitchConfig(db, effectiveAgentId);
+    if (killSwitchConfig.enabled) {
+      try {
+        const bodyJson = JSON.parse(requestBody.toString("utf-8"));
+        const { promptHash, toolCalls } = loopDetector.recordRequest(effectiveAgentId, bodyJson);
+        const loopCheck = loopDetector.checkLoop(effectiveAgentId, promptHash, toolCalls);
+
+        if (loopCheck.isLoop) {
+          log.warn(`[PROXY] Kill Switch triggered for agent "${effectiveAgentId}": score=${loopCheck.score.toFixed(2)}`);
+
+          const message = `Agent loop detected (score: ${loopCheck.score.toFixed(1)}). Request blocked to prevent runaway costs.`;
+
+          // Record blocked event
+          recordBlockedEvent(db, effectiveAgentId, earlyProvider, "loop_detected", message);
+
+          // Emit kill_switch event for alerts
+          if (db) {
+            try {
+              const killSwitchEvent: InsertEventRow = {
+                agent_id: effectiveAgentId,
+                event_type: "kill_switch",
+                provider: earlyProvider,
+                model: null,
+                tokens_in: null,
+                tokens_out: null,
+                tokens_total: null,
+                cost_usd: null,
+                latency_ms: null,
+                status_code: 429,
+                source: "proxy",
+                timestamp: new Date().toISOString(),
+                tags: {
+                  loop_score: loopCheck.score,
+                  similar_prompts: loopCheck.details.similarPrompts,
+                  similar_responses: loopCheck.details.similarResponses,
+                  repeated_tool_calls: loopCheck.details.repeatedToolCalls,
+                },
+              };
+              insertEvents(db, [killSwitchEvent]);
+            } catch (err) {
+              log.error("Failed to record kill_switch event", { err: String(err) });
+            }
+          }
+
+          // Return 429 with loop detection info
+          const retryAfter = 60; // Suggest waiting 60 seconds
+          res.setHeader("Retry-After", String(retryAfter));
+
+          const errorBody = {
+            error: {
+              message,
+              type: "loop_detected",
+              code: "kill_switch_triggered",
+              details: loopCheck.details,
+            },
+            retry_after_seconds: retryAfter,
+          };
+
+          sendJson(res, 429, errorBody);
+          return;
+        }
+      } catch {
+        // Not JSON body - skip loop detection
+      }
+    }
 
     // Model override: check if we should rewrite the model in request body
     let requestedModel: string | null = null;
@@ -995,6 +1246,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       costUsd = calculateCost(parsed.model, parsed.tokensIn, parsed.tokensOut);
     }
 
+    // Record response for loop detection
+    loopDetector.recordResponse(effectiveAgentId, sseText);
+
     const event: AgentEvent = {
       agent_id: effectiveAgentId,
       event_type: "llm_call",
@@ -1049,6 +1303,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       costUsd = calculateCost(parsed.model, parsed.tokensIn, parsed.tokensOut);
     }
 
+    // Record response for loop detection
+    loopDetector.recordResponse(effectiveAgentId, responseBody.toString("utf-8"));
+
     const event: AgentEvent = {
       agent_id: effectiveAgentId,
       event_type: "llm_call",
@@ -1071,10 +1328,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
   server.listen(port);
 
+  // Start loop detector cleanup timer (cleans inactive agents every hour)
+  loopDetector.startCleanup();
+
   async function shutdown(): Promise<void> {
     if (rateLimitRefreshTimer) {
       clearInterval(rateLimitRefreshTimer);
     }
+    loopDetector.stopCleanup();
     await eventBuffer.shutdown();
     return new Promise((resolve, reject) => {
       server.close((err) => {

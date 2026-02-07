@@ -17,6 +17,7 @@ interface Agent {
   agent_id: string;
   updated_at: string;
   active: number;
+  kill_switch_enabled?: number;
   total_tokens: number;
   total_cost: number;
   today_cost: number;
@@ -120,12 +121,22 @@ export default function AgentsPage() {
                       className="bg-gray-900 transition-colors hover:bg-gray-800"
                     >
                       <td className="px-4 py-3">
-                        <Link
-                          to={`/agents/${encodeURIComponent(agent.agent_id)}`}
-                          className="font-medium text-blue-400 hover:text-blue-300"
-                        >
-                          {agent.agent_id}
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to={`/agents/${encodeURIComponent(agent.agent_id)}`}
+                            className="font-medium text-blue-400 hover:text-blue-300"
+                          >
+                            {agent.agent_id}
+                          </Link>
+                          {agent.kill_switch_enabled === 1 && (
+                            <span
+                              className="inline-flex items-center rounded-full bg-red-900/50 px-2 py-0.5 text-xs font-medium text-red-400"
+                              title="Kill switch enabled for loop detection"
+                            >
+                              Kill Switch
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button

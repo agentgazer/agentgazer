@@ -1,6 +1,15 @@
 import { Router } from "express";
 import type Database from "better-sqlite3";
-import { getAllAgents, getAgentByAgentId, getAgentPolicy, updateAgentPolicy, getDailySpend, getModelRulesForAgent } from "../db.js";
+import {
+  getAllAgents,
+  getAgentByAgentId,
+  getAgentPolicy,
+  updateAgentPolicy,
+  getDailySpend,
+  getModelRulesForAgent,
+  getKillSwitchConfig,
+  updateKillSwitchConfig,
+} from "../db.js";
 
 const router = Router();
 
@@ -66,7 +75,7 @@ router.get("/api/agents", (req, res) => {
   const rows = db
     .prepare(
       `SELECT
-         a.id, a.agent_id, a.name, a.active, a.budget_limit,
+         a.id, a.agent_id, a.name, a.active, a.budget_limit, a.kill_switch_enabled,
          a.created_at, a.updated_at,
          COALESCE(SUM(e.tokens_total), 0) AS total_tokens,
          COALESCE(SUM(e.cost_usd), 0) AS total_cost,
@@ -184,6 +193,70 @@ router.put("/api/agents/:agentId/policy", (req, res) => {
     ...newPolicy,
     daily_spend: dailySpend,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Kill Switch Endpoints
+// ---------------------------------------------------------------------------
+
+router.get("/api/agents/:agentId/kill-switch", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const { agentId } = req.params;
+
+  const config = getKillSwitchConfig(db, agentId);
+  if (!config) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+
+  res.json(config);
+});
+
+router.patch("/api/agents/:agentId/kill-switch", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const { agentId } = req.params;
+  const body = req.body as {
+    enabled?: boolean;
+    window_size?: number;
+    threshold?: number;
+  };
+
+  // Check agent exists
+  const existing = getKillSwitchConfig(db, agentId);
+  if (!existing) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+
+  // Validate window_size
+  if (body.window_size !== undefined) {
+    if (body.window_size < 5 || body.window_size > 100) {
+      res.status(400).json({ error: "window_size must be between 5 and 100" });
+      return;
+    }
+  }
+
+  // Validate threshold
+  if (body.threshold !== undefined) {
+    if (body.threshold < 1 || body.threshold > 50) {
+      res.status(400).json({ error: "threshold must be between 1 and 50" });
+      return;
+    }
+  }
+
+  const updated = updateKillSwitchConfig(db, agentId, {
+    enabled: body.enabled,
+    window_size: body.window_size,
+    threshold: body.threshold,
+  });
+
+  if (!updated) {
+    res.status(400).json({ error: "No changes provided" });
+    return;
+  }
+
+  const newConfig = getKillSwitchConfig(db, agentId);
+  res.json(newConfig);
 });
 
 export default router;

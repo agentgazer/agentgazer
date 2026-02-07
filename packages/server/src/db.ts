@@ -68,6 +68,17 @@ function runMigrations(db: Database.Database): void {
   if (!eventColNames.includes("requested_model")) {
     db.exec("ALTER TABLE agent_events ADD COLUMN requested_model TEXT");
   }
+
+  // Migration: Add kill_switch columns to agents table
+  if (!colNames.includes("kill_switch_enabled")) {
+    db.exec("ALTER TABLE agents ADD COLUMN kill_switch_enabled INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!colNames.includes("kill_switch_window_size")) {
+    db.exec("ALTER TABLE agents ADD COLUMN kill_switch_window_size INTEGER NOT NULL DEFAULT 20");
+  }
+  if (!colNames.includes("kill_switch_threshold")) {
+    db.exec("ALTER TABLE agents ADD COLUMN kill_switch_threshold REAL NOT NULL DEFAULT 10.0");
+  }
 }
 
 const SCHEMA = `
@@ -79,6 +90,9 @@ const SCHEMA = `
     budget_limit REAL,
     allowed_hours_start INTEGER,
     allowed_hours_end INTEGER,
+    kill_switch_enabled INTEGER NOT NULL DEFAULT 0,
+    kill_switch_window_size INTEGER NOT NULL DEFAULT 20,
+    kill_switch_threshold REAL NOT NULL DEFAULT 10.0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -88,7 +102,7 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS agent_events (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     agent_id TEXT NOT NULL,
-    event_type TEXT NOT NULL CHECK (event_type IN ('llm_call', 'completion', 'heartbeat', 'error', 'custom', 'blocked')),
+    event_type TEXT NOT NULL CHECK (event_type IN ('llm_call', 'completion', 'heartbeat', 'error', 'custom', 'blocked', 'kill_switch')),
     provider TEXT,
     model TEXT,
     requested_model TEXT,
@@ -116,7 +130,7 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS alert_rules (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     agent_id TEXT NOT NULL,
-    rule_type TEXT NOT NULL CHECK (rule_type IN ('agent_down', 'error_rate', 'budget')),
+    rule_type TEXT NOT NULL CHECK (rule_type IN ('agent_down', 'error_rate', 'budget', 'kill_switch')),
     config TEXT NOT NULL DEFAULT '{}',
     enabled INTEGER NOT NULL DEFAULT 1,
     notification_type TEXT NOT NULL DEFAULT 'webhook',
@@ -164,6 +178,28 @@ const SCHEMA = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_agent_rate_limits_agent ON agent_rate_limits(agent_id);
+
+  -- Custom models added by user per provider
+  CREATE TABLE IF NOT EXISTS provider_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider TEXT NOT NULL,
+    model_id TEXT NOT NULL,
+    display_name TEXT,
+    verified_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(provider, model_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_provider_models_provider ON provider_models(provider);
+
+  -- Provider-level settings (active toggle, rate limit)
+  CREATE TABLE IF NOT EXISTS provider_settings (
+    provider TEXT PRIMARY KEY,
+    active INTEGER DEFAULT 1,
+    rate_limit_max_requests INTEGER,
+    rate_limit_window_seconds INTEGER,
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
 `;
 
 // ---------------------------------------------------------------------------
@@ -265,6 +301,7 @@ export interface AgentRow {
   name: string | null;
   active: number;
   budget_limit: number | null;
+  kill_switch_enabled: number;
   created_at: string;
   updated_at: string;
   total_tokens: number;
@@ -280,7 +317,7 @@ export function getAllAgents(db: Database.Database): AgentRow[] {
 
   return db.prepare(`
     SELECT
-      a.id, a.agent_id, a.name, a.active, a.budget_limit,
+      a.id, a.agent_id, a.name, a.active, a.budget_limit, a.kill_switch_enabled,
       a.created_at, a.updated_at,
       COALESCE(SUM(e.tokens_total), 0) AS total_tokens,
       COALESCE(SUM(e.cost_usd), 0) AS total_cost,
@@ -302,7 +339,7 @@ export function getAgentByAgentId(
 
   return db.prepare(`
     SELECT
-      a.id, a.agent_id, a.name, a.active, a.budget_limit,
+      a.id, a.agent_id, a.name, a.active, a.budget_limit, a.kill_switch_enabled,
       a.created_at, a.updated_at,
       COALESCE(SUM(e.tokens_total), 0) AS total_tokens,
       COALESCE(SUM(e.cost_usd), 0) AS total_cost,
@@ -443,6 +480,9 @@ export interface AgentPolicy {
   budget_limit: number | null;
   allowed_hours_start: number | null;
   allowed_hours_end: number | null;
+  kill_switch_enabled: number;
+  kill_switch_window_size: number;
+  kill_switch_threshold: number;
 }
 
 export function getAgentPolicy(
@@ -450,13 +490,17 @@ export function getAgentPolicy(
   agentId: string,
 ): AgentPolicy | null {
   const row = db.prepare(`
-    SELECT active, budget_limit, allowed_hours_start, allowed_hours_end
+    SELECT active, budget_limit, allowed_hours_start, allowed_hours_end,
+           kill_switch_enabled, kill_switch_window_size, kill_switch_threshold
     FROM agents WHERE agent_id = ?
   `).get(agentId) as {
     active: number;
     budget_limit: number | null;
     allowed_hours_start: number | null;
     allowed_hours_end: number | null;
+    kill_switch_enabled: number;
+    kill_switch_window_size: number;
+    kill_switch_threshold: number;
   } | undefined;
 
   if (!row) return null;
@@ -466,6 +510,9 @@ export function getAgentPolicy(
     budget_limit: row.budget_limit,
     allowed_hours_start: row.allowed_hours_start,
     allowed_hours_end: row.allowed_hours_end,
+    kill_switch_enabled: row.kill_switch_enabled,
+    kill_switch_window_size: row.kill_switch_window_size,
+    kill_switch_threshold: row.kill_switch_threshold,
   };
 }
 
@@ -492,6 +539,18 @@ export function updateAgentPolicy(
   if (policy.allowed_hours_end !== undefined) {
     updates.push("allowed_hours_end = ?");
     params.push(policy.allowed_hours_end);
+  }
+  if (policy.kill_switch_enabled !== undefined) {
+    updates.push("kill_switch_enabled = ?");
+    params.push(policy.kill_switch_enabled);
+  }
+  if (policy.kill_switch_window_size !== undefined) {
+    updates.push("kill_switch_window_size = ?");
+    params.push(policy.kill_switch_window_size);
+  }
+  if (policy.kill_switch_threshold !== undefined) {
+    updates.push("kill_switch_threshold = ?");
+    params.push(policy.kill_switch_threshold);
   }
 
   if (updates.length === 0) return false;
@@ -650,6 +709,268 @@ export function deleteRateLimit(
   const result = db.prepare(`
     DELETE FROM agent_rate_limits WHERE agent_id = ? AND provider = ?
   `).run(agentId, provider);
+
+  return result.changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Provider Models
+// ---------------------------------------------------------------------------
+
+export interface ProviderModelRow {
+  id: number;
+  provider: string;
+  model_id: string;
+  display_name: string | null;
+  verified_at: string | null;
+  created_at: string;
+}
+
+export function getProviderModels(
+  db: Database.Database,
+  provider: string,
+): ProviderModelRow[] {
+  return db.prepare(`
+    SELECT * FROM provider_models WHERE provider = ? ORDER BY model_id
+  `).all(provider) as ProviderModelRow[];
+}
+
+export function addProviderModel(
+  db: Database.Database,
+  provider: string,
+  modelId: string,
+  displayName?: string,
+  verifiedAt?: string,
+): ProviderModelRow {
+  db.prepare(`
+    INSERT INTO provider_models (provider, model_id, display_name, verified_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(provider, model_id) DO UPDATE SET
+      display_name = COALESCE(excluded.display_name, display_name),
+      verified_at = COALESCE(excluded.verified_at, verified_at)
+  `).run(provider, modelId, displayName ?? null, verifiedAt ?? null);
+
+  return db.prepare(`
+    SELECT * FROM provider_models WHERE provider = ? AND model_id = ?
+  `).get(provider, modelId) as ProviderModelRow;
+}
+
+export function deleteProviderModel(
+  db: Database.Database,
+  provider: string,
+  modelId: string,
+): boolean {
+  const result = db.prepare(`
+    DELETE FROM provider_models WHERE provider = ? AND model_id = ?
+  `).run(provider, modelId);
+
+  return result.changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Provider Settings
+// ---------------------------------------------------------------------------
+
+export interface ProviderSettingsRow {
+  provider: string;
+  active: number;
+  rate_limit_max_requests: number | null;
+  rate_limit_window_seconds: number | null;
+  updated_at: string;
+}
+
+export function getProviderSettings(
+  db: Database.Database,
+  provider: string,
+): ProviderSettingsRow | undefined {
+  return db.prepare(`
+    SELECT * FROM provider_settings WHERE provider = ?
+  `).get(provider) as ProviderSettingsRow | undefined;
+}
+
+export function getAllProviderSettings(
+  db: Database.Database,
+): ProviderSettingsRow[] {
+  return db.prepare(`
+    SELECT * FROM provider_settings ORDER BY provider
+  `).all() as ProviderSettingsRow[];
+}
+
+export function upsertProviderSettings(
+  db: Database.Database,
+  provider: string,
+  settings: {
+    active?: boolean;
+    rate_limit_max_requests?: number | null;
+    rate_limit_window_seconds?: number | null;
+  },
+): ProviderSettingsRow {
+  const now = new Date().toISOString();
+  const existing = getProviderSettings(db, provider);
+
+  const active = settings.active !== undefined ? (settings.active ? 1 : 0) : (existing?.active ?? 1);
+  const maxReqs = settings.rate_limit_max_requests !== undefined
+    ? settings.rate_limit_max_requests
+    : (existing?.rate_limit_max_requests ?? null);
+  const windowSecs = settings.rate_limit_window_seconds !== undefined
+    ? settings.rate_limit_window_seconds
+    : (existing?.rate_limit_window_seconds ?? null);
+
+  db.prepare(`
+    INSERT INTO provider_settings (provider, active, rate_limit_max_requests, rate_limit_window_seconds, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(provider) DO UPDATE SET
+      active = excluded.active,
+      rate_limit_max_requests = excluded.rate_limit_max_requests,
+      rate_limit_window_seconds = excluded.rate_limit_window_seconds,
+      updated_at = excluded.updated_at
+  `).run(provider, active, maxReqs, windowSecs, now);
+
+  return getProviderSettings(db, provider)!;
+}
+
+// ---------------------------------------------------------------------------
+// Provider Stats
+// ---------------------------------------------------------------------------
+
+export interface ProviderStatsRow {
+  provider: string;
+  total_requests: number;
+  total_tokens: number;
+  total_cost: number;
+}
+
+export function getProviderStats(
+  db: Database.Database,
+  provider: string,
+  from?: string,
+  to?: string,
+): ProviderStatsRow {
+  const conditions: string[] = ["provider = ?"];
+  const params: unknown[] = [provider];
+
+  if (from) {
+    conditions.push("timestamp >= ?");
+    params.push(from);
+  }
+  if (to) {
+    conditions.push("timestamp <= ?");
+    params.push(to);
+  }
+
+  const result = db.prepare(`
+    SELECT
+      ? as provider,
+      COUNT(*) as total_requests,
+      COALESCE(SUM(tokens_total), 0) as total_tokens,
+      COALESCE(SUM(cost_usd), 0) as total_cost
+    FROM agent_events
+    WHERE ${conditions.join(" AND ")}
+  `).get(provider, ...params) as ProviderStatsRow;
+
+  return result;
+}
+
+export interface ProviderModelStatsRow {
+  model: string;
+  requests: number;
+  tokens: number;
+  cost: number;
+}
+
+export function getProviderModelStats(
+  db: Database.Database,
+  provider: string,
+  from?: string,
+  to?: string,
+): ProviderModelStatsRow[] {
+  const conditions: string[] = ["provider = ?", "model IS NOT NULL"];
+  const params: unknown[] = [provider];
+
+  if (from) {
+    conditions.push("timestamp >= ?");
+    params.push(from);
+  }
+  if (to) {
+    conditions.push("timestamp <= ?");
+    params.push(to);
+  }
+
+  return db.prepare(`
+    SELECT
+      model,
+      COUNT(*) as requests,
+      COALESCE(SUM(tokens_total), 0) as tokens,
+      COALESCE(SUM(cost_usd), 0) as cost
+    FROM agent_events
+    WHERE ${conditions.join(" AND ")}
+    GROUP BY model
+    ORDER BY cost DESC
+  `).all(...params) as ProviderModelStatsRow[];
+}
+
+// ---------------------------------------------------------------------------
+// Kill Switch
+// ---------------------------------------------------------------------------
+
+export interface KillSwitchConfig {
+  enabled: boolean;
+  window_size: number;
+  threshold: number;
+}
+
+export function getKillSwitchConfig(
+  db: Database.Database,
+  agentId: string,
+): KillSwitchConfig | null {
+  const row = db.prepare(`
+    SELECT kill_switch_enabled, kill_switch_window_size, kill_switch_threshold
+    FROM agents WHERE agent_id = ?
+  `).get(agentId) as {
+    kill_switch_enabled: number;
+    kill_switch_window_size: number;
+    kill_switch_threshold: number;
+  } | undefined;
+
+  if (!row) return null;
+
+  return {
+    enabled: row.kill_switch_enabled === 1,
+    window_size: row.kill_switch_window_size,
+    threshold: row.kill_switch_threshold,
+  };
+}
+
+export function updateKillSwitchConfig(
+  db: Database.Database,
+  agentId: string,
+  config: Partial<KillSwitchConfig>,
+): boolean {
+  const updates: string[] = [];
+  const params: unknown[] = [];
+
+  if (config.enabled !== undefined) {
+    updates.push("kill_switch_enabled = ?");
+    params.push(config.enabled ? 1 : 0);
+  }
+  if (config.window_size !== undefined) {
+    updates.push("kill_switch_window_size = ?");
+    params.push(config.window_size);
+  }
+  if (config.threshold !== undefined) {
+    updates.push("kill_switch_threshold = ?");
+    params.push(config.threshold);
+  }
+
+  if (updates.length === 0) return false;
+
+  updates.push("updated_at = ?");
+  params.push(new Date().toISOString());
+  params.push(agentId);
+
+  const result = db.prepare(`
+    UPDATE agents SET ${updates.join(", ")} WHERE agent_id = ?
+  `).run(...params);
 
   return result.changes > 0;
 }

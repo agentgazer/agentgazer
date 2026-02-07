@@ -2,10 +2,11 @@ import { Router } from "express";
 import type Database from "better-sqlite3";
 import { insertEvents, upsertAgent, queryEvents, type InsertEventRow } from "../db.js";
 import { rateLimitEvents } from "../middleware/rate-limit.js";
+import { fireKillSwitchAlert, type KillSwitchEventData } from "../alerts/evaluator.js";
 
 const router = Router();
 
-const VALID_EVENT_TYPES = new Set(["llm_call", "completion", "heartbeat", "error", "custom", "blocked"]);
+const VALID_EVENT_TYPES = new Set(["llm_call", "completion", "heartbeat", "error", "custom", "blocked", "kill_switch"]);
 const VALID_SOURCES = new Set(["sdk", "proxy"]);
 
 const MAX_QUERY_LIMIT = 10_000;
@@ -236,6 +237,33 @@ router.post("/api/events", rateLimitEvents, (req, res) => {
       (e) => e.agent_id === agentId && e.event_type === "heartbeat",
     );
     upsertAgent(db, agentId, hasHeartbeat);
+  }
+
+  // Fire kill_switch alerts for any kill_switch events
+  for (const event of validEvents) {
+    if (event.event_type === "kill_switch" && event.tags) {
+      const tags = event.tags as {
+        score?: number;
+        window_size?: number;
+        threshold?: number;
+        details?: {
+          similarPrompts: number;
+          similarResponses: number;
+          repeatedToolCalls: number;
+        };
+      };
+      if (tags.score !== undefined && tags.details) {
+        const killSwitchData: KillSwitchEventData = {
+          agent_id: event.agent_id,
+          score: tags.score,
+          window_size: tags.window_size ?? 20,
+          threshold: tags.threshold ?? 10,
+          details: tags.details,
+        };
+        // Fire alert asynchronously - don't block the response
+        void fireKillSwitchAlert(db, killSwitchData);
+      }
+    }
   }
 
   // Build results for valid events

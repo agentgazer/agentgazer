@@ -16,7 +16,7 @@ export interface EvaluatorOptions {
 interface AlertRuleRow {
   id: string;
   agent_id: string;
-  rule_type: "agent_down" | "error_rate" | "budget";
+  rule_type: "agent_down" | "error_rate" | "budget" | "kill_switch";
   config: string; // JSON text stored by SQLite
   enabled: number;
   notification_type: string;
@@ -57,11 +57,30 @@ interface BudgetConfig {
   threshold: number; // USD
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+interface KillSwitchConfig {
+  // No config needed - triggers on any kill_switch event
+}
+
+export interface KillSwitchEventData {
+  agent_id: string;
+  score: number;
+  window_size: number;
+  threshold: number;
+  details: {
+    similarPrompts: number;
+    similarResponses: number;
+    repeatedToolCalls: number;
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Prepared-statement SQL
 // ---------------------------------------------------------------------------
 
 const SQL_ENABLED_RULES = `SELECT * FROM alert_rules WHERE enabled = 1`;
+
+const SQL_KILL_SWITCH_RULES = `SELECT * FROM alert_rules WHERE enabled = 1 AND rule_type = 'kill_switch' AND agent_id = ?`;
 
 const SQL_AGENT_BY_ID = `SELECT * FROM agents WHERE agent_id = ?`;
 
@@ -437,6 +456,100 @@ async function tick(db: Database.Database): Promise<void> {
       }
     } catch (err) {
       log.error(`Error evaluating rule`, { ruleId: rule.id, ruleType: rule.rule_type, err: String(err) });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Kill Switch Alert Handler
+// ---------------------------------------------------------------------------
+
+/**
+ * Fire kill_switch alerts for an agent.
+ * Called immediately when a kill_switch event is triggered by the proxy.
+ */
+export async function fireKillSwitchAlert(
+  db: Database.Database,
+  data: KillSwitchEventData,
+): Promise<void> {
+  const rules = db.prepare(SQL_KILL_SWITCH_RULES).all(data.agent_id) as AlertRuleRow[];
+
+  if (rules.length === 0) {
+    log.debug("No kill_switch alert rules for agent", { agentId: data.agent_id });
+    return;
+  }
+
+  const message = [
+    `Kill switch triggered for agent "${data.agent_id}"`,
+    `Loop score: ${data.score.toFixed(1)} (threshold: ${data.threshold})`,
+    `Details: ${data.details.similarPrompts} similar prompts, ${data.details.similarResponses} similar responses, ${data.details.repeatedToolCalls} repeated tool calls`,
+    `Window size: ${data.window_size}`,
+  ].join("\n");
+
+  const timestamp = new Date().toISOString();
+  const payload = {
+    agent_id: data.agent_id,
+    rule_type: "kill_switch",
+    message,
+    timestamp,
+    score: data.score,
+    threshold: data.threshold,
+    details: data.details,
+  };
+
+  for (const rule of rules) {
+    try {
+      // Cooldown check
+      const recent = db.prepare(SQL_COOLDOWN_CHECK).get(rule.id);
+      if (recent) {
+        log.debug("Kill switch alert skipped due to cooldown", { ruleId: rule.id });
+        continue;
+      }
+
+      log.info(`Kill switch alert fired`, { ruleId: rule.id, agentId: data.agent_id, score: data.score });
+
+      const notificationType = rule.notification_type || "webhook";
+
+      if (notificationType === "webhook" && rule.webhook_url) {
+        postWebhook(rule.webhook_url, payload);
+        db.prepare(SQL_INSERT_HISTORY).run(
+          rule.id,
+          rule.agent_id,
+          rule.rule_type,
+          message,
+          "webhook",
+        );
+      } else if (notificationType === "email") {
+        let smtpConfig: SmtpConfig | null = null;
+        if (rule.smtp_config) {
+          try { smtpConfig = JSON.parse(rule.smtp_config); } catch { /* ignore */ }
+        }
+        await sendEmail(payload, smtpConfig, rule.email);
+        db.prepare(SQL_INSERT_HISTORY).run(
+          rule.id,
+          rule.agent_id,
+          rule.rule_type,
+          message,
+          "email",
+        );
+      } else if (notificationType === "telegram") {
+        let telegramConfig: TelegramConfig | null = null;
+        if (rule.telegram_config) {
+          try { telegramConfig = JSON.parse(rule.telegram_config); } catch { /* ignore */ }
+        }
+        if (telegramConfig) {
+          await sendTelegram(payload, telegramConfig);
+          db.prepare(SQL_INSERT_HISTORY).run(
+            rule.id,
+            rule.agent_id,
+            rule.rule_type,
+            message,
+            "telegram",
+          );
+        }
+      }
+    } catch (err) {
+      log.error("Error firing kill_switch alert", { ruleId: rule.id, err: String(err) });
     }
   }
 }
