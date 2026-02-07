@@ -17,6 +17,79 @@
 | **Agent Detail**（Agent 詳情） | 詳細統計、圖表、模型設定、政策控制 |
 | **Costs**（成本） | 按 Provider / Model 的成本分析與圖表 |
 | **Alerts**（告警） | 告警規則管理與告警歷史 |
+| **Providers**（Provider） | Provider 設定、API Key 管理與使用統計 |
+
+## Providers（Provider 管理）
+
+Providers 頁面讓你管理 LLM Provider 的連線與設定。
+
+### Provider 列表
+
+每張 Provider 卡片顯示：
+
+| 欄位 | 說明 |
+|------|------|
+| **Name** | Provider 名稱（如 openai、anthropic） |
+| **Status Badge** | Active、Inactive 或 Not configured |
+| **Rate Limit** | 已設定的頻率限制（若有） |
+
+點擊 Provider 卡片可進入詳情頁。
+
+### 新增 Provider
+
+::: warning 安全提醒
+「Add Provider」按鈕只有在透過 localhost（127.0.0.1 或 ::1）連線時才會啟用。當透過 LAN 位址連線時，按鈕會被停用以保護 API Key 在傳輸過程中的安全。
+:::
+
+新增 Provider 的步驟：
+
+1. 點擊「Add Provider」（僅限 localhost）
+2. 從下拉選單選擇 Provider
+3. 輸入 API Key
+4. 點擊「Test & Save」
+
+系統會在儲存前驗證 API Key。若驗證失敗，Provider 仍會被儲存並顯示警告 — 你可以稍後從 Provider 詳情頁再次測試連線。
+
+### Provider 詳情頁
+
+#### 設定區塊
+
+| 設定 | 說明 |
+|------|------|
+| **Active** | 啟用/停用 Provider。停用的 Provider 會阻擋所有請求。 |
+| **Rate Limit** | 啟用並設定此 Provider 的全域頻率限制 |
+| **Max Requests** | 時間窗口內允許的最大請求數 |
+| **Window (seconds)** | 滑動窗口時間長度 |
+
+當 Provider 被停用時，所有使用該 Provider 的 Agent 會收到 `403 Forbidden` 回應，原因為 `provider_deactivated`。
+
+當超過頻率限制時，Agent 會收到 `429 Too Many Requests` 回應，原因為 `provider_rate_limited`。
+
+#### 模型區塊
+
+檢視並管理 Provider 的模型：
+
+- **內建模型** — 來自定價表的預設模型（唯讀）
+- **自訂模型** — 使用者新增的模型（可刪除）
+- **Verified 標籤** — 模型已測試確認存在
+
+新增自訂模型：
+
+1. 輸入模型 ID（如 `gpt-4o-2024-11-20`）
+2. 點擊「Test & Add」
+3. 若模型存在，會被加入列表
+
+#### 統計區塊
+
+Provider 的使用統計，支援時間範圍篩選（1h、24h、7d、30d）：
+
+| 指標 | 說明 |
+|------|------|
+| **Total Requests** | 對此 Provider 的請求數 |
+| **Total Tokens** | 消耗的總 Token 數 |
+| **Total Cost** | 總花費（USD） |
+
+圓餅圖顯示按模型分類的成本。
 
 ## Agent 列表
 

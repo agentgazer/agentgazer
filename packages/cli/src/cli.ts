@@ -23,7 +23,7 @@ import {
 } from "./secret-store.js";
 import { startServer } from "@agentgazer/server";
 import { startProxy } from "@agentgazer/proxy";
-import { KNOWN_PROVIDER_NAMES } from "@agentgazer/shared";
+import { KNOWN_PROVIDER_NAMES, validateProviderKey, type ProviderName } from "@agentgazer/shared";
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -246,6 +246,17 @@ async function cmdProviders(args: string[]): Promise<void> {
       if (!(KNOWN_PROVIDERS as readonly string[]).includes(name)) {
         console.warn(`Warning: "${name}" is not a known provider (${KNOWN_PROVIDERS.join(", ")}). Proceeding anyway.`);
       }
+
+      // Validate the API key before storing
+      console.log(`  Validating API key for ${name}...`);
+      const validationResult = await validateProviderKey(name as ProviderName, key);
+      if (validationResult.valid) {
+        console.log("  \u2713 API key is valid.");
+      } else {
+        console.warn(`  \u26A0 Validation failed: ${validationResult.error}`);
+        console.warn("    Proceeding with save anyway. You can test the connection from the dashboard.");
+      }
+
       const { store, backendName } = await detectSecretStore(getConfigDir());
       // Store API key in secret store
       await store.set(PROVIDER_SERVICE, name, key);
@@ -290,6 +301,16 @@ async function cmdProviders(args: string[]): Promise<void> {
           process.exit(1);
         }
 
+        // Validate the API key before storing
+        console.log(`\n  Validating API key for ${provider}...`);
+        const validationResult = await validateProviderKey(provider as ProviderName, apiKey);
+        if (validationResult.valid) {
+          console.log("  \u2713 API key is valid.");
+        } else {
+          console.warn(`  \u26A0 Validation failed: ${validationResult.error}`);
+          console.warn("    Proceeding with save anyway. You can test the connection from the dashboard.");
+        }
+
         // Store API key in secret store
         const { store, backendName: backend } = await detectSecretStore(getConfigDir());
         await store.set(PROVIDER_SERVICE, provider, apiKey);
@@ -297,7 +318,7 @@ async function cmdProviders(args: string[]): Promise<void> {
         // Store provider entry in config.json (apiKey is empty — actual key is in secret store)
         const providerConfig: ProviderConfig = { apiKey: "" };
         setProvider(provider, providerConfig);
-        console.log(`\n  ✓ ${provider} configured (secret stored in ${backend}).`);
+        console.log(`\n  \u2713 ${provider} configured (secret stored in ${backend}).`);
         console.log(`  Rate limits can be configured in the Dashboard.`);
       } finally {
         rl.close();
@@ -402,6 +423,12 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     }
   }
 
+  // Initialize secret store first (needed for both server and proxy)
+  const configDir = getConfigDir();
+  const configPath = path.join(configDir, "config.json");
+
+  const { store, backendName } = await detectSecretStore(configDir);
+
   // Start the local server
   const { db, shutdown: shutdownServer } = await startServer({
     port: serverPort,
@@ -409,13 +436,8 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     dbPath: getDbPath(),
     dashboardDir,
     retentionDays,
+    secretStore: store,
   });
-
-  // Initialize secret store
-  const configDir = getConfigDir();
-  const configPath = path.join(configDir, "config.json");
-
-  const { store, backendName } = await detectSecretStore(configDir);
   console.log(`  Secret backend: ${backendName}`);
 
   // Auto-migrate plaintext keys from config.json to secret store

@@ -17,6 +17,79 @@ The dashboard uses **Token authentication**. After starting the service, enter y
 | **Agent Detail** | Detailed statistics, charts, model settings, and policy controls |
 | **Costs** | Cost analysis and charts by Provider / Model |
 | **Alerts** | Alert rule management and alert history |
+| **Providers** | Provider configuration, API key management, and usage statistics |
+
+## Providers
+
+The Providers page allows you to manage LLM provider connections and their settings.
+
+### Provider List
+
+Each provider card shows:
+
+| Field | Description |
+|-------|-------------|
+| **Name** | Provider name (e.g., openai, anthropic) |
+| **Status Badge** | Active, Inactive, or Not configured |
+| **Rate Limit** | Current rate limit if configured |
+
+Click a provider card to view its detail page.
+
+### Add Provider
+
+::: warning Security Note
+The "Add Provider" button is only enabled when accessing the dashboard from localhost (127.0.0.1 or ::1). When accessing from a LAN address, the button is disabled to protect API key security during transmission.
+:::
+
+To add a provider:
+
+1. Click "Add Provider" (localhost only)
+2. Select provider from dropdown
+3. Enter API key
+4. Click "Test & Save"
+
+The system will validate the API key before saving. If validation fails, the provider is still saved with a warning — you can test the connection again from the provider detail page.
+
+### Provider Detail Page
+
+#### Settings Section
+
+| Setting | Description |
+|---------|-------------|
+| **Active** | Toggle to enable/disable the provider. Disabled providers block all requests. |
+| **Rate Limit** | Enable and configure global rate limit for this provider |
+| **Max Requests** | Maximum requests allowed in the time window |
+| **Window (seconds)** | Sliding window duration |
+
+When a provider is deactivated, all agents using that provider will receive a `403 Forbidden` response with reason `provider_deactivated`.
+
+When rate limited, agents receive a `429 Too Many Requests` response with reason `provider_rate_limited`.
+
+#### Models Section
+
+View and manage models for the provider:
+
+- **Built-in models** — Pre-configured models from pricing tables (read-only)
+- **Custom models** — User-added models (can be deleted)
+- **Verified badge** — Model has been tested and confirmed to exist
+
+To add a custom model:
+
+1. Enter the model ID (e.g., `gpt-4o-2024-11-20`)
+2. Click "Test & Add"
+3. If the model exists, it will be added to the list
+
+#### Stats Section
+
+Usage statistics for the provider with time range filters (1h, 24h, 7d, 30d):
+
+| Metric | Description |
+|--------|-------------|
+| **Total Requests** | Number of requests to this provider |
+| **Total Tokens** | Total tokens consumed |
+| **Total Cost** | Total spend (USD) |
+
+The pie chart shows cost breakdown by model.
 
 ## Agents List
 
