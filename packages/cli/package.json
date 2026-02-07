@@ -1,6 +1,7 @@
 {
   "name": "@agentgazer/cli",
   "version": "0.3.0",
+  "type": "module",
   "description": "AgentGazer — AI Agent observability. One command to monitor your agents locally.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -42,7 +43,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "build": "tsc && node -e \"const fs=require('fs');const p=require('path');const src=p.resolve(__dirname,'../../apps/dashboard-local/dist');const dst=p.resolve(__dirname,'dist/dashboard');if(fs.existsSync(src)){fs.cpSync(src,dst,{recursive:true});console.log('Copied dashboard to dist/dashboard')}else{console.warn('Warning: dashboard-local/dist not found')}\"",
+    "build": "tsc && node --input-type=module -e \"import fs from 'fs';import path from 'path';import {fileURLToPath} from 'url';const __dirname=path.dirname(fileURLToPath(import.meta.url));const src=path.resolve(__dirname,'../../apps/dashboard-local/dist');const dst=path.resolve(__dirname,'dist/dashboard');if(fs.existsSync(src)){fs.cpSync(src,dst,{recursive:true});console.log('Copied dashboard to dist/dashboard')}else{console.warn('Warning: dashboard-local/dist not found')}\"",
     "dev": "tsc --watch",
     "test": "vitest run",
     "prepublishOnly": "npm run build"

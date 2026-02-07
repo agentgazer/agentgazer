@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import * as readline from "node:readline";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import {
   ensureConfig,
   readConfig,
@@ -399,9 +404,9 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 // Subcommands
 // ---------------------------------------------------------------------------
 
-function cmdVersion(): void {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const pkg = require(path.resolve(__dirname, "../package.json")) as { version: string };
+async function cmdVersion(): Promise<void> {
+  const pkgPath = path.resolve(__dirname, "../package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
   console.log(`agentgazer ${pkg.version}`);
 }
 
@@ -502,7 +507,7 @@ async function cmdDoctor(flags: Record<string, string>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function cmdUninstall(flags: Record<string, string>): Promise<void> {
-  const home = process.env.AGENTGAZER_HOME || path.join(require("os").homedir(), ".agentgazer");
+  const home = process.env.AGENTGAZER_HOME || path.join(os.homedir(), ".agentgazer");
   const libDir = path.join(home, "lib");
   const nodeDir = path.join(home, "node");
   const wrapperPath = path.join(process.env.AGENTGAZER_BIN || "/usr/local/bin", "agentgazer");
@@ -615,7 +620,7 @@ async function main(): Promise<void> {
       await cmdProvider(positional[0], positional.slice(1), flags);
       break;
     case "version":
-      cmdVersion();
+      await cmdVersion();
       break;
     case "doctor":
       await cmdDoctor(flags);
