@@ -924,6 +924,39 @@ export function getProviderModelStats(
 }
 
 // ---------------------------------------------------------------------------
+// Provider List Stats (for provider list view)
+// ---------------------------------------------------------------------------
+
+export interface ProviderListStatsRow {
+  provider: string;
+  agent_count: number;
+  total_tokens: number;
+  total_cost: number;
+  today_cost: number;
+}
+
+export function getAllProviderListStats(
+  db: Database.Database,
+): ProviderListStatsRow[] {
+  const todayUTC = new Date();
+  todayUTC.setUTCHours(0, 0, 0, 0);
+  const todayStart = todayUTC.toISOString();
+
+  return db.prepare(`
+    SELECT
+      provider,
+      COUNT(DISTINCT agent_id) as agent_count,
+      COALESCE(SUM(tokens_total), 0) as total_tokens,
+      COALESCE(SUM(cost_usd), 0) as total_cost,
+      COALESCE(SUM(CASE WHEN timestamp >= ? THEN cost_usd ELSE 0 END), 0) as today_cost
+    FROM agent_events
+    WHERE provider IS NOT NULL
+    GROUP BY provider
+    ORDER BY total_cost DESC
+  `).all(todayStart) as ProviderListStatsRow[];
+}
+
+// ---------------------------------------------------------------------------
 // Kill Switch
 // ---------------------------------------------------------------------------
 
@@ -987,4 +1020,302 @@ export function updateKillSwitchConfig(
   `).run(...params);
 
   return result.changes > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Overview Dashboard Stats
+// ---------------------------------------------------------------------------
+
+export interface OverviewStats {
+  active_agents: number;
+  today_cost: number;
+  today_requests: number;
+  error_rate: number;
+  yesterday_cost: number;
+  yesterday_requests: number;
+  yesterday_error_rate: number;
+}
+
+export function getOverviewStats(db: Database.Database): OverviewStats {
+  const now = new Date();
+  const todayUTC = new Date(now);
+  todayUTC.setUTCHours(0, 0, 0, 0);
+  const todayStart = todayUTC.toISOString();
+
+  const yesterdayUTC = new Date(todayUTC);
+  yesterdayUTC.setUTCDate(yesterdayUTC.getUTCDate() - 1);
+  const yesterdayStart = yesterdayUTC.toISOString();
+
+  // Active agents count
+  const activeAgentsResult = db.prepare(`
+    SELECT COUNT(*) as count FROM agents WHERE active = 1
+  `).get() as { count: number };
+
+  // Today's stats
+  const todayStatsResult = db.prepare(`
+    SELECT
+      COALESCE(SUM(cost_usd), 0) as cost,
+      COUNT(*) as requests,
+      SUM(CASE WHEN event_type = 'error' OR status_code >= 400 THEN 1 ELSE 0 END) as errors
+    FROM agent_events
+    WHERE timestamp >= ?
+  `).get(todayStart) as { cost: number; requests: number; errors: number };
+
+  // Yesterday's stats
+  const yesterdayStatsResult = db.prepare(`
+    SELECT
+      COALESCE(SUM(cost_usd), 0) as cost,
+      COUNT(*) as requests,
+      SUM(CASE WHEN event_type = 'error' OR status_code >= 400 THEN 1 ELSE 0 END) as errors
+    FROM agent_events
+    WHERE timestamp >= ? AND timestamp < ?
+  `).get(yesterdayStart, todayStart) as { cost: number; requests: number; errors: number };
+
+  const todayErrorRate = todayStatsResult.requests > 0
+    ? (todayStatsResult.errors / todayStatsResult.requests) * 100
+    : 0;
+
+  const yesterdayErrorRate = yesterdayStatsResult.requests > 0
+    ? (yesterdayStatsResult.errors / yesterdayStatsResult.requests) * 100
+    : 0;
+
+  return {
+    active_agents: activeAgentsResult.count,
+    today_cost: todayStatsResult.cost,
+    today_requests: todayStatsResult.requests,
+    error_rate: todayErrorRate,
+    yesterday_cost: yesterdayStatsResult.cost,
+    yesterday_requests: yesterdayStatsResult.requests,
+    yesterday_error_rate: yesterdayErrorRate,
+  };
+}
+
+export interface TopAgentRow {
+  agent_id: string;
+  cost: number;
+  percentage: number;
+}
+
+export function getTopAgentsByCost(db: Database.Database, limit = 5): TopAgentRow[] {
+  const todayUTC = new Date();
+  todayUTC.setUTCHours(0, 0, 0, 0);
+  const todayStart = todayUTC.toISOString();
+
+  // Get total cost first
+  const totalResult = db.prepare(`
+    SELECT COALESCE(SUM(cost_usd), 0) as total
+    FROM agent_events
+    WHERE timestamp >= ?
+  `).get(todayStart) as { total: number };
+
+  const totalCost = totalResult.total || 1; // Avoid division by zero
+
+  // Get top agents by cost
+  const rows = db.prepare(`
+    SELECT
+      agent_id,
+      COALESCE(SUM(cost_usd), 0) as cost
+    FROM agent_events
+    WHERE timestamp >= ? AND cost_usd IS NOT NULL
+    GROUP BY agent_id
+    ORDER BY cost DESC
+    LIMIT ?
+  `).all(todayStart, limit) as { agent_id: string; cost: number }[];
+
+  return rows.map(row => ({
+    agent_id: row.agent_id,
+    cost: row.cost,
+    percentage: (row.cost / totalCost) * 100,
+  }));
+}
+
+export interface TopModelRow {
+  model: string;
+  tokens: number;
+  percentage: number;
+}
+
+export function getTopModelsByTokens(db: Database.Database, limit = 5): TopModelRow[] {
+  const todayUTC = new Date();
+  todayUTC.setUTCHours(0, 0, 0, 0);
+  const todayStart = todayUTC.toISOString();
+
+  // Get total tokens first
+  const totalResult = db.prepare(`
+    SELECT COALESCE(SUM(tokens_total), 0) as total
+    FROM agent_events
+    WHERE timestamp >= ?
+  `).get(todayStart) as { total: number };
+
+  const totalTokens = totalResult.total || 1; // Avoid division by zero
+
+  // Get top models by tokens
+  const rows = db.prepare(`
+    SELECT
+      model,
+      COALESCE(SUM(tokens_total), 0) as tokens
+    FROM agent_events
+    WHERE timestamp >= ? AND model IS NOT NULL AND tokens_total IS NOT NULL
+    GROUP BY model
+    ORDER BY tokens DESC
+    LIMIT ?
+  `).all(todayStart, limit) as { model: string; tokens: number }[];
+
+  return rows.map(row => ({
+    model: row.model,
+    tokens: row.tokens,
+    percentage: (row.tokens / totalTokens) * 100,
+  }));
+}
+
+export interface DailyTrendPoint {
+  date: string;
+  value: number;
+}
+
+export interface DailyTrends {
+  cost_trend: DailyTrendPoint[];
+  requests_trend: DailyTrendPoint[];
+}
+
+export function getDailyTrends(db: Database.Database, days = 7): DailyTrends {
+  const startDate = new Date();
+  startDate.setUTCDate(startDate.getUTCDate() - days + 1);
+  startDate.setUTCHours(0, 0, 0, 0);
+  const startDateStr = startDate.toISOString();
+
+  const rows = db.prepare(`
+    SELECT
+      date(timestamp) as date,
+      COALESCE(SUM(cost_usd), 0) as cost,
+      COUNT(*) as requests
+    FROM agent_events
+    WHERE timestamp >= ?
+    GROUP BY date(timestamp)
+    ORDER BY date ASC
+  `).all(startDateStr) as { date: string; cost: number; requests: number }[];
+
+  // Create a map of existing data
+  const dataMap = new Map(rows.map(r => [r.date, r]));
+
+  // Generate all dates in range
+  const costTrend: DailyTrendPoint[] = [];
+  const requestsTrend: DailyTrendPoint[] = [];
+
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate);
+    d.setUTCDate(d.getUTCDate() + i);
+    const dateStr = d.toISOString().split("T")[0];
+
+    const data = dataMap.get(dateStr);
+    costTrend.push({ date: dateStr, value: data?.cost ?? 0 });
+    requestsTrend.push({ date: dateStr, value: data?.requests ?? 0 });
+  }
+
+  return {
+    cost_trend: costTrend,
+    requests_trend: requestsTrend,
+  };
+}
+
+export interface RecentEvent {
+  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent";
+  agent_id: string;
+  message: string;
+  timestamp: string;
+  details?: Record<string, unknown>;
+}
+
+export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[] {
+  const events: RecentEvent[] = [];
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  // 1. Kill switch events
+  const killSwitchEvents = db.prepare(`
+    SELECT agent_id, timestamp
+    FROM agent_events
+    WHERE event_type = 'kill_switch' AND timestamp >= ?
+    ORDER BY timestamp DESC
+    LIMIT 5
+  `).all(oneDayAgo) as { agent_id: string; timestamp: string }[];
+
+  for (const e of killSwitchEvents) {
+    events.push({
+      type: "kill_switch",
+      agent_id: e.agent_id,
+      message: "Loop detected, deactivated",
+      timestamp: e.timestamp,
+    });
+  }
+
+  // 2. New agents (created in last 24h)
+  const newAgents = db.prepare(`
+    SELECT agent_id, created_at
+    FROM agents
+    WHERE created_at >= ?
+    ORDER BY created_at DESC
+    LIMIT 5
+  `).all(oneDayAgo) as { agent_id: string; created_at: string }[];
+
+  for (const a of newAgents) {
+    events.push({
+      type: "new_agent",
+      agent_id: a.agent_id,
+      message: "First request received",
+      timestamp: a.created_at,
+    });
+  }
+
+  // 3. Budget warnings (agents near budget limit)
+  const budgetWarnings = db.prepare(`
+    SELECT a.agent_id, a.budget_limit,
+           COALESCE(SUM(e.cost_usd), 0) as today_spend,
+           MAX(e.timestamp) as timestamp
+    FROM agents a
+    LEFT JOIN agent_events e ON e.agent_id = a.agent_id AND date(e.timestamp) = date('now')
+    WHERE a.budget_limit IS NOT NULL
+    GROUP BY a.agent_id
+    HAVING today_spend >= a.budget_limit * 0.8
+  `).all() as { agent_id: string; budget_limit: number; today_spend: number; timestamp: string | null }[];
+
+  for (const b of budgetWarnings) {
+    if (b.timestamp) {
+      events.push({
+        type: "budget_warning",
+        agent_id: b.agent_id,
+        message: `Budget ${Math.round((b.today_spend / b.budget_limit) * 100)}%: $${b.today_spend.toFixed(2)} / $${b.budget_limit.toFixed(2)}`,
+        timestamp: b.timestamp,
+        details: { current_spend: b.today_spend, budget_limit: b.budget_limit },
+      });
+    }
+  }
+
+  // 4. High error rate (>5% in last hour)
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const errorRates = db.prepare(`
+    SELECT
+      agent_id,
+      COUNT(*) as total,
+      SUM(CASE WHEN event_type = 'error' OR status_code >= 400 THEN 1 ELSE 0 END) as errors,
+      MAX(timestamp) as timestamp
+    FROM agent_events
+    WHERE timestamp >= ?
+    GROUP BY agent_id
+    HAVING total >= 10 AND (errors * 1.0 / total) > 0.05
+  `).all(oneHourAgo) as { agent_id: string; total: number; errors: number; timestamp: string }[];
+
+  for (const r of errorRates) {
+    const errorRate = (r.errors / r.total) * 100;
+    events.push({
+      type: "high_error_rate",
+      agent_id: r.agent_id,
+      message: `${errorRate.toFixed(1)}% errors in last hour`,
+      timestamp: r.timestamp,
+      details: { error_rate: errorRate },
+    });
+  }
+
+  // Sort all events by timestamp descending and limit
+  events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return events.slice(0, limit);
 }

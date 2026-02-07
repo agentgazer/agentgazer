@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type Database from "better-sqlite3";
-import { insertEvents, upsertAgent, queryEvents, type InsertEventRow } from "../db.js";
+import { insertEvents, upsertAgent, queryEvents, getRecentEvents, type InsertEventRow } from "../db.js";
 import { rateLimitEvents } from "../middleware/rate-limit.js";
 import { fireKillSwitchAlert, type KillSwitchEventData } from "../alerts/evaluator.js";
 
@@ -399,6 +399,16 @@ router.get("/api/events/export", (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="events-${agentId}.json"`);
     res.json({ events });
   }
+});
+
+// GET /api/events/recent - Recent important events for dashboard
+router.get("/api/events/recent", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const limitStr = req.query.limit as string | undefined;
+  const limit = limitStr ? parseInt(limitStr, 10) : 10;
+
+  const events = getRecentEvents(db, Math.min(limit, 50));
+  res.json({ events });
 });
 
 export default router;

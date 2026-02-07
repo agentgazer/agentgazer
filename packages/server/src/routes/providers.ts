@@ -11,6 +11,7 @@ import {
   deleteProviderModel,
   getProviderStats,
   getProviderModelStats,
+  getAllProviderListStats,
 } from "../db.js";
 import { validateProviderKey, testProviderModel } from "../services/provider-validator.js";
 
@@ -53,7 +54,7 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
     res.json({ isLoopback: isLoopback(req) });
   });
 
-  // GET /api/providers - list all providers with status
+  // GET /api/providers - list all providers with status and stats
   router.get("/", async (req: Request, res: Response) => {
     try {
       const configuredProviders: string[] = secretStore
@@ -63,9 +64,14 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
       const settings = getAllProviderSettings(db);
       const settingsMap = new Map(settings.map(s => [s.provider, s]));
 
+      // Get aggregated stats for all providers
+      const allStats = getAllProviderListStats(db);
+      const statsMap = new Map(allStats.map(s => [s.provider, s]));
+
       const providers = KNOWN_PROVIDER_NAMES.map(name => {
         const configured = configuredProviders.includes(name);
         const providerSettings = settingsMap.get(name);
+        const stats = statsMap.get(name);
 
         return {
           name,
@@ -77,8 +83,16 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
                 window_seconds: providerSettings.rate_limit_window_seconds,
               }
             : null,
+          // Stats fields
+          agent_count: stats?.agent_count ?? 0,
+          total_tokens: stats?.total_tokens ?? 0,
+          total_cost: stats?.total_cost ?? 0,
+          today_cost: stats?.today_cost ?? 0,
         };
       });
+
+      // Sort by total_cost descending (highest usage first)
+      providers.sort((a, b) => b.total_cost - a.total_cost);
 
       res.json({ providers });
     } catch (err) {
@@ -120,6 +134,34 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
         validated: validation.valid,
         error: validation.error,
         models: validation.models,
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // PUT /api/providers/:name - update provider (toggle active status)
+  router.put("/:name", (req: Request, res: Response) => {
+    try {
+      const name = req.params.name as string;
+      const { active } = req.body as { active?: boolean };
+
+      if (active === undefined) {
+        res.status(400).json({ error: "active is required" });
+        return;
+      }
+
+      const settings = upsertProviderSettings(db, name, { active });
+
+      res.json({
+        provider: name,
+        active: settings.active === 1,
+        rate_limit: settings.rate_limit_max_requests
+          ? {
+              max_requests: settings.rate_limit_max_requests,
+              window_seconds: settings.rate_limit_window_seconds,
+            }
+          : null,
       });
     } catch (err) {
       res.status(500).json({ error: String(err) });

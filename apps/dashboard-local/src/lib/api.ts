@@ -55,6 +55,11 @@ export interface ProviderInfo {
   configured: boolean;
   active: boolean;
   rate_limit: { max_requests: number; window_seconds: number } | null;
+  // Stats fields
+  agent_count: number;
+  total_tokens: number;
+  total_cost: number;
+  today_cost: number;
 }
 
 export interface ProviderModel {
@@ -106,6 +111,9 @@ export const providerApi = {
 
   remove: (name: string) => api.del(`/api/providers/${name}`),
 
+  toggle: (name: string, active: boolean) =>
+    api.put<ProviderSettings>(`/api/providers/${name}`, { active }),
+
   validate: (name: string, apiKey?: string) =>
     api.post<ValidationResult>(`/api/providers/${name}/validate`, apiKey ? { apiKey } : {}),
 
@@ -138,4 +146,57 @@ export const providerApi = {
     const query = params.toString();
     return api.get<ProviderStats>(`/api/providers/${name}/stats${query ? `?${query}` : ""}`);
   },
+};
+
+// ---------------------------------------------------------------------------
+// Overview API Types
+// ---------------------------------------------------------------------------
+
+export interface TopAgent {
+  agent_id: string;
+  cost: number;
+  percentage: number;
+}
+
+export interface TopModel {
+  model: string;
+  tokens: number;
+  percentage: number;
+}
+
+export interface TrendPoint {
+  date: string;
+  value: number;
+}
+
+export interface OverviewData {
+  active_agents: number;
+  today_cost: number;
+  today_requests: number;
+  error_rate: number;
+  yesterday_cost: number;
+  yesterday_requests: number;
+  yesterday_error_rate: number;
+  top_agents: TopAgent[];
+  top_models: TopModel[];
+  cost_trend: TrendPoint[];
+  requests_trend: TrendPoint[];
+}
+
+export interface RecentEvent {
+  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent";
+  agent_id: string;
+  message: string;
+  timestamp: string;
+  details?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Overview API Functions
+// ---------------------------------------------------------------------------
+
+export const overviewApi = {
+  getData: () => api.get<OverviewData>("/api/overview"),
+  getRecentEvents: (limit = 10) =>
+    api.get<{ events: RecentEvent[] }>(`/api/events/recent?limit=${limit}`),
 };

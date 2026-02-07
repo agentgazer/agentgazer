@@ -1,7 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { providerApi, type ProviderInfo } from "../lib/api";
 import { useConnection } from "../contexts/ConnectionContext";
+import { usePolling } from "../hooks/usePolling";
+import { formatCost } from "../lib/format";
+import LoadingSpinner from "../components/LoadingSpinner";
+import ErrorBanner from "../components/ErrorBanner";
 
 const PROVIDER_ICONS: Record<string, string> = {
   openai: "O",
@@ -19,51 +23,38 @@ const PROVIDER_ICONS: Record<string, string> = {
 
 export default function ProvidersPage() {
   const { isLoopback } = useConnection();
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [togglingProvider, setTogglingProvider] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadProviders();
-  }, []);
+  const fetcher = useCallback(() => providerApi.list(), []);
+  const { data, error, loading, refresh } = usePolling(fetcher, 3000);
 
-  async function loadProviders() {
+  // Filter to only show configured providers in the table
+  const configuredProviders = data?.providers.filter((p) => p.configured) ?? [];
+
+  async function handleToggleActive(provider: ProviderInfo) {
+    setTogglingProvider(provider.name);
     try {
-      setLoading(true);
-      const data = await providerApi.list();
-      setProviders(data.providers);
-      setError(null);
+      await providerApi.toggle(provider.name, !provider.active);
+      refresh();
     } catch (err) {
-      setError(String(err));
+      console.error("Failed to toggle provider active state:", err);
     } finally {
-      setLoading(false);
+      setTogglingProvider(null);
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-600 border-t-blue-500" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg bg-red-900/20 p-4 text-red-400">
-        Error loading providers: {error}
-      </div>
-    );
-  }
+  if (loading && !data) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Providers</h1>
-          <p className="text-sm text-gray-400">Manage LLM provider connections and settings</p>
+          <p className="text-sm text-gray-400">
+            Manage LLM provider connections and settings
+          </p>
         </div>
         <div className="relative">
           <button
@@ -74,7 +65,11 @@ export default function ProvidersPage() {
                 ? "bg-blue-600 text-white hover:bg-blue-700"
                 : "cursor-not-allowed bg-gray-700 text-gray-500"
             }`}
-            title={isLoopback ? "Add a new provider" : "Only available from localhost for API key security"}
+            title={
+              isLoopback
+                ? "Add a new provider"
+                : "Only available from localhost for API key security"
+            }
           >
             + Add Provider
           </button>
@@ -86,22 +81,97 @@ export default function ProvidersPage() {
         </div>
       </div>
 
-      {/* Provider Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {providers
-          .filter((provider) => provider.configured)
-          .map((provider) => (
-            <ProviderCard key={provider.name} provider={provider} />
-          ))}
-      </div>
+      {error && (
+        <div className="mt-4">
+          <ErrorBanner message={error} />
+        </div>
+      )}
 
       {/* Empty state */}
-      {providers.filter((p) => p.configured).length === 0 && (
-        <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center">
+      {configuredProviders.length === 0 && (
+        <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
           <p className="text-gray-400">No providers configured yet.</p>
           <p className="mt-1 text-sm text-gray-500">
             Click "Add Provider" to get started.
           </p>
+        </div>
+      )}
+
+      {/* Provider Table */}
+      {configuredProviders.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded-lg border border-gray-700">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="bg-gray-800 text-xs uppercase text-gray-400">
+                <th className="px-4 py-3 font-medium">Provider</th>
+                <th className="px-4 py-3 font-medium text-center">Active</th>
+                <th className="px-4 py-3 font-medium text-right">Agents</th>
+                <th className="px-4 py-3 font-medium text-right">
+                  Total Tokens
+                </th>
+                <th className="px-4 py-3 font-medium text-right">Total Cost</th>
+                <th className="px-4 py-3 font-medium text-right">Today</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700">
+              {configuredProviders.map((provider) => {
+                const isToggling = togglingProvider === provider.name;
+                const icon =
+                  PROVIDER_ICONS[provider.name] ||
+                  provider.name[0].toUpperCase();
+
+                return (
+                  <tr
+                    key={provider.name}
+                    className="bg-gray-900 transition-colors hover:bg-gray-800"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-800 text-sm font-bold text-white">
+                          {icon}
+                        </div>
+                        <Link
+                          to={`/providers/${provider.name}`}
+                          className="font-medium capitalize text-blue-400 hover:text-blue-300"
+                        >
+                          {provider.name}
+                        </Link>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handleToggleActive(provider)}
+                        disabled={isToggling}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-50 ${
+                          provider.active ? "bg-green-600" : "bg-gray-600"
+                        }`}
+                        role="switch"
+                        aria-checked={provider.active}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
+                            provider.active ? "translate-x-5" : "translate-x-0"
+                          }`}
+                        />
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-300">
+                      {provider.agent_count.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-300">
+                      {provider.total_tokens.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-300">
+                      {formatCost(provider.total_cost)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-300">
+                      {formatCost(provider.today_cost)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -111,53 +181,11 @@ export default function ProvidersPage() {
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false);
-            loadProviders();
+            refresh();
           }}
         />
       )}
     </div>
-  );
-}
-
-function ProviderCard({ provider }: { provider: ProviderInfo }) {
-  const icon = PROVIDER_ICONS[provider.name] || provider.name[0].toUpperCase();
-
-  return (
-    <Link
-      to={`/providers/${provider.name}`}
-      className="group rounded-lg border border-gray-800 bg-gray-900 p-4 transition-colors hover:border-gray-700 hover:bg-gray-800"
-    >
-      <div className="flex items-start gap-4">
-        {/* Icon */}
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-800 text-lg font-bold text-white group-hover:bg-gray-700">
-          {icon}
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-medium capitalize text-white">{provider.name}</h3>
-            {/* Status badge */}
-            {provider.active ? (
-              <span className="inline-flex items-center rounded-full bg-green-900/30 px-2 py-0.5 text-xs text-green-400">
-                Active
-              </span>
-            ) : (
-              <span className="inline-flex items-center rounded-full bg-yellow-900/30 px-2 py-0.5 text-xs text-yellow-400">
-                Inactive
-              </span>
-            )}
-          </div>
-
-          {/* Rate limit info */}
-          {provider.rate_limit && (
-            <p className="mt-1 text-xs text-gray-500">
-              Rate limit: {provider.rate_limit.max_requests}/{provider.rate_limit.window_seconds}s
-            </p>
-          )}
-        </div>
-      </div>
-    </Link>
   );
 }
 
@@ -219,15 +247,27 @@ function AddProviderModal({
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-medium text-white">Add Provider</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300">Provider</label>
+            <label className="block text-sm font-medium text-gray-300">
+              Provider
+            </label>
             <select
               value={selectedProvider}
               onChange={(e) => setSelectedProvider(e.target.value)}
@@ -244,7 +284,9 @@ function AddProviderModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300">API Key</label>
+            <label className="block text-sm font-medium text-gray-300">
+              API Key
+            </label>
             <input
               type="password"
               value={apiKey}
@@ -256,7 +298,9 @@ function AddProviderModal({
           </div>
 
           {error && (
-            <div className="rounded bg-red-900/20 p-2 text-sm text-red-400">{error}</div>
+            <div className="rounded bg-red-900/20 p-2 text-sm text-red-400">
+              {error}
+            </div>
           )}
 
           {validationResult && (

@@ -1,102 +1,160 @@
-import { useState, useCallback } from "react";
-import { Link } from "react-router-dom";
-import { api } from "../lib/api";
-import { relativeTime, formatCost } from "../lib/format";
+import { useCallback } from "react";
+import { overviewApi, type OverviewData, type RecentEvent } from "../lib/api";
+import { formatCost } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
-import Pagination from "../components/Pagination";
+import SummaryCard from "../components/SummaryCard";
+import RecentEventsTimeline from "../components/RecentEventsTimeline";
+import TopRankingChart from "../components/TopRankingChart";
+import TrendChart from "../components/TrendChart";
 
-interface Agent {
-  agent_id: string;
-  updated_at: string;
-  total_tokens: number;
-  total_cost: number;
-  today_cost: number;
+function calculateTrend(current: number, previous: number): number {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return ((current - previous) / previous) * 100;
 }
 
-interface AgentsResponse {
-  agents: Agent[];
-  total?: number;
+function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(0)}K`;
+  return tokens.toString();
 }
-
-const PAGE_SIZE = 12;
 
 export default function OverviewPage() {
-  const [page, setPage] = useState(1);
+  const overviewFetcher = useCallback(() => overviewApi.getData(), []);
+  const eventsFetcher = useCallback(
+    () => overviewApi.getRecentEvents(10),
+    []
+  );
 
-  const fetcher = useCallback(() => {
-    const params = new URLSearchParams();
-    params.set("limit", String(PAGE_SIZE));
-    params.set("offset", String((page - 1) * PAGE_SIZE));
-    return api.get<AgentsResponse>(`/api/agents?${params.toString()}`);
-  }, [page]);
+  const {
+    data: overview,
+    error: overviewError,
+    loading: overviewLoading,
+  } = usePolling<OverviewData>(overviewFetcher, 3000);
 
-  const { data, error, loading } = usePolling(fetcher, 3000);
+  const {
+    data: eventsData,
+    error: eventsError,
+    loading: eventsLoading,
+  } = usePolling<{ events: RecentEvent[] }>(eventsFetcher, 3000);
 
-  const totalPages = data?.total != null ? Math.ceil(data.total / PAGE_SIZE) : 1;
+  const isLoading = overviewLoading && !overview;
 
-  if (loading && !data) return <LoadingSpinner />;
+  if (isLoading) return <LoadingSpinner />;
+
+  const costTrend = overview
+    ? calculateTrend(overview.today_cost, overview.yesterday_cost)
+    : 0;
+  const requestsTrend = overview
+    ? calculateTrend(overview.today_requests, overview.yesterday_requests)
+    : 0;
+
+  const topAgentsItems = (overview?.top_agents ?? []).map((a) => ({
+    label: a.agent_id,
+    value: a.cost,
+    formattedValue: formatCost(a.cost),
+    percentage: a.percentage,
+    link: `/agents/${encodeURIComponent(a.agent_id)}`,
+  }));
+
+  const topModelsItems = (overview?.top_models ?? []).map((m) => ({
+    label: m.model,
+    value: m.tokens,
+    formattedValue: formatTokens(m.tokens),
+    percentage: m.percentage,
+  }));
 
   return (
-    <div>
+    <div className="space-y-6">
       <h1 className="text-2xl font-bold text-white">Overview</h1>
 
-      {error && (
-        <div className="mt-4">
-          <ErrorBanner message={error} />
-        </div>
+      {/* Error banners */}
+      {overviewError && (
+        <ErrorBanner message={`Overview: ${overviewError}`} />
+      )}
+      {eventsError && (
+        <ErrorBanner message={`Events: ${eventsError}`} />
       )}
 
-      {data && data.agents.length === 0 && (
-        <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
-          <p className="text-gray-400">
-            No agents detected yet. Start sending events to see them here.
-          </p>
-        </div>
-      )}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <SummaryCard
+          title="Active Agents"
+          value={overview?.active_agents.toString() ?? "0"}
+        />
+        <SummaryCard
+          title="Today's Cost"
+          value={formatCost(overview?.today_cost ?? 0)}
+          trend={{ value: costTrend, label: "vs yesterday" }}
+        />
+        <SummaryCard
+          title="Requests (24h)"
+          value={(overview?.today_requests ?? 0).toLocaleString()}
+          trend={{ value: requestsTrend, label: "vs yesterday" }}
+        />
+        <SummaryCard
+          title="Error Rate"
+          value={`${(overview?.error_rate ?? 0).toFixed(1)}%`}
+          warning={(overview?.error_rate ?? 0) > 5}
+          warningText="Above 5% threshold"
+        />
+      </div>
 
-      {data && data.agents.length > 0 && (
-        <>
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {data.agents.map((agent) => (
-              <Link
-                key={agent.agent_id}
-                to={`/agents/${encodeURIComponent(agent.agent_id)}`}
-                className="rounded-lg border border-gray-700 bg-gray-800 px-5 py-4 transition-colors hover:border-gray-600 hover:bg-gray-750"
-              >
-                <div className="flex items-start justify-between">
-                  <h2 className="truncate text-sm font-semibold text-white">
-                    {agent.agent_id}
-                  </h2>
-                  <span className="text-xs text-gray-400">
-                    {relativeTime(agent.updated_at)}
-                  </span>
-                </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <div className="text-gray-500">Tokens</div>
-                    <div className="text-gray-300">{agent.total_tokens.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">Total Cost</div>
-                    <div className="text-gray-300">{formatCost(agent.total_cost)}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-500">Today</div>
-                    <div className="text-gray-300">{formatCost(agent.today_cost)}</div>
-                  </div>
-                </div>
-              </Link>
-            ))}
+      {/* Middle Section: Events + Rankings */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Recent Events */}
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+          <h3 className="mb-4 text-sm font-medium uppercase tracking-wide text-gray-400">
+            Recent Events
+          </h3>
+          {eventsLoading && !eventsData ? (
+            <div className="flex h-48 items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-blue-500" />
+            </div>
+          ) : (
+            <RecentEventsTimeline events={eventsData?.events ?? []} />
+          )}
+        </div>
+
+        {/* Rankings */}
+        <div className="space-y-6">
+          <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+            <TopRankingChart
+              title="Top Agents (by cost)"
+              items={topAgentsItems}
+              emptyText="No agent data"
+            />
           </div>
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
+          <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+            <TopRankingChart
+              title="Top Models (by tokens)"
+              items={topModelsItems}
+              emptyText="No model data"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Trend Charts */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+          <TrendChart
+            title="Cost Trend (7 days)"
+            data={overview?.cost_trend ?? []}
+            color="#10b981"
+            formatValue={(v) => formatCost(v)}
           />
-        </>
-      )}
+        </div>
+        <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
+          <TrendChart
+            title="Requests Trend (7 days)"
+            data={overview?.requests_trend ?? []}
+            color="#3b82f6"
+            formatValue={(v) => v.toLocaleString()}
+          />
+        </div>
+      </div>
     </div>
   );
 }
