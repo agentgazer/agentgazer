@@ -5,22 +5,29 @@ import Layout from "./components/Layout";
 import OverviewPage from "./pages/OverviewPage";
 import AgentsPage from "./pages/AgentsPage";
 import AgentDetailPage from "./pages/AgentDetailPage";
+import ProvidersPage from "./pages/ProvidersPage";
+import ProviderDetailPage from "./pages/ProviderDetailPage";
 import CostsPage from "./pages/CostsPage";
 import AlertsPage from "./pages/AlertsPage";
+import { ConnectionProvider } from "./contexts/ConnectionContext";
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route element={<AuthGuard><Layout /></AuthGuard>}>
-          <Route path="/" element={<OverviewPage />} />
-          <Route path="/agents" element={<AgentsPage />} />
-          <Route path="/agents/:agentId" element={<AgentDetailPage />} />
-          <Route path="/costs" element={<CostsPage />} />
-          <Route path="/alerts" element={<AlertsPage />} />
-        </Route>
-      </Routes>
+      <ConnectionProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<AuthGuard><Layout /></AuthGuard>}>
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/agents/:agentId" element={<AgentDetailPage />} />
+            <Route path="/providers" element={<ProvidersPage />} />
+            <Route path="/providers/:name" element={<ProviderDetailPage />} />
+            <Route path="/costs" element={<CostsPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+          </Route>
+        </Routes>
+      </ConnectionProvider>
     </BrowserRouter>
   );
 }

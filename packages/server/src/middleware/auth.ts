@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { timingSafeEqual } from "node:crypto";
 
-const PUBLIC_PATHS = ["/api/health", "/api/auth/verify"];
+const PUBLIC_PATHS = ["/api/health", "/api/auth/verify", "/api/connection-info"];
 
 // Simple rate limiting for public endpoints (e.g. token brute-force on /api/auth/verify)
 const publicRateMap = new Map<string, { count: number; resetAt: number }>();

@@ -15,7 +15,15 @@ import statsRouter from "./routes/stats.js";
 import alertsRouter from "./routes/alerts.js";
 import modelRulesRouter from "./routes/model-rules.js";
 import rateLimitsRouter from "./routes/rate-limits.js";
+import { createProvidersRouter } from "./routes/providers.js";
 import { startEvaluator } from "./alerts/evaluator.js";
+
+export interface SecretStore {
+  get(service: string, account: string): Promise<string | null>;
+  set(service: string, account: string, secret: string): Promise<void>;
+  delete(service: string, account: string): Promise<void | boolean>;
+  list(service: string): Promise<string[]>;
+}
 
 export interface ServerOptions {
   port?: number;
@@ -23,6 +31,7 @@ export interface ServerOptions {
   dbPath: string;
   dashboardDir?: string;
   retentionDays?: number;
+  secretStore?: SecretStore;
 }
 
 export function createServer(options: ServerOptions): { app: express.Express; db: ReturnType<typeof initDatabase> } {
@@ -51,6 +60,8 @@ export function createServer(options: ServerOptions): { app: express.Express; db
   app.use(alertsRouter);
   app.use(modelRulesRouter);
   app.use(rateLimitsRouter);
+  app.use("/api/providers", createProvidersRouter({ db, secretStore: options.secretStore }));
+  app.use("/api", createProvidersRouter({ db, secretStore: options.secretStore })); // for /api/connection-info
 
   // Serve dashboard static files if a directory is provided
   if (options.dashboardDir) {

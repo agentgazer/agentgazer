@@ -80,3 +80,6 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
 export function getSelectableModels(provider: string): string[] {
   return SELECTABLE_MODELS[provider.toLowerCase()] ?? [];
 }
+
+/** Alias for SELECTABLE_MODELS for API consistency */
+export const PROVIDER_MODELS = SELECTABLE_MODELS;
