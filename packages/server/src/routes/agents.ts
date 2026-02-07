@@ -10,8 +10,32 @@ import {
   getKillSwitchConfig,
   updateKillSwitchConfig,
 } from "../db.js";
+import { createLogger } from "@agentgazer/shared";
 
 const router = Router();
+const log = createLogger("routes/agents");
+
+// Proxy URL for internal API calls (clear-window)
+const PROXY_URL = process.env.AGENTGAZER_PROXY_URL ?? "http://127.0.0.1:4000";
+
+/**
+ * Call proxy's internal API to clear loop detector window for an agent.
+ * Fire-and-forget: logs errors but doesn't throw.
+ */
+async function clearLoopDetectorWindow(agentId: string): Promise<void> {
+  try {
+    const response = await fetch(`${PROXY_URL}/internal/agents/${encodeURIComponent(agentId)}/clear-window`, {
+      method: "POST",
+    });
+    if (response.ok) {
+      log.info(`Cleared loop detector window for agent "${agentId}"`);
+    } else {
+      log.warn(`Failed to clear loop detector window for agent "${agentId}": ${response.status}`);
+    }
+  } catch (err) {
+    log.warn(`Failed to contact proxy to clear window for agent "${agentId}": ${String(err)}`);
+  }
+}
 
 router.get("/api/agents", (req, res) => {
   const db = req.app.locals.db as Database.Database;
@@ -174,16 +198,36 @@ router.put("/api/agents/:agentId/policy", (req, res) => {
     }
   }
 
-  const updated = updateAgentPolicy(db, agentId, {
+  // Detect activation (active: false → true)
+  const isActivating = body.active === true && !existing.active;
+  // Detect deactivation (active: true → false)
+  const isDeactivating = body.active === false && existing.active;
+
+  // Build policy update
+  const policyUpdate: Parameters<typeof updateAgentPolicy>[2] = {
     active: body.active,
     budget_limit: body.budget_limit,
     allowed_hours_start: body.allowed_hours_start,
     allowed_hours_end: body.allowed_hours_end,
-  });
+  };
+
+  // Handle deactivated_by field
+  if (isActivating) {
+    policyUpdate.deactivated_by = null;
+  } else if (isDeactivating) {
+    policyUpdate.deactivated_by = "manual";
+  }
+
+  const updated = updateAgentPolicy(db, agentId, policyUpdate);
 
   if (!updated) {
     res.status(400).json({ error: "No changes provided" });
     return;
+  }
+
+  // Clear loop detector window when activating (fire-and-forget)
+  if (isActivating) {
+    void clearLoopDetectorWindow(agentId);
   }
 
   const newPolicy = getAgentPolicy(db, agentId);

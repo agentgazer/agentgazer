@@ -21,6 +21,7 @@ import {
   getModelRule,
   getAllRateLimits,
   getProviderSettings,
+  updateAgentPolicy,
   type AgentPolicy,
   type InsertEventRow,
   type ProviderSettingsRow,
@@ -745,6 +746,26 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
+    // Internal endpoint: Clear loop detector window for an agent
+    // POST /internal/agents/:id/clear-window
+    const clearWindowMatch = path.match(/^\/internal\/agents\/([^/]+)\/clear-window$/);
+    if (method === "POST" && clearWindowMatch) {
+      const targetAgentId = decodeURIComponent(clearWindowMatch[1]);
+
+      // Security: Only allow from localhost
+      const remoteAddr = req.socket.remoteAddress;
+      const isLocalhost = remoteAddr === "127.0.0.1" || remoteAddr === "::1" || remoteAddr === "::ffff:127.0.0.1";
+      if (!isLocalhost) {
+        sendJson(res, 403, { error: "This endpoint is only accessible from localhost" });
+        return;
+      }
+
+      loopDetector.clearAgent(targetAgentId);
+      log.info(`[PROXY] Cleared loop detector window for agent "${targetAgentId}"`);
+      sendJson(res, 200, { success: true, agent_id: targetAgentId });
+      return;
+    }
+
     // Agent identification priority: header > path (/agents/{id}/...) > default
     let effectiveAgentId = req.headers["x-agent-id"] as string | undefined;
     let workingPath = path;
@@ -897,7 +918,20 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         if (loopCheck.isLoop) {
           log.warn(`[PROXY] Kill Switch triggered for agent "${effectiveAgentId}": score=${loopCheck.score.toFixed(2)}`);
 
-          const message = `Agent loop detected (score: ${loopCheck.score.toFixed(1)}). Request blocked to prevent runaway costs.`;
+          const message = `Agent loop detected (score: ${loopCheck.score.toFixed(1)}). Agent deactivated to prevent runaway costs.`;
+
+          // Deactivate the agent
+          if (db) {
+            try {
+              updateAgentPolicy(db, effectiveAgentId, {
+                active: false,
+                deactivated_by: "kill_switch",
+              });
+              log.info(`[PROXY] Agent "${effectiveAgentId}" deactivated by Kill Switch`);
+            } catch (err) {
+              log.error("Failed to deactivate agent", { err: String(err) });
+            }
+          }
 
           // Record blocked event
           recordBlockedEvent(db, effectiveAgentId, earlyProvider, "loop_detected", message);
@@ -915,7 +949,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
                 tokens_total: null,
                 cost_usd: null,
                 latency_ms: null,
-                status_code: 429,
+                status_code: 200,
                 source: "proxy",
                 timestamp: new Date().toISOString(),
                 tags: {
@@ -923,6 +957,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
                   similar_prompts: loopCheck.details.similarPrompts,
                   similar_responses: loopCheck.details.similarResponses,
                   repeated_tool_calls: loopCheck.details.repeatedToolCalls,
+                  action: "deactivated",
                 },
               };
               insertEvents(db, [killSwitchEvent]);
@@ -931,21 +966,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
             }
           }
 
-          // Return 429 with loop detection info
-          const retryAfter = 60; // Suggest waiting 60 seconds
-          res.setHeader("Retry-After", String(retryAfter));
-
-          const errorBody = {
-            error: {
-              message,
-              type: "loop_detected",
-              code: "kill_switch_triggered",
-              details: loopCheck.details,
-            },
-            retry_after_seconds: retryAfter,
-          };
-
-          sendJson(res, 429, errorBody);
+          // Return standard inactive response (same as checkAgentPolicy inactive)
+          const blockedResponse = generateBlockedResponse(earlyProvider, "inactive", message);
+          sendJson(res, 200, blockedResponse);
           return;
         }
       } catch {

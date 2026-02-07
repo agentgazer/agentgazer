@@ -4,6 +4,7 @@ export type { ServerOptions, SecretStore } from "./server.js";
 // Re-export DB types and functions needed by proxy for policy enforcement
 export {
   getAgentPolicy,
+  updateAgentPolicy,
   getDailySpend,
   insertEvents,
   upsertAgent,

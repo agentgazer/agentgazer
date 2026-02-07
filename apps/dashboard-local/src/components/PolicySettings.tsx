@@ -4,6 +4,7 @@ import { formatCost } from "../lib/format";
 
 interface PolicyData {
   active: boolean;
+  deactivated_by: string | null;
   budget_limit: number | null;
   allowed_hours_start: number | null;
   allowed_hours_end: number | null;
@@ -132,6 +133,16 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
           <p className="text-xs text-gray-400">
             When disabled, all requests will be blocked
           </p>
+          {!active && policy?.deactivated_by === "kill_switch" && (
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-red-800 bg-red-900/30 px-3 py-2">
+              <svg className="h-4 w-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span className="text-sm text-red-300">
+                Deactivated by Kill Switch due to loop detection
+              </span>
+            </div>
+          )}
         </div>
         <button
           onClick={handleToggleActive}

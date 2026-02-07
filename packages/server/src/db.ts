@@ -79,6 +79,11 @@ function runMigrations(db: Database.Database): void {
   if (!colNames.includes("kill_switch_threshold")) {
     db.exec("ALTER TABLE agents ADD COLUMN kill_switch_threshold REAL NOT NULL DEFAULT 10.0");
   }
+
+  // Migration: Add deactivated_by column to agents table
+  if (!colNames.includes("deactivated_by")) {
+    db.exec("ALTER TABLE agents ADD COLUMN deactivated_by TEXT");
+  }
 }
 
 const SCHEMA = `
@@ -87,6 +92,7 @@ const SCHEMA = `
     agent_id TEXT NOT NULL UNIQUE,
     name TEXT,
     active INTEGER NOT NULL DEFAULT 1,
+    deactivated_by TEXT,
     budget_limit REAL,
     allowed_hours_start INTEGER,
     allowed_hours_end INTEGER,
@@ -300,6 +306,7 @@ export interface AgentRow {
   agent_id: string;
   name: string | null;
   active: number;
+  deactivated_by: string | null;
   budget_limit: number | null;
   kill_switch_enabled: number;
   created_at: string;
@@ -317,7 +324,7 @@ export function getAllAgents(db: Database.Database): AgentRow[] {
 
   return db.prepare(`
     SELECT
-      a.id, a.agent_id, a.name, a.active, a.budget_limit, a.kill_switch_enabled,
+      a.id, a.agent_id, a.name, a.active, a.deactivated_by, a.budget_limit, a.kill_switch_enabled,
       a.created_at, a.updated_at,
       COALESCE(SUM(e.tokens_total), 0) AS total_tokens,
       COALESCE(SUM(e.cost_usd), 0) AS total_cost,
@@ -339,7 +346,7 @@ export function getAgentByAgentId(
 
   return db.prepare(`
     SELECT
-      a.id, a.agent_id, a.name, a.active, a.budget_limit, a.kill_switch_enabled,
+      a.id, a.agent_id, a.name, a.active, a.deactivated_by, a.budget_limit, a.kill_switch_enabled,
       a.created_at, a.updated_at,
       COALESCE(SUM(e.tokens_total), 0) AS total_tokens,
       COALESCE(SUM(e.cost_usd), 0) AS total_cost,
@@ -477,6 +484,7 @@ export function getDailySpend(db: Database.Database, agentId: string): number {
 
 export interface AgentPolicy {
   active: boolean;
+  deactivated_by: string | null;
   budget_limit: number | null;
   allowed_hours_start: number | null;
   allowed_hours_end: number | null;
@@ -490,11 +498,12 @@ export function getAgentPolicy(
   agentId: string,
 ): AgentPolicy | null {
   const row = db.prepare(`
-    SELECT active, budget_limit, allowed_hours_start, allowed_hours_end,
+    SELECT active, deactivated_by, budget_limit, allowed_hours_start, allowed_hours_end,
            kill_switch_enabled, kill_switch_window_size, kill_switch_threshold
     FROM agents WHERE agent_id = ?
   `).get(agentId) as {
     active: number;
+    deactivated_by: string | null;
     budget_limit: number | null;
     allowed_hours_start: number | null;
     allowed_hours_end: number | null;
@@ -507,6 +516,7 @@ export function getAgentPolicy(
 
   return {
     active: row.active === 1,
+    deactivated_by: row.deactivated_by,
     budget_limit: row.budget_limit,
     allowed_hours_start: row.allowed_hours_start,
     allowed_hours_end: row.allowed_hours_end,
@@ -527,6 +537,10 @@ export function updateAgentPolicy(
   if (policy.active !== undefined) {
     updates.push("active = ?");
     params.push(policy.active ? 1 : 0);
+  }
+  if ("deactivated_by" in policy) {
+    updates.push("deactivated_by = ?");
+    params.push(policy.deactivated_by);
   }
   if (policy.budget_limit !== undefined) {
     updates.push("budget_limit = ?");
