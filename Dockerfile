@@ -1,6 +1,11 @@
 # ---- Build stage ----
 FROM node:20-slim AS build
 
+# Build arguments for OCI labels
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG VCS_REF
+
 WORKDIR /app
 
 # Copy root package manifests and lockfile first for layer caching
@@ -26,6 +31,22 @@ RUN npx turbo build
 
 # ---- Production stage ----
 FROM node:20-slim AS production
+
+# OCI standard labels
+LABEL org.opencontainers.image.title="AgentGazer"
+LABEL org.opencontainers.image.description="From Observability to Control - The Missing Layer for AI Agents"
+LABEL org.opencontainers.image.source="https://github.com/agentgazer/agentgazer"
+LABEL org.opencontainers.image.url="https://agentgazer.com"
+LABEL org.opencontainers.image.vendor="AgentGazer"
+LABEL org.opencontainers.image.licenses="MIT"
+
+# Dynamic labels from build args
+ARG VERSION=dev
+ARG BUILD_DATE
+ARG VCS_REF
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.revision="${VCS_REF}"
 
 WORKDIR /app
 

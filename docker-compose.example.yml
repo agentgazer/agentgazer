@@ -1,0 +1,29 @@
+# AgentGazer Docker Compose Example
+#
+# Quick Start:
+#   curl -O https://raw.githubusercontent.com/agentgazer/agentgazer/main/docker-compose.example.yml
+#   docker compose -f docker-compose.example.yml up -d
+#
+# Then open http://localhost:8080 in your browser.
+
+services:
+  agentgazer:
+    image: ghcr.io/agentgazer/agentgazer:latest
+    ports:
+      - "8080:8080"  # Dashboard + API
+      - "4000:4000"  # LLM Proxy
+    volumes:
+      - agentgazer-data:/app/data
+    restart: unless-stopped
+    environment:
+      # Optional: Email alerts via SMTP
+      # - SMTP_HOST=smtp.example.com
+      # - SMTP_PORT=587
+      # - SMTP_USER=user@example.com
+      # - SMTP_PASS=your-password
+      #
+      # Optional: Email alerts via Resend
+      # - RESEND_API_KEY=re_xxxxx
+
+volumes:
+  agentgazer-data:

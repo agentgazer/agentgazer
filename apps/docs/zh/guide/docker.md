@@ -1,9 +1,48 @@
-# 部署
+# Docker 部署
+
+## 快速開始
+
+最快的方式啟動 AgentGazer：
+
+```bash
+docker pull ghcr.io/agentgazer/agentgazer
+docker run -d \
+  --name agentgazer \
+  -p 8080:8080 \
+  -p 4000:4000 \
+  -v agentgazer-data:/app/data \
+  ghcr.io/agentgazer/agentgazer
+```
+
+然後在瀏覽器開啟 http://localhost:8080。
 
 ## 使用 Docker Compose
 
+使用 Docker Compose 更容易管理：
+
 ```bash
-docker compose up -d
+# 下載範例檔
+curl -O https://raw.githubusercontent.com/agentgazer/agentgazer/main/docker-compose.example.yml
+
+# 啟動服務
+docker compose -f docker-compose.example.yml up -d
+```
+
+或自行建立 `docker-compose.yml`：
+
+```yaml
+services:
+  agentgazer:
+    image: ghcr.io/agentgazer/agentgazer:latest
+    ports:
+      - "8080:8080"  # 儀表板 + API
+      - "4000:4000"  # LLM Proxy
+    volumes:
+      - agentgazer-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  agentgazer-data:
 ```
 
 ## 連接埠對應
@@ -16,6 +55,14 @@ docker compose up -d
 ## 資料持久化
 
 Docker 使用 `agentgazer-data` Volume 來持久化 `~/.agentgazer/` 目錄，確保 SQLite 資料庫、設定檔和加密金鑰庫在容器重啟後不會遺失。
+
+## Image 標籤
+
+| 標籤 | 說明 |
+|------|------|
+| `latest` | 最新穩定版本 |
+| `1.0.0` | 特定版本 |
+| `1.0` | 該次要版本的最新修補版 |
 
 ## 環境變數
 
@@ -33,13 +80,33 @@ Docker 使用 `agentgazer-data` Volume 來持久化 `~/.agentgazer/` 目錄，�
 
 ### Email 告警設定範例
 
-若要啟用 Email 告警，需設定 SMTP 環境變數：
+若要啟用 Email 告警，設定 SMTP 環境變數：
+
+```yaml
+services:
+  agentgazer:
+    image: ghcr.io/agentgazer/agentgazer:latest
+    ports:
+      - "8080:8080"
+      - "4000:4000"
+    volumes:
+      - agentgazer-data:/app/data
+    environment:
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=your-email@gmail.com
+      - SMTP_PASS=your-app-password
+      - SMTP_FROM=alerts@your-domain.com
+```
+
+## 從原始碼建置
+
+如果需要本地建置 image：
 
 ```bash
-export SMTP_HOST=smtp.gmail.com
-export SMTP_PORT=587
-export SMTP_USER=your-email@gmail.com
-export SMTP_PASS=your-app-password
-export SMTP_FROM=alerts@your-domain.com
-export SMTP_SECURE=false
+git clone https://github.com/agentgazer/agentgazer.git
+cd agentgazer
+docker compose up -d
 ```
+
+這會使用 repo 中的 `Dockerfile` 從原始碼建置。
