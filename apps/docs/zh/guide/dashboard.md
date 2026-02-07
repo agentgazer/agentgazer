@@ -25,15 +25,18 @@ Providers 頁面讓你管理 LLM Provider 的連線與設定。
 
 ### Provider 列表
 
-每張 Provider 卡片顯示：
+Provider 頁面顯示包含以下欄位的表格：
 
 | 欄位 | 說明 |
 |------|------|
-| **Name** | Provider 名稱（如 openai、anthropic） |
-| **Status Badge** | Active、Inactive 或 Not configured |
-| **Rate Limit** | 已設定的頻率限制（若有） |
+| **Provider** | Provider 名稱與圖示（點擊可查看詳情） |
+| **Status** | 啟用/停用的切換開關 |
+| **Agents** | 使用此 Provider 的 Agent 數量 |
+| **Total Tokens** | 跨所有 Agent 的總 Token 消耗 |
+| **Total Cost** | 總花費（USD） |
+| **Today Cost** | 當日花費（USD） |
 
-點擊 Provider 卡片可進入詳情頁。
+Provider 按總成本排序（最高的在前）。點擊 Provider 列可進入詳情頁。
 
 ### 新增 Provider
 
@@ -202,6 +205,37 @@ Allowed Hours 使用伺服器本地時間。UI 會顯示伺服器時區（如「
 設定「每 60 秒 100 個請求」表示該 Agent 在任意 60 秒滑動窗口內，最多可對該 Provider 發送 100 個請求。
 
 詳見 [Proxy 頻率限制](/zh/guide/proxy#頻率限制-rate-limiting) 了解回應格式。
+
+### Kill Switch 設定
+
+設定自動迴圈偵測，防止失控的 Agent 燒錢。
+
+| 控制項 | 說明 |
+|--------|------|
+| **Enable Toggle** | 為此 Agent 開啟/關閉 Kill Switch |
+| **Window Size** | 分析的最近請求數量（預設：20） |
+| **Threshold** | 停用的分數閾值（預設：10.0） |
+
+**運作方式：**
+
+Kill Switch 使用 SimHash 偵測 Agent 行為中的重複模式：
+
+1. 每個請求的 prompt 被正規化（數字 → `<NUM>`、時間戳 → `<TS>`、UUID → `<ID>`）
+2. SimHash 計算 64 位元的位置敏感雜湊
+3. 相似的 prompt Hamming distance < 3
+4. 計算分數：`similar_prompts × 1.0 + similar_responses × 2.0 + repeated_tool_calls × 1.5`
+5. 當分數超過閾值，Agent 自動停用
+
+**停用標記：**
+
+當 Agent 被 Kill Switch 停用時：
+- 狀態顯示「被 Kill Switch 停用」標籤
+- 可透過 Active 開關手動重新啟動
+- 重新啟動時迴圈偵測視窗會自動清除
+
+::: warning 設定通知
+啟用 Kill Switch 時，也要在 Alerts 頁面設定告警通知（webhook/email），才能在 Agent 被停用時收到通知。
+:::
 
 ### 請求日誌（Request Log）
 

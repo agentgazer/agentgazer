@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: AgentGazer
-  text: Keep an eye on your agents.
-  tagline: One command to monitor your AI agents locally. Track LLM calls, costs, latency, and errors — all on your machine.
+  text: From Observability to Control
+  tagline: The missing governance layer for AI agents. Rate limiting, model override, kill switch — features that observability tools don't have.
   image:
     src: /logo.svg
     alt: AgentGazer
@@ -17,12 +17,12 @@ hero:
       link: /en/reference/api
 
 features:
-  - title: Local-First
-    details: Everything runs on your machine. SQLite database, no cloud dependency. Your prompts and API keys never leave your environment.
-  - title: Transparent Proxy
-    details: Point your LLM client at the proxy and get automatic tracking. Supports OpenAI, Anthropic, Google, Mistral, and Cohere.
-  - title: Cost & Token Tracking
-    details: Automatic cost calculation by model. See exactly how much each agent spends across providers.
-  - title: Alerts
-    details: Get notified when an agent goes down, error rate spikes, or daily budget is exceeded. Webhook and email support.
+  - title: 🛡️ Kill Switch
+    details: Detect infinite loops with SimHash algorithm. Auto-deactivate runaway agents before they burn your budget.
+  - title: 🔄 Model Override
+    details: Force agents to use cheaper models without changing code. gpt-4 → gpt-4o-mini, save 90% cost instantly.
+  - title: ⏱️ Rate Limiting
+    details: Per-provider request limits with sliding window. Prevent agents from exceeding API quotas.
+  - title: 📊 Local-First Observability
+    details: Track LLM calls, costs, tokens, and latency. SQLite storage, no cloud dependency. Your data stays on your machine.
 ---

@@ -2,7 +2,7 @@ import { defineConfig } from "vitepress";
 
 export default defineConfig({
   title: "AgentGazer",
-  description: "AI Agent Observability",
+  description: "From Observability to Control - The Missing Layer for AI Agents",
 
   // Ignore localhost links (they're valid for local development docs)
   ignoreDeadLinks: [/^http:\/\/localhost/],
@@ -54,6 +54,14 @@ export default defineConfig({
                 { text: "Provider Keys", link: "/en/guide/providers" },
                 { text: "Alerts", link: "/en/guide/alerts" },
                 { text: "Multi-Agent Setup", link: "/en/guide/multi-agent" },
+              ],
+            },
+            {
+              text: "Governance",
+              items: [
+                { text: "Kill Switch", link: "/en/guide/kill-switch" },
+                { text: "Model Override", link: "/en/guide/model-override" },
+                { text: "Rate Limiting", link: "/en/guide/rate-limiting" },
               ],
             },
             {
@@ -110,6 +118,14 @@ export default defineConfig({
                 { text: "Provider 金鑰管理", link: "/zh/guide/providers" },
                 { text: "告警系統", link: "/zh/guide/alerts" },
                 { text: "多 Agent 設定", link: "/zh/guide/multi-agent" },
+              ],
+            },
+            {
+              text: "治理功能",
+              items: [
+                { text: "Kill Switch 緊急停止", link: "/zh/guide/kill-switch" },
+                { text: "Model Override 模型覆蓋", link: "/zh/guide/model-override" },
+                { text: "Rate Limiting 請求限制", link: "/zh/guide/rate-limiting" },
               ],
             },
             {

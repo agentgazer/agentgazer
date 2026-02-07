@@ -7,6 +7,13 @@
 | **agent_down** | Agent has not sent a heartbeat for an extended period | `duration_minutes`: minutes before considered down | 10 minutes |
 | **error_rate** | Error rate exceeds threshold | `threshold`: percentage; `window_minutes`: rolling window | 20%, 5 minutes |
 | **budget** | Daily spend exceeds budget | `threshold`: amount limit in USD | — |
+| **kill_switch** | Agent was auto-deactivated by Kill Switch loop detection | — (triggered automatically) | — |
+
+::: tip Kill Switch Alerts
+Kill Switch alerts are generated automatically when an agent is deactivated due to detected infinite loops. Unlike other alert types, you don't configure a "kill_switch" alert rule — instead, enable Kill Switch on the agent and configure your notification channels (webhook/email) to receive deactivation alerts.
+
+See [Kill Switch](/en/guide/kill-switch) for details on loop detection configuration.
+:::
 
 ## Notification Channels
 

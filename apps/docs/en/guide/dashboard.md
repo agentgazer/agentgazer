@@ -25,15 +25,18 @@ The Providers page allows you to manage LLM provider connections and their setti
 
 ### Provider List
 
-Each provider card shows:
+The Providers page displays a table with the following columns:
 
-| Field | Description |
-|-------|-------------|
-| **Name** | Provider name (e.g., openai, anthropic) |
-| **Status Badge** | Active, Inactive, or Not configured |
-| **Rate Limit** | Current rate limit if configured |
+| Column | Description |
+|--------|-------------|
+| **Provider** | Provider name with icon (click to view details) |
+| **Status** | Toggle switch to enable/disable the provider |
+| **Agents** | Number of agents using this provider |
+| **Total Tokens** | Total tokens consumed across all agents |
+| **Total Cost** | Total spend (USD) |
+| **Today Cost** | Spend for current day (USD) |
 
-Click a provider card to view its detail page.
+Providers are sorted by total cost (highest first). Click a provider row to view its detail page.
 
 ### Add Provider
 
@@ -202,6 +205,37 @@ Configure per-provider rate limits to control request frequency. When a limit is
 Setting "100 requests per 60 seconds" means the agent can make at most 100 requests to that provider within any 60-second sliding window.
 
 See [Proxy Rate Limiting](/en/guide/proxy#rate-limiting) for details on response format.
+
+### Kill Switch Settings
+
+Configure automatic loop detection to prevent runaway agents from burning your budget.
+
+| Control | Description |
+|---------|-------------|
+| **Enable Toggle** | Turn Kill Switch on/off for this agent |
+| **Window Size** | Number of recent requests to analyze (default: 20) |
+| **Threshold** | Score threshold for deactivation (default: 10.0) |
+
+**How it works:**
+
+Kill Switch uses SimHash to detect repeated patterns in agent behavior:
+
+1. Each request's prompt is normalized (numbers → `<NUM>`, timestamps → `<TS>`, UUIDs → `<ID>`)
+2. SimHash computes a 64-bit locality-sensitive hash
+3. Similar prompts have a Hamming distance < 3
+4. Score is calculated: `similar_prompts × 1.0 + similar_responses × 2.0 + repeated_tool_calls × 1.5`
+5. When score exceeds threshold, agent is auto-deactivated
+
+**Deactivation indicator:**
+
+When an agent is deactivated by Kill Switch:
+- Status shows "Deactivated by Kill Switch" badge
+- Agent can be reactivated manually via the Active toggle
+- Loop detector window is cleared on reactivation
+
+::: warning Configure Notifications
+When enabling Kill Switch, also configure alert notifications (webhook/email) on the Alerts page to be notified when an agent is deactivated.
+:::
 
 ### Request Log
 

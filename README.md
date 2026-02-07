@@ -1,6 +1,18 @@
 # AgentGazer
 
-Local-first observability for AI agents. One command to monitor LLM calls, costs, errors, and latency across OpenAI, Anthropic, Google, Mistral, and Cohere.
+**From Observability to Control** — The missing governance layer for AI agents.
+
+Most observability tools just **watch**. AgentGazer **controls**.
+
+| Feature | Langsmith | Langfuse | Helicone | AgentGazer |
+|---------|:---------:|:--------:|:--------:|:----------:|
+| Tracing | ✅ | ✅ | ✅ | ✅ |
+| Cost Tracking | ✅ | ✅ | ✅ | ✅ |
+| **Rate Limiting** | ❌ | ❌ | ❌ | ✅ |
+| **Model Override** | ❌ | ❌ | ❌ | ✅ |
+| **Kill Switch** | ❌ | ❌ | ❌ | ✅ |
+| Self-hosted | ❌ | ✅ | ❌ | ✅ |
+| Zero SaaS cost | ❌ | ❌ | ❌ | ✅ |
 
 **[Documentation](https://agentgazer.com)** | **[中文文件](https://agentgazer.com/zh/)**
 
@@ -29,6 +41,44 @@ AgentGazer has two ways to capture data:
 
 Both approaches store data in a local SQLite database (`~/.agentgazer/data.db`) and expose it through a REST API and web dashboard.
 
+## Governance Features
+
+### 🛡️ Kill Switch — Stop runaway agents
+
+Detects infinite loops using SimHash similarity scoring. When an agent keeps making similar requests (same prompts, same tool calls, similar responses), AgentGazer auto-deactivates it before it burns your budget.
+
+```
+Score = similar_prompts × 1.0 + similar_responses × 2.0 + repeated_tool_calls × 1.5
+Score > Threshold → Agent deactivated
+```
+
+Configure per-agent in the Dashboard: window size, score threshold, enable/disable.
+
+### 🔄 Model Override — Force cheaper models
+
+Replace expensive models with cheaper alternatives without changing your agent code. The proxy rewrites the request before forwarding.
+
+```
+Agent requests: gpt-4           Your override rule: openai → gpt-4o-mini
+      ↓                                    ↓
+   Proxy intercepts ──────────────────→ Rewrites to gpt-4o-mini
+      ↓
+   Sent to OpenAI (90% cost savings)
+```
+
+Set per-agent per-provider rules in the Dashboard.
+
+### ⏱️ Rate Limiting — Prevent quota exhaustion
+
+Sliding window rate limits per provider. Agents exceeding the limit receive `429 Too Many Requests` with `Retry-After` header.
+
+```
+Provider: openai
+Limit: 100 requests / 60 seconds
+```
+
+Configure in the Dashboard or via API.
+
 ## Quick start
 
 ### Using the proxy (recommended)
@@ -43,15 +93,16 @@ export OPENAI_BASE_URL=http://localhost:4000/v1
 # Use your LLM client as normal — calls are recorded automatically
 ```
 
-The proxy auto-detects the provider from the request URL and forwards to the correct upstream API. It also supports [rate limiting](https://agentgazer.com/guide/proxy#rate-limiting), [model override](https://agentgazer.com/guide/proxy#model-override), and [policy enforcement](https://agentgazer.com/guide/proxy#policy-enforcement). Supported providers:
+The proxy auto-detects the provider from the request URL and forwards to the correct upstream API. Supported providers:
 
-| Provider | Host pattern |
-|----------|-------------|
-| OpenAI | `api.openai.com` |
-| Anthropic | `api.anthropic.com` |
-| Google | `generativelanguage.googleapis.com` |
-| Mistral | `api.mistral.ai` |
-| Cohere | `api.cohere.com` |
+| Provider | Host pattern | | Provider | Host pattern |
+|----------|-------------|---|----------|-------------|
+| OpenAI | `api.openai.com` | | DeepSeek | `api.deepseek.com` |
+| Anthropic | `api.anthropic.com` | | Moonshot | `api.moonshot.cn` |
+| Google | `generativelanguage.googleapis.com` | | Zhipu (智譜) | `open.bigmodel.cn` |
+| Mistral | `api.mistral.ai` | | MiniMax | `api.minimax.chat` |
+| Cohere | `api.cohere.com` | | Baichuan (百川) | `api.baichuan-ai.com` |
+| | | | Yi (零一) | `api.lingyiwanwu.com` |
 
 For providers that can't be auto-detected, set the `x-target-url` header:
 

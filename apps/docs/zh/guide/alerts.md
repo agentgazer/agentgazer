@@ -7,6 +7,13 @@
 | **agent_down** | Agent 長時間未發送心跳 | `duration_minutes`：視為離線的分鐘數 | 10 分鐘 |
 | **error_rate** | 錯誤率超過閾值 | `threshold`：百分比；`window_minutes`：滾動視窗 | 20%、5 分鐘 |
 | **budget** | 每日花費超過預算 | `threshold`：金額上限 USD | — |
+| **kill_switch** | Agent 被 Kill Switch 自動停用 | — （自動觸發） | — |
+
+::: tip Kill Switch 告警
+當 Agent 因偵測到無限迴圈而被停用時，Kill Switch 告警會自動產生。與其他告警類型不同，你不需要設定「kill_switch」告警規則 — 只要在 Agent 上啟用 Kill Switch 並設定通知管道（webhook/email），就會收到停用告警。
+
+詳見 [Kill Switch](/zh/guide/kill-switch) 了解迴圈偵測設定。
+:::
 
 ## 通知管道
 
