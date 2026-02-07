@@ -1226,6 +1226,64 @@ export interface RecentEvent {
   details?: Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// Delete Agent (cascade)
+// ---------------------------------------------------------------------------
+
+export function deleteAgent(db: Database.Database, agentId: string): boolean {
+  const deleteAll = db.transaction(() => {
+    // 1. Delete events
+    db.prepare("DELETE FROM agent_events WHERE agent_id = ?").run(agentId);
+
+    // 2. Delete alert history (via alert_rules FK, but also direct delete for safety)
+    db.prepare(`
+      DELETE FROM alert_history WHERE alert_rule_id IN (
+        SELECT id FROM alert_rules WHERE agent_id = ?
+      )
+    `).run(agentId);
+
+    // 3. Delete alert rules
+    db.prepare("DELETE FROM alert_rules WHERE agent_id = ?").run(agentId);
+
+    // 4. Delete model rules
+    db.prepare("DELETE FROM agent_model_rules WHERE agent_id = ?").run(agentId);
+
+    // 5. Delete rate limits
+    db.prepare("DELETE FROM agent_rate_limits WHERE agent_id = ?").run(agentId);
+
+    // 6. Delete agent
+    const result = db.prepare("DELETE FROM agents WHERE agent_id = ?").run(agentId);
+
+    return result.changes > 0;
+  });
+
+  return deleteAll();
+}
+
+// ---------------------------------------------------------------------------
+// Delete Provider (cascade)
+// ---------------------------------------------------------------------------
+
+export function deleteProvider(db: Database.Database, provider: string): boolean {
+  const deleteAll = db.transaction(() => {
+    // 1. Delete agent model rules for this provider
+    db.prepare("DELETE FROM agent_model_rules WHERE provider = ?").run(provider);
+
+    // 2. Delete agent rate limits for this provider
+    db.prepare("DELETE FROM agent_rate_limits WHERE provider = ?").run(provider);
+
+    // 3. Delete custom models for this provider
+    db.prepare("DELETE FROM provider_models WHERE provider = ?").run(provider);
+
+    // 4. Delete provider settings
+    const result = db.prepare("DELETE FROM provider_settings WHERE provider = ?").run(provider);
+
+    return result.changes > 0;
+  });
+
+  return deleteAll();
+}
+
 export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[] {
   const events: RecentEvent[] = [];
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { formatCost, formatNumber } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
@@ -49,9 +49,30 @@ function formatPercent(n: number): string {
 
 export default function AgentDetailPage() {
   const { agentId } = useParams<{ agentId: string }>();
+  const navigate = useNavigate();
   const [range, setRange] = useState<Range>("24h");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!agentId) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete agent "${agentId}"?\n\nThis action cannot be undone. All related data (events, alerts, rate limits, model rules) will be permanently deleted.`
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await api.delete(`/api/agents/${encodeURIComponent(agentId)}`);
+      navigate("/agents");
+    } catch (err) {
+      alert(`Failed to delete agent: ${err}`);
+      setDeleting(false);
+    }
+  };
 
   const fetcher = useCallback(() => {
     if (!agentId) return Promise.reject(new Error("Missing agentId"));
@@ -99,14 +120,23 @@ export default function AgentDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link
-          to="/agents"
-          className="rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link
+            to="/agents"
+            className="rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
+          >
+            &larr; Back
+          </Link>
+          <h1 className="text-2xl font-bold text-white">{agentId}</h1>
+        </div>
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
         >
-          &larr; Back
-        </Link>
-        <h1 className="text-2xl font-bold text-white">{agentId}</h1>
+          {deleting ? "Deleting..." : "Delete Agent"}
+        </button>
       </div>
 
       {error && (

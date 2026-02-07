@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   Tooltip,
   ResponsiveContainer,
@@ -25,12 +25,14 @@ const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#e
 
 export default function ProviderDetailPage() {
   const { name } = useParams<{ name: string }>();
+  const navigate = useNavigate();
   const [_settings, setSettings] = useState<ProviderSettings | null>(null);
   const [models, setModels] = useState<ProviderModel[]>([]);
   const [stats, setStats] = useState<ProviderStats | null>(null);
   const [timeRange, setTimeRange] = useState("24h");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Settings form state
   const [active, setActive] = useState(true);
@@ -145,6 +147,25 @@ export default function ProviderDetailPage() {
     }
   }
 
+  async function handleDeleteProvider() {
+    if (!name) return;
+
+    const confirmed = window.confirm(
+      `Are you sure you want to delete provider "${name}"?\n\nThis will remove the API key and all provider settings.`
+    );
+
+    if (!confirmed) return;
+
+    setDeleting(true);
+    try {
+      await providerApi.remove(name);
+      navigate("/providers");
+    } catch (err) {
+      setError(String(err));
+      setDeleting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -176,13 +197,22 @@ export default function ProviderDetailPage() {
             <p className="text-sm text-gray-400">Provider configuration and statistics</p>
           </div>
         </div>
-        <button
-          onClick={handleTestConnection}
-          disabled={validating}
-          className="rounded-md bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-600 disabled:opacity-50"
-        >
-          {validating ? "Testing..." : "Test Connection"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleTestConnection}
+            disabled={validating}
+            className="rounded-md bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-600 disabled:opacity-50"
+          >
+            {validating ? "Testing..." : "Test Connection"}
+          </button>
+          <button
+            onClick={handleDeleteProvider}
+            disabled={deleting}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {deleting ? "Deleting..." : "Delete Provider"}
+          </button>
+        </div>
       </div>
 
       {/* Validation Result */}

@@ -9,6 +9,7 @@ import {
   getModelRulesForAgent,
   getKillSwitchConfig,
   updateKillSwitchConfig,
+  deleteAgent,
 } from "../db.js";
 import { createLogger } from "@agentgazer/shared";
 
@@ -301,6 +302,30 @@ router.patch("/api/agents/:agentId/kill-switch", (req, res) => {
 
   const newConfig = getKillSwitchConfig(db, agentId);
   res.json(newConfig);
+});
+
+// ---------------------------------------------------------------------------
+// Delete Agent
+// ---------------------------------------------------------------------------
+
+router.delete("/api/agents/:agentId", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const { agentId } = req.params;
+
+  // Check agent exists
+  const agent = getAgentByAgentId(db, agentId);
+  if (!agent) {
+    res.status(404).json({ error: "Agent not found" });
+    return;
+  }
+
+  const deleted = deleteAgent(db, agentId);
+  if (deleted) {
+    log.info(`Deleted agent "${agentId}" and all related data`);
+    res.status(204).send();
+  } else {
+    res.status(500).json({ error: "Failed to delete agent" });
+  }
 });
 
 export default router;

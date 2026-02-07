@@ -32,6 +32,11 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     throw new Error((body as Record<string, string>).error || `Request failed: ${res.status}`);
   }
 
+  // Handle 204 No Content
+  if (res.status === 204) {
+    return undefined as T;
+  }
+
   return res.json() as Promise<T>;
 }
 
@@ -44,6 +49,7 @@ export const api = {
   patch: <T>(path: string, body: unknown) =>
     apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   del: (path: string) => apiFetch<void>(path, { method: "DELETE" }),
+  delete: (path: string) => apiFetch<void>(path, { method: "DELETE" }),
 };
 
 // ---------------------------------------------------------------------------

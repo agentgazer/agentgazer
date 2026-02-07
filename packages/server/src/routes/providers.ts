@@ -12,6 +12,7 @@ import {
   getProviderStats,
   getProviderModelStats,
   getAllProviderListStats,
+  deleteProvider,
 } from "../db.js";
 import { validateProviderKey, testProviderModel } from "../services/provider-validator.js";
 
@@ -168,18 +169,20 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
     }
   });
 
-  // DELETE /api/providers/:name - remove provider (loopback only)
+  // DELETE /api/providers/:name - remove provider and all related data (loopback only)
   router.delete("/:name", requireLoopback, async (req: Request, res: Response) => {
     try {
       const name = req.params.name as string;
 
-      if (!secretStore) {
-        res.status(500).json({ error: "Secret store not configured" });
-        return;
+      // Delete API key from secret store
+      if (secretStore) {
+        await secretStore.delete(PROVIDER_SERVICE, name);
       }
 
-      const deleted = await secretStore.delete(PROVIDER_SERVICE, name);
-      res.json({ success: deleted });
+      // Delete provider settings and related data from database
+      deleteProvider(db, name);
+
+      res.status(204).send();
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
