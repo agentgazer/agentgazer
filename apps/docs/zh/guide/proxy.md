@@ -2,7 +2,69 @@
 
 Proxy 是一個本地 HTTP 代理，透明地攔截你的 AI Agent 對 LLM Provider 的請求，自動提取 token 用量、延遲、成本等指標，**無需修改任何現有程式碼**。
 
-## 路徑前綴路由（推薦）
+## 簡化路由（推薦）
+
+使用 Proxy 最簡單的方式是**簡化路由**。你只需要指定 agent 名稱和 provider 名稱，Proxy 會自動處理所有端點路徑：
+
+```
+POST http://localhost:4000/agents/{agent-name}/{provider}
+```
+
+### 支援的 Provider
+
+| Provider | 端點 |
+|----------|------|
+| `openai` | OpenAI Chat Completions |
+| `anthropic` | Anthropic Messages |
+| `google` | Google Gemini（OpenAI 相容） |
+| `mistral` | Mistral Chat |
+| `cohere` | Cohere Chat v2 |
+| `deepseek` | DeepSeek Chat |
+| `moonshot` | Moonshot / Kimi Chat |
+| `zhipu` | 智譜 GLM Chat |
+| `minimax` | MiniMax Chat |
+| `yi` | Yi / 01.ai Chat |
+
+### 範例：透過簡化路由使用 OpenAI
+
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/agents/my-bot/openai",
+  apiKey: "dummy",  // 會被儲存的金鑰取代
+});
+
+const response = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+### 範例：透過簡化路由使用 Anthropic
+
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  baseURL: "http://localhost:4000/agents/my-bot/anthropic",
+  apiKey: "dummy",  // 會被儲存的金鑰取代
+});
+
+const message = await anthropic.messages.create({
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+### 優點
+
+- **不需要了解路徑格式** — 你不需要知道 `/v1/chat/completions`、`/v1/messages` 或其他 provider 特定的路徑
+- **自動金鑰注入** — Proxy 會自動注入該 provider 儲存的 API 金鑰
+- **內建 agent 追蹤** — agent 名稱嵌入在 URL 中
+
+## 路徑前綴路由
 
 Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 

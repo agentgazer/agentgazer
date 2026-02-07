@@ -13,7 +13,6 @@ const KNOWN_PROVIDER_NAMES = [
   "moonshot",
   "zhipu",
   "minimax",
-  "baichuan",
   "yi",
 ] as const;
 

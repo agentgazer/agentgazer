@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectProvider, detectProviderByHostname, getProviderBaseUrl, getProviderAuthHeader } from "../providers.js";
+import { detectProvider, detectProviderByHostname, getProviderBaseUrl, getProviderChatEndpoint, getProviderAuthHeader } from "../providers.js";
 
 describe("detectProvider", () => {
   describe("OpenAI", () => {
@@ -154,14 +154,6 @@ describe("detectProvider", () => {
     });
   });
 
-  describe("Baichuan", () => {
-    it("detects Baichuan by host", () => {
-      expect(
-        detectProvider("https://api.baichuan-ai.com/v1/models")
-      ).toBe("baichuan");
-    });
-  });
-
   describe("Yi", () => {
     it("detects Yi by host", () => {
       expect(
@@ -235,7 +227,7 @@ describe("getProviderBaseUrl", () => {
 
   it("returns base URL for google", () => {
     expect(getProviderBaseUrl("google")).toBe(
-      "https://generativelanguage.googleapis.com"
+      "https://generativelanguage.googleapis.com/v1beta/openai"
     );
   });
 
@@ -252,27 +244,89 @@ describe("getProviderBaseUrl", () => {
   });
 
   it("returns base URL for moonshot", () => {
-    expect(getProviderBaseUrl("moonshot")).toBe("https://api.moonshot.cn");
+    expect(getProviderBaseUrl("moonshot")).toBe("https://api.moonshot.ai");
   });
 
   it("returns base URL for zhipu", () => {
-    expect(getProviderBaseUrl("zhipu")).toBe("https://open.bigmodel.cn");
+    expect(getProviderBaseUrl("zhipu")).toBe("https://api.z.ai/api/paas");
   });
 
   it("returns base URL for minimax", () => {
-    expect(getProviderBaseUrl("minimax")).toBe("https://api.minimax.chat");
-  });
-
-  it("returns base URL for baichuan", () => {
-    expect(getProviderBaseUrl("baichuan")).toBe("https://api.baichuan-ai.com");
+    expect(getProviderBaseUrl("minimax")).toBe("https://api.minimax.io");
   });
 
   it("returns base URL for yi", () => {
-    expect(getProviderBaseUrl("yi")).toBe("https://api.lingyiwanwu.com");
+    expect(getProviderBaseUrl("yi")).toBe("https://api.01.ai");
   });
 
   it("returns null for unknown provider", () => {
     expect(getProviderBaseUrl("unknown")).toBeNull();
+  });
+});
+
+describe("getProviderChatEndpoint", () => {
+  it("returns complete chat endpoint for openai", () => {
+    expect(getProviderChatEndpoint("openai")).toBe(
+      "https://api.openai.com/v1/chat/completions"
+    );
+  });
+
+  it("returns complete chat endpoint for anthropic", () => {
+    expect(getProviderChatEndpoint("anthropic")).toBe(
+      "https://api.anthropic.com/v1/messages"
+    );
+  });
+
+  it("returns complete chat endpoint for google", () => {
+    expect(getProviderChatEndpoint("google")).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    );
+  });
+
+  it("returns complete chat endpoint for mistral", () => {
+    expect(getProviderChatEndpoint("mistral")).toBe(
+      "https://api.mistral.ai/v1/chat/completions"
+    );
+  });
+
+  it("returns complete chat endpoint for cohere", () => {
+    expect(getProviderChatEndpoint("cohere")).toBe(
+      "https://api.cohere.com/v2/chat"
+    );
+  });
+
+  it("returns complete chat endpoint for deepseek", () => {
+    expect(getProviderChatEndpoint("deepseek")).toBe(
+      "https://api.deepseek.com/v1/chat/completions"
+    );
+  });
+
+  it("returns complete chat endpoint for moonshot", () => {
+    expect(getProviderChatEndpoint("moonshot")).toBe(
+      "https://api.moonshot.ai/v1/chat/completions"
+    );
+  });
+
+  it("returns complete chat endpoint for zhipu", () => {
+    expect(getProviderChatEndpoint("zhipu")).toBe(
+      "https://api.z.ai/api/paas/v4/chat/completions"
+    );
+  });
+
+  it("returns complete chat endpoint for minimax", () => {
+    expect(getProviderChatEndpoint("minimax")).toBe(
+      "https://api.minimax.io/v1/text/chatcompletion_v2"
+    );
+  });
+
+  it("returns complete chat endpoint for yi", () => {
+    expect(getProviderChatEndpoint("yi")).toBe(
+      "https://api.01.ai/v1/chat/completions"
+    );
+  });
+
+  it("returns null for unknown provider", () => {
+    expect(getProviderChatEndpoint("unknown")).toBeNull();
   });
 });
 
@@ -320,11 +374,6 @@ describe("getProviderAuthHeader", () => {
   it("returns Bearer Authorization for minimax", () => {
     const result = getProviderAuthHeader("minimax", "sk-mm-test");
     expect(result).toEqual({ name: "authorization", value: "Bearer sk-mm-test" });
-  });
-
-  it("returns Bearer Authorization for baichuan", () => {
-    const result = getProviderAuthHeader("baichuan", "sk-bc-test");
-    expect(result).toEqual({ name: "authorization", value: "Bearer sk-bc-test" });
   });
 
   it("returns Bearer Authorization for yi", () => {

@@ -3,12 +3,14 @@ import {
   detectProvider,
   detectProviderByHostname,
   getProviderBaseUrl,
+  getProviderChatEndpoint,
   getProviderAuthHeader,
   parsePathPrefix,
   parseAgentPath,
   parseProviderResponse,
   calculateCost,
   createLogger,
+  KNOWN_PROVIDER_NAMES,
   type AgentEvent,
   type ParsedResponse,
   type ProviderName,
@@ -300,7 +302,6 @@ function parseSSEResponse(
     case "moonshot":
     case "zhipu":
     case "minimax":
-    case "baichuan":
     case "yi":
       return parseOpenAISSE(dataLines, statusCode);
     case "anthropic":
@@ -763,6 +764,33 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       loopDetector.clearAgent(targetAgentId);
       log.info(`[PROXY] Cleared loop detector window for agent "${targetAgentId}"`);
       sendJson(res, 200, { success: true, agent_id: targetAgentId });
+      return;
+    }
+
+    // Simplified routing: POST /agents/:agent/:provider (no trailing path)
+    // This route handles all path construction internally
+    const simplifiedRouteMatch = path.match(/^\/agents\/([^/]+)\/([^/]+)$/);
+    if (method === "POST" && simplifiedRouteMatch) {
+      const routeAgentId = decodeURIComponent(simplifiedRouteMatch[1]);
+      const routeProvider = simplifiedRouteMatch[2].toLowerCase() as ProviderName;
+
+      // Validate provider
+      if (!KNOWN_PROVIDER_NAMES.includes(routeProvider)) {
+        sendJson(res, 400, { error: `Unknown provider: ${routeProvider}` });
+        return;
+      }
+
+      const chatEndpoint = getProviderChatEndpoint(routeProvider);
+      if (!chatEndpoint) {
+        sendJson(res, 400, { error: `No chat endpoint configured for provider: ${routeProvider}` });
+        return;
+      }
+
+      log.info(`[PROXY] Simplified route: agent=${routeAgentId}, provider=${routeProvider}`);
+      log.info(`[PROXY] Forwarding to: ${chatEndpoint}`);
+
+      // Handle the simplified route request
+      await handleSimplifiedRoute(req, res, routeAgentId, routeProvider, chatEndpoint);
       return;
     }
 
@@ -1347,6 +1375,285 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     };
 
     eventBuffer.add(event);
+  }
+
+  /**
+   * Handle simplified route: POST /agents/:agent/:provider
+   * All path construction is done internally - user just provides agent and provider.
+   */
+  async function handleSimplifiedRoute(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    effectiveAgentId: string,
+    provider: ProviderName,
+    targetUrl: string,
+  ): Promise<void> {
+    // Provider policy check
+    const providerPolicyResult = checkProviderPolicy(db, provider);
+    if (!providerPolicyResult.allowed && providerPolicyResult.reason && providerPolicyResult.message) {
+      log.info(`[PROXY] Request blocked for provider "${provider}": ${providerPolicyResult.reason}`);
+      recordBlockedEvent(db, effectiveAgentId, provider, providerPolicyResult.reason, providerPolicyResult.message);
+
+      if (providerPolicyResult.reason === "provider_rate_limited") {
+        const retryAfter = providerRateLimiter.getRetryAfter(provider, provider);
+        const rateLimitResponse = generateRateLimitResponse(provider, effectiveAgentId, retryAfter);
+        res.setHeader("Retry-After", String(retryAfter));
+        sendJson(res, 429, rateLimitResponse);
+      } else {
+        const blockedResponse = generateBlockedResponse(provider, providerPolicyResult.reason, providerPolicyResult.message);
+        sendJson(res, 200, blockedResponse);
+      }
+      return;
+    }
+
+    // Agent policy check
+    const policyResult = checkAgentPolicy(db, effectiveAgentId);
+    if (!policyResult.allowed && policyResult.reason && policyResult.message) {
+      log.info(`[PROXY] Request blocked for agent "${effectiveAgentId}": ${policyResult.reason}`);
+      recordBlockedEvent(db, effectiveAgentId, provider, policyResult.reason, policyResult.message);
+      const blockedResponse = generateBlockedResponse(provider, policyResult.reason, policyResult.message);
+      sendJson(res, 200, blockedResponse);
+      return;
+    }
+
+    // Read request body
+    let requestBody: Buffer;
+    try {
+      requestBody = await readRequestBody(req);
+    } catch (err) {
+      if (err instanceof Error && err.message === "Request body too large") {
+        sendJson(res, 413, { error: `Request body too large (max ${MAX_REQUEST_BODY_SIZE / 1024 / 1024}MB)` });
+      } else {
+        sendJson(res, 502, { error: "Failed to read request body" });
+      }
+      return;
+    }
+
+    // Kill Switch check
+    const killSwitchConfig = getKillSwitchConfig(db, effectiveAgentId);
+    if (killSwitchConfig.enabled) {
+      try {
+        const bodyJson = JSON.parse(requestBody.toString("utf-8"));
+        const { promptHash, toolCalls } = loopDetector.recordRequest(effectiveAgentId, bodyJson);
+        const loopCheck = loopDetector.checkLoop(effectiveAgentId, promptHash, toolCalls);
+
+        if (loopCheck.isLoop) {
+          log.warn(`[PROXY] Kill Switch triggered for agent "${effectiveAgentId}": score=${loopCheck.score.toFixed(2)}`);
+          const message = `Agent loop detected (score: ${loopCheck.score.toFixed(1)}). Agent deactivated to prevent runaway costs.`;
+
+          if (db) {
+            try {
+              updateAgentPolicy(db, effectiveAgentId, { active: false, deactivated_by: "kill_switch" });
+              log.info(`[PROXY] Agent "${effectiveAgentId}" deactivated by Kill Switch`);
+            } catch (err) {
+              log.error("Failed to deactivate agent", { err: String(err) });
+            }
+          }
+
+          recordBlockedEvent(db, effectiveAgentId, provider, "loop_detected", message);
+
+          if (db) {
+            try {
+              const killSwitchEvent: InsertEventRow = {
+                agent_id: effectiveAgentId,
+                event_type: "kill_switch",
+                provider,
+                model: null,
+                tokens_in: null,
+                tokens_out: null,
+                tokens_total: null,
+                cost_usd: null,
+                latency_ms: null,
+                status_code: 200,
+                source: "proxy",
+                timestamp: new Date().toISOString(),
+                tags: {
+                  loop_score: loopCheck.score,
+                  similar_prompts: loopCheck.details.similarPrompts,
+                  similar_responses: loopCheck.details.similarResponses,
+                  repeated_tool_calls: loopCheck.details.repeatedToolCalls,
+                  action: "deactivated",
+                },
+              };
+              insertEvents(db, [killSwitchEvent]);
+            } catch (err) {
+              log.error("Failed to record kill_switch event", { err: String(err) });
+            }
+          }
+
+          const blockedResponse = generateBlockedResponse(provider, "inactive", message);
+          sendJson(res, 200, blockedResponse);
+          return;
+        }
+      } catch {
+        // Not JSON body - skip loop detection
+      }
+    }
+
+    // Model override
+    let requestedModel: string | null = null;
+    let modifiedRequestBody = requestBody;
+    try {
+      const bodyJson = JSON.parse(requestBody.toString("utf-8"));
+      if (bodyJson.model) {
+        requestedModel = bodyJson.model;
+        const modelOverride = getModelOverride(db, effectiveAgentId, provider);
+        if (modelOverride) {
+          log.info(`[PROXY] Model override: ${requestedModel} → ${modelOverride}`);
+          bodyJson.model = modelOverride;
+          modifiedRequestBody = Buffer.from(JSON.stringify(bodyJson), "utf-8");
+        }
+      }
+    } catch {
+      // Not JSON or no model field
+    }
+
+    // Rate limiting check
+    const rateLimitResult = rateLimiter.check(effectiveAgentId, provider);
+    if (!rateLimitResult.allowed) {
+      const retryAfter = rateLimitResult.retryAfterSeconds ?? 60;
+      const message = `Rate limit exceeded for agent "${effectiveAgentId}" on ${provider}. Please retry after ${retryAfter} seconds.`;
+
+      res.writeHead(429, { "Content-Type": "application/json", "Retry-After": String(retryAfter) });
+
+      const errorBody = provider === "anthropic"
+        ? { type: "error", error: { type: "rate_limit_error", message }, retry_after_seconds: retryAfter }
+        : { error: { message, type: "rate_limit_error", param: null, code: "rate_limit_exceeded" }, retry_after_seconds: retryAfter };
+
+      res.end(JSON.stringify(errorBody));
+
+      const event: AgentEvent = {
+        agent_id: effectiveAgentId,
+        event_type: "error",
+        provider,
+        model: null,
+        tokens_in: null,
+        tokens_out: null,
+        tokens_total: null,
+        cost_usd: null,
+        latency_ms: null,
+        status_code: 429,
+        source: "proxy",
+        timestamp: new Date().toISOString(),
+        tags: { rate_limited: "true" },
+      };
+      eventBuffer.add(event);
+      return;
+    }
+
+    // Build headers
+    const forwardHeaders: Record<string, string> = {};
+    for (const [key, value] of Object.entries(req.headers)) {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey === "x-target-url" || lowerKey === "host" || lowerKey === "connection" || lowerKey === "content-length") {
+        continue;
+      }
+      if (value !== undefined) {
+        forwardHeaders[key] = Array.isArray(value) ? value.join(", ") : value;
+      }
+    }
+
+    // Inject API key
+    const providerKey = providerKeys[provider];
+    if (providerKey) {
+      const authHeader = getProviderAuthHeader(provider, providerKey);
+      if (authHeader) {
+        const existingAuthKey = Object.keys(forwardHeaders).find(k => k.toLowerCase() === authHeader.name.toLowerCase());
+        if (existingAuthKey) delete forwardHeaders[existingAuthKey];
+        forwardHeaders[authHeader.name] = authHeader.value;
+        log.info(`[PROXY] Injected ${authHeader.name} header for ${provider}`);
+      }
+    } else {
+      log.warn(`[PROXY] No API key configured for provider: ${provider}`);
+    }
+
+    const requestStart = Date.now();
+    let providerResponse: Response;
+
+    try {
+      providerResponse = await fetch(targetUrl, {
+        method: "POST",
+        headers: forwardHeaders,
+        body: new Uint8Array(modifiedRequestBody),
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown fetch error";
+      log.error(`[PROXY] Upstream request failed: ${message}`);
+      sendJson(res, 502, { error: `Upstream request failed: ${message}` });
+      return;
+    }
+
+    log.info(`[PROXY] Response: ${providerResponse.status} ${providerResponse.statusText}`);
+
+    const contentType = providerResponse.headers.get("content-type") ?? "";
+    const isSSE = contentType.includes("text/event-stream");
+
+    if (isSSE && providerResponse.body) {
+      // Streaming response
+      const responseHeaders: Record<string, string> = {};
+      providerResponse.headers.forEach((value, key) => {
+        responseHeaders[key] = value;
+      });
+      res.writeHead(providerResponse.status, responseHeaders);
+
+      const chunks: Buffer[] = [];
+      let accumulatedSize = 0;
+      const reader = providerResponse.body.getReader();
+
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const buf = Buffer.from(value);
+          res.write(buf);
+          accumulatedSize += buf.length;
+          if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
+            chunks.push(buf);
+          }
+        }
+      } catch (error) {
+        log.error("Stream read error", { err: error instanceof Error ? error.message : String(error) });
+      } finally {
+        res.end();
+      }
+
+      const latencyMs = Date.now() - requestStart;
+      const fullBody = Buffer.concat(chunks);
+
+      try {
+        extractStreamingMetrics(provider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel);
+      } catch (error) {
+        log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
+      }
+    } else {
+      // Non-streaming response
+      let responseBodyBuffer: Buffer;
+      try {
+        const arrayBuffer = await providerResponse.arrayBuffer();
+        responseBodyBuffer = Buffer.from(arrayBuffer);
+      } catch {
+        sendJson(res, 502, { error: "Failed to read upstream response body" });
+        return;
+      }
+
+      const latencyMs = Date.now() - requestStart;
+
+      const responseHeaders: Record<string, string> = {};
+      providerResponse.headers.forEach((value, key) => {
+        if (key.toLowerCase() === "transfer-encoding") return;
+        responseHeaders[key] = value;
+      });
+
+      res.writeHead(providerResponse.status, responseHeaders);
+      res.end(responseBodyBuffer);
+
+      try {
+        extractAndQueueMetrics(provider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel);
+      } catch (error) {
+        log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
+      }
+    }
   }
 
   server.listen(port);

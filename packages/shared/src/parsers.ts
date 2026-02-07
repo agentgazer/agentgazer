@@ -132,7 +132,6 @@ const PARSERS: Record<string, ResponseParser> = {
   moonshot: parseOpenAI,
   zhipu: parseOpenAI,
   minimax: parseOpenAI,
-  baichuan: parseOpenAI,
   yi: parseOpenAI,
 };
 

@@ -17,8 +17,20 @@ const PROVIDER_ICONS: Record<string, string> = {
   moonshot: "m",
   zhipu: "Z",
   minimax: "X",
-  baichuan: "B",
   yi: "Y",
+};
+
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI (GPT-4o, o1, o3)",
+  anthropic: "Anthropic (Claude Opus, Sonnet, Haiku)",
+  google: "Google (Gemini)",
+  mistral: "Mistral (Mistral Large, Codestral)",
+  cohere: "Cohere (Command R+)",
+  deepseek: "DeepSeek (V3, R1)",
+  moonshot: "Moonshot (Kimi K2.5)",
+  zhipu: "Zhipu / Z.ai (GLM-4.7)",
+  minimax: "MiniMax (M2)",
+  yi: "Yi / 01.ai (Yi-Large)",
 };
 
 export default function ProvidersPage() {
@@ -215,7 +227,6 @@ function AddProviderModal({
     "moonshot",
     "zhipu",
     "minimax",
-    "baichuan",
     "yi",
   ];
 
@@ -277,7 +288,7 @@ function AddProviderModal({
               <option value="">Select a provider...</option>
               {providers.map((p) => (
                 <option key={p} value={p}>
-                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                  {PROVIDER_LABELS[p] || p.charAt(0).toUpperCase() + p.slice(1)}
                 </option>
               ))}
             </select>

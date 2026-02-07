@@ -31,6 +31,10 @@ export async function validateProviderKey(
       return validateMoonshot(apiKey);
     case "zhipu":
       return validateZhipu(apiKey);
+    case "minimax":
+      return validateMinimax(apiKey);
+    case "yi":
+      return validateYi(apiKey);
     default:
       return { valid: false, error: `Validation not supported for provider: ${provider}` };
   }
@@ -208,10 +212,18 @@ async function validateDeepSeek(apiKey: string): Promise<ValidationResult> {
 }
 
 async function validateMoonshot(apiKey: string): Promise<ValidationResult> {
+  // Try international endpoint first (api.moonshot.ai), fallback to China (api.moonshot.cn)
   try {
-    const res = await fetch("https://api.moonshot.cn/v1/models", {
+    let res = await fetch("https://api.moonshot.ai/v1/models", {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
+
+    // If international fails with 401, try China endpoint
+    if (res.status === 401) {
+      res = await fetch("https://api.moonshot.cn/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+    }
 
     if (res.status === 401) {
       return { valid: false, error: "Invalid API key" };
@@ -229,11 +241,77 @@ async function validateMoonshot(apiKey: string): Promise<ValidationResult> {
 }
 
 async function validateZhipu(apiKey: string): Promise<ValidationResult> {
-  // Zhipu uses JWT-style auth, try /models endpoint
+  // Try international endpoint first (z.ai), fallback to China (bigmodel.cn)
   try {
-    const res = await fetch("https://open.bigmodel.cn/api/paas/v4/models", {
+    let res = await fetch("https://api.z.ai/api/paas/v4/models", {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
+
+    // If international fails with 401 or 404, try China endpoint
+    if (res.status === 401 || res.status === 404) {
+      res = await fetch("https://open.bigmodel.cn/api/paas/v4/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+    }
+
+    if (res.status === 401) {
+      return { valid: false, error: "Invalid API key" };
+    }
+    if (!res.ok) {
+      return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` };
+    }
+
+    const data = await res.json() as { data: { id: string }[] };
+    const models = data.data?.map(m => m.id) ?? [];
+    return { valid: true, models };
+  } catch (err) {
+    return { valid: false, error: String(err) };
+  }
+}
+
+async function validateMinimax(apiKey: string): Promise<ValidationResult> {
+  // MiniMax uses /v1/text/chatcompletion_v2 endpoint (no /models endpoint)
+  try {
+    const res = await fetch("https://api.minimax.io/v1/text/chatcompletion_v2", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "MiniMax-M2",
+        max_completion_tokens: 1,
+        messages: [{ role: "user", content: "." }],
+      }),
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, error: "Invalid API key" };
+    }
+    // 200 or 429 (rate limit) means key is valid
+    if (res.ok || res.status === 429) {
+      return { valid: true };
+    }
+
+    return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` };
+  } catch (err) {
+    return { valid: false, error: String(err) };
+  }
+}
+
+async function validateYi(apiKey: string): Promise<ValidationResult> {
+  // Try international endpoint first (01.ai), fallback to China (lingyiwanwu.com)
+  try {
+    let res = await fetch("https://api.01.ai/v1/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+
+    // If international fails with 401, try China endpoint
+    if (res.status === 401) {
+      res = await fetch("https://api.lingyiwanwu.com/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+    }
 
     if (res.status === 401) {
       return { valid: false, error: "Invalid API key" };

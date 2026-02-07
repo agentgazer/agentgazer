@@ -2,20 +2,45 @@
 
 ## 指令總覽
 
+### 核心指令
+
 | 指令 | 說明 | 旗標 |
 |------|------|------|
 | `onboard` | 首次設定，產生 Token，設定 Provider | — |
-| `start` | 啟動伺服器、Proxy、儀表板 | `--port`（預設 8080）、`--proxy-port`（預設 4000）、`--retention-days`（預設 30）、`--no-open` |
+| `start` | 啟動伺服器、Proxy、儀表板 | `--port`、`--proxy-port`、`--retention-days`、`--no-open` |
 | `status` | 顯示目前設定資訊 | — |
 | `reset-token` | 重新產生認證 Token | — |
-| `providers list` | 列出已設定的 Provider | — |
-| `providers set <name> <key>` | 儲存 Provider API Key | — |
-| `providers remove <name>` | 移除 Provider | — |
+| `overview` | 啟動即時 TUI 儀表板 | `--port` |
 | `version` | 顯示版本號 | — |
 | `doctor` | 系統健康檢查 | `--port`、`--proxy-port` |
-| `agents` | 列出已註冊的 Agent | `--port`、`--proxy-port` |
-| `stats [agentId]` | 顯示 Agent 統計數據 | `--port`、`--proxy-port`、`--range`（1h/24h/7d/30d，預設 24h） |
+| `uninstall` | 移除 AgentGazer（僅限 curl 安裝） | `--yes` |
 | `help` | 顯示幫助訊息 | — |
+
+### Agent 指令
+
+| 指令 | 說明 | 旗標 |
+|------|------|------|
+| `agents` | 列出所有已註冊的 Agent | `--port` |
+| `agent <name> active` | 啟用 Agent | `--port` |
+| `agent <name> deactive` | 停用 Agent | `--port` |
+| `agent <name> killswitch on\|off` | 切換緊急停止開關 | `--port` |
+| `agent <name> delete` | 刪除 Agent 及所有資料 | `--port`、`--yes` |
+| `agent <name> stat` | 顯示 Agent 統計數據 | `--port`、`--range` |
+| `agent <name> model` | 列出模型覆蓋設定 | `--port` |
+| `agent <name> model-override <model>` | 設定模型覆蓋 | `--port` |
+
+### Provider 指令
+
+| 指令 | 說明 | 旗標 |
+|------|------|------|
+| `providers` | 列出所有已設定的 Provider | `--port` |
+| `provider add [name] [key]` | 新增 Provider（省略參數時進入互動模式） | — |
+| `provider <name> active` | 啟用 Provider | `--port` |
+| `provider <name> deactive` | 停用 Provider | `--port` |
+| `provider <name> test-connection` | 測試 API Key 有效性 | — |
+| `provider <name> delete` | 刪除 Provider 及 API Key | `--yes` |
+| `provider <name> models` | 列出可用模型 | — |
+| `provider <name> stat` | 顯示 Provider 統計數據 | `--port`、`--range` |
 
 ## 詳細說明
 
@@ -45,27 +70,86 @@ agentgazer start --retention-days 7
 | `--retention-days` | `30` | 事件資料保留天數 |
 | `--no-open` | `false` | 啟動時不自動開啟瀏覽器 |
 
-### `agentgazer status`
+### `agentgazer overview`
 
-顯示目前的設定，包括 Token 前綴、已設定的 Provider、資料庫路徑等。
+啟動類似 htop 風格的即時終端機 UI 儀表板，顯示系統狀態、Agent 和最近事件。
 
-### `agentgazer reset-token`
+```bash
+agentgazer overview
+agentgazer overview --port 9090
+```
 
-重新產生認證 Token。舊 Token 將立即失效，需要更新所有使用舊 Token 的 SDK 設定與儀表板登入。
+**鍵盤快捷鍵：**
+- `Q` 或 `ESC` — 退出
+- `R` — 強制更新
+- `A` — 切換只顯示活躍 Agent
+- `?` — 顯示幫助
 
-### `agentgazer providers`
+### Agent 管理
+
+從命令列管理 Agent。
+
+```bash
+# 列出所有 Agent
+agentgazer agents
+
+# 啟用/停用 Agent
+agentgazer agent my-bot active
+agentgazer agent my-bot deactive
+
+# 切換緊急停止開關
+agentgazer agent my-bot killswitch on
+agentgazer agent my-bot killswitch off
+
+# 顯示統計數據
+agentgazer agent my-bot stat
+agentgazer agent my-bot stat --range 7d
+
+# 查看模型覆蓋設定
+agentgazer agent my-bot model
+
+# 設定模型覆蓋（如有多個 Provider 會互動式選擇）
+agentgazer agent my-bot model-override gpt-4o-mini
+
+# 刪除 Agent
+agentgazer agent my-bot delete
+agentgazer agent my-bot delete --yes  # 跳過確認
+```
+
+### Provider 管理
 
 管理 LLM Provider 的 API Key。
 
 ```bash
 # 列出所有已設定的 Provider
-agentgazer providers list
+agentgazer providers
 
-# 設定 OpenAI API Key（安全加密儲存）
-agentgazer providers set openai sk-xxxxxxxxxxxxx
+# 新增 Provider（完全互動式）
+agentgazer provider add
 
-# 移除 Anthropic Provider
-agentgazer providers remove anthropic
+# 指定 Provider 名稱（會提示輸入 Key）
+agentgazer provider add openai
+
+# 同時指定名稱與 Key（非互動式）
+agentgazer provider add openai sk-xxxxxxxxxxxxx
+
+# 啟用/停用 Provider
+agentgazer provider openai active
+agentgazer provider openai deactive
+
+# 測試連線
+agentgazer provider openai test-connection
+
+# 列出可用模型
+agentgazer provider openai models
+
+# 顯示統計數據
+agentgazer provider openai stat
+agentgazer provider openai stat --range 7d
+
+# 刪除 Provider
+agentgazer provider openai delete
+agentgazer provider openai delete --yes  # 跳過確認
 ```
 
 ### `agentgazer doctor`
@@ -75,24 +159,4 @@ agentgazer providers remove anthropic
 ```bash
 agentgazer doctor
 agentgazer doctor --port 9090 --proxy-port 5000
-```
-
-### `agentgazer agents`
-
-列出所有已註冊的 Agent 及其狀態。
-
-```bash
-agentgazer agents
-```
-
-### `agentgazer stats`
-
-顯示 Agent 的統計數據。如果系統中只有一個 Agent，會自動選擇該 Agent。
-
-```bash
-# 顯示所有 Agent 的統計（預設 24 小時）
-agentgazer stats
-
-# 顯示特定 Agent 的統計，時間範圍 7 天
-agentgazer stats my-agent --range 7d
 ```

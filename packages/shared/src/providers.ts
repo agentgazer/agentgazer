@@ -8,7 +8,6 @@ export type ProviderName =
   | "moonshot"
   | "zhipu"
   | "minimax"
-  | "baichuan"
   | "yi"
   | "unknown";
 
@@ -29,7 +28,6 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "moonshot",
   "zhipu",
   "minimax",
-  "baichuan",
   "yi",
 ];
 
@@ -62,7 +60,7 @@ const PROVIDER_PATTERNS: ProviderPattern[] = [
   },
   {
     name: "moonshot",
-    hostPatterns: [/^api\.moonshot\.cn$/],
+    hostPatterns: [/^api\.moonshot\.ai$/, /^api\.moonshot\.cn$/],
   },
   {
     name: "zhipu",
@@ -70,15 +68,11 @@ const PROVIDER_PATTERNS: ProviderPattern[] = [
   },
   {
     name: "minimax",
-    hostPatterns: [/^api\.minimax\.chat$/],
-  },
-  {
-    name: "baichuan",
-    hostPatterns: [/^api\.baichuan-ai\.com$/],
+    hostPatterns: [/^api\.minimax\.io$/, /^api\.minimax\.chat$/],
   },
   {
     name: "yi",
-    hostPatterns: [/^api\.lingyiwanwu\.com$/],
+    hostPatterns: [/^api\.01\.ai$/, /^api\.lingyiwanwu\.com$/],
   },
 ];
 
@@ -141,17 +135,37 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
   const urls: Record<string, string> = {
     openai: "https://api.openai.com",
     anthropic: "https://api.anthropic.com",
-    google: "https://generativelanguage.googleapis.com",
+    google: "https://generativelanguage.googleapis.com/v1beta/openai",
     mistral: "https://api.mistral.ai",
     cohere: "https://api.cohere.com",
     deepseek: "https://api.deepseek.com",
-    moonshot: "https://api.moonshot.cn",
-    zhipu: "https://open.bigmodel.cn",
-    minimax: "https://api.minimax.chat",
-    baichuan: "https://api.baichuan-ai.com",
-    yi: "https://api.lingyiwanwu.com",
+    moonshot: "https://api.moonshot.ai",
+    zhipu: "https://api.z.ai/api/paas",
+    minimax: "https://api.minimax.io",
+    yi: "https://api.01.ai",
   };
   return urls[provider] ?? null;
+}
+
+/**
+ * Returns the complete chat endpoint URL for a provider.
+ * This is the full URL including path - no additional path construction needed.
+ * Returns null for unknown providers.
+ */
+export function getProviderChatEndpoint(provider: ProviderName): string | null {
+  const endpoints: Record<string, string> = {
+    openai: "https://api.openai.com/v1/chat/completions",
+    anthropic: "https://api.anthropic.com/v1/messages",
+    google: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    mistral: "https://api.mistral.ai/v1/chat/completions",
+    cohere: "https://api.cohere.com/v2/chat",
+    deepseek: "https://api.deepseek.com/v1/chat/completions",
+    moonshot: "https://api.moonshot.ai/v1/chat/completions",
+    zhipu: "https://api.z.ai/api/paas/v4/chat/completions",
+    minimax: "https://api.minimax.io/v1/text/chatcompletion_v2",
+    yi: "https://api.01.ai/v1/chat/completions",
+  };
+  return endpoints[provider] ?? null;
 }
 
 /**
@@ -170,7 +184,6 @@ export function getProviderAuthHeader(
     case "moonshot":
     case "zhipu":
     case "minimax":
-    case "baichuan":
     case "yi":
       return { name: "authorization", value: `Bearer ${apiKey}` };
     case "anthropic":
@@ -195,9 +208,29 @@ export function parsePathPrefix(
   const segment = match[1].toLowerCase();
   const rest = match[2] ?? "/";
   if (KNOWN_PROVIDER_NAMES.includes(segment as ProviderName)) {
-    return { provider: segment as ProviderName, remainingPath: rest };
+    // Apply path rewriting for non-OpenAI-compatible providers
+    const rewrittenPath = rewriteProviderPath(segment as ProviderName, rest);
+    return { provider: segment as ProviderName, remainingPath: rewrittenPath };
   }
   return null;
+}
+
+/**
+ * Rewrite OpenAI-compatible paths to provider-specific paths.
+ * Some Chinese providers use different endpoint structures.
+ */
+export function rewriteProviderPath(provider: ProviderName, path: string): string {
+  switch (provider) {
+    case "minimax":
+      // MiniMax uses /v1/text/chatcompletion_v2 instead of /v1/chat/completions
+      if (path === "/v1/chat/completions" || path.startsWith("/v1/chat/completions?")) {
+        return path.replace("/v1/chat/completions", "/v1/text/chatcompletion_v2");
+      }
+      break;
+    // Zhipu base URL already includes /api/paas, so /v4/chat/completions works directly
+    // Yi and Moonshot use standard OpenAI-compatible paths
+  }
+  return path;
 }
 
 /**

@@ -21,10 +21,11 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "claude-haiku-4-5-20251001": { inputPerMToken: 0.80, outputPerMToken: 4.00 },
 
   // Google
+  "gemini-3-pro-preview": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
+  "gemini-3-flash-preview": { inputPerMToken: 0.20, outputPerMToken: 0.80 },
   "gemini-2.5-pro": { inputPerMToken: 1.25, outputPerMToken: 5.00 },
   "gemini-2.5-flash": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
-  "gemini-2.0-flash": { inputPerMToken: 0.10, outputPerMToken: 0.40 },
-  "gemini-2.0-flash-lite": { inputPerMToken: 0.075, outputPerMToken: 0.30 },
+  "gemini-2.5-flash-lite": { inputPerMToken: 0.075, outputPerMToken: 0.30 },
 
   // Mistral
   "mistral-large-latest": { inputPerMToken: 2.00, outputPerMToken: 6.00 },
@@ -39,25 +40,27 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "deepseek-chat": { inputPerMToken: 0.27, outputPerMToken: 1.10 },
   "deepseek-reasoner": { inputPerMToken: 0.55, outputPerMToken: 2.19 },
 
-  // Moonshot
+  // Moonshot / Kimi
   "moonshot-v1-8k": { inputPerMToken: 0.20, outputPerMToken: 2.00 },
   "moonshot-v1-32k": { inputPerMToken: 1.00, outputPerMToken: 3.00 },
   "moonshot-v1-128k": { inputPerMToken: 0.60, outputPerMToken: 2.50 },
+  "kimi-k2.5": { inputPerMToken: 0.60, outputPerMToken: 2.50 },
+  "kimi-k2-thinking": { inputPerMToken: 0.60, outputPerMToken: 2.50 },
 
-  // Zhipu (GLM)
+  // Zhipu (GLM) / Z.ai
   "glm-4.7": { inputPerMToken: 0.28, outputPerMToken: 1.11 },
   "glm-4.7-flash": { inputPerMToken: 0, outputPerMToken: 0 },
+  "glm-4.5": { inputPerMToken: 0.20, outputPerMToken: 0.80 },
+  "glm-4.5-flash": { inputPerMToken: 0, outputPerMToken: 0 },
   "glm-4": { inputPerMToken: 0.14, outputPerMToken: 0.42 },
   "glm-4-air": { inputPerMToken: 0.11, outputPerMToken: 0.28 },
   "glm-4-flash": { inputPerMToken: 0, outputPerMToken: 0 },
 
   // MiniMax
+  "MiniMax-M2.1": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
+  "MiniMax-M2.1-lightning": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
   "MiniMax-M2": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
-  "MiniMax-01": { inputPerMToken: 0.20, outputPerMToken: 1.10 },
-
-  // Baichuan
-  "Baichuan4": { inputPerMToken: 13.89, outputPerMToken: 13.89 },
-  "Baichuan3-Turbo": { inputPerMToken: 1.39, outputPerMToken: 1.39 },
+  "M2-her": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
 
   // Yi (01.AI)
   "yi-lightning": { inputPerMToken: 0.14, outputPerMToken: 0.14 },
@@ -87,4 +90,37 @@ export function calculateCost(
 
 export function listSupportedModels(): string[] {
   return Object.keys(PRICING_TABLE);
+}
+
+export interface ProviderModel {
+  id: string;
+  inputPrice: number;
+  outputPrice: number;
+}
+
+const PROVIDER_MODELS: Record<string, string[]> = {
+  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o1-mini", "o1-pro", "o3-mini"],
+  anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
+  google: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+  mistral: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
+  cohere: ["command-r-plus", "command-r"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
+  zhipu: ["glm-4.7", "glm-4.7-flash", "glm-4.5", "glm-4.5-flash", "glm-4", "glm-4-air", "glm-4-flash"],
+  minimax: ["MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2", "M2-her"],
+  yi: ["yi-lightning", "yi-large", "yi-medium"],
+};
+
+export function getProviderModels(provider: string): ProviderModel[] {
+  const modelIds = PROVIDER_MODELS[provider];
+  if (!modelIds) return [];
+
+  return modelIds.map((id) => {
+    const pricing = PRICING_TABLE[id];
+    return {
+      id,
+      inputPrice: pricing?.inputPerMToken ?? 0,
+      outputPrice: pricing?.outputPerMToken ?? 0,
+    };
+  });
 }

@@ -11,13 +11,16 @@ export {
   getModelPricing,
   calculateCost,
   listSupportedModels,
+  getProviderModels,
   type ModelPricing,
+  type ProviderModel,
 } from "./pricing.js";
 
 export {
   detectProvider,
   detectProviderByHostname,
   getProviderBaseUrl,
+  getProviderChatEndpoint,
   getProviderAuthHeader,
   parsePathPrefix,
   parseAgentPath,

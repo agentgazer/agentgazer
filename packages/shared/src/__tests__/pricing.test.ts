@@ -86,11 +86,11 @@ describe("getModelPricing", () => {
     });
   });
 
-  it("returns pricing for gemini-2.0-flash", () => {
-    const pricing = getModelPricing("gemini-2.0-flash");
+  it("returns pricing for gemini-3-pro-preview", () => {
+    const pricing = getModelPricing("gemini-3-pro-preview");
     expect(pricing).toEqual({
-      inputPerMToken: 0.1,
-      outputPerMToken: 0.4,
+      inputPerMToken: 2.5,
+      outputPerMToken: 10.0,
     });
   });
 
@@ -202,15 +202,6 @@ describe("getModelPricing", () => {
     });
   });
 
-  // Baichuan
-  it("returns pricing for Baichuan4", () => {
-    const pricing = getModelPricing("Baichuan4");
-    expect(pricing).toEqual({
-      inputPerMToken: 13.89,
-      outputPerMToken: 13.89,
-    });
-  });
-
   // Yi
   it("returns pricing for yi-lightning", () => {
     const pricing = getModelPricing("yi-lightning");
@@ -262,13 +253,13 @@ describe("calculateCost", () => {
     expect(cost).toBeCloseTo(0.525, 10);
   });
 
-  it("calculates cost for gemini-2.0-flash (low-cost model)", () => {
-    // gemini-2.0-flash: $0.10/1M in, $0.40/1M out
-    // 1M in = 1.0 * 0.10 = 0.10
-    // 1M out = 1.0 * 0.40 = 0.40
-    // total = 0.50
-    const cost = calculateCost("gemini-2.0-flash", 1_000_000, 1_000_000);
-    expect(cost).toBeCloseTo(0.5, 10);
+  it("calculates cost for gemini-2.5-flash (low-cost model)", () => {
+    // gemini-2.5-flash: $0.15/1M in, $0.60/1M out
+    // 1M in = 1.0 * 0.15 = 0.15
+    // 1M out = 1.0 * 0.60 = 0.60
+    // total = 0.75
+    const cost = calculateCost("gemini-2.5-flash", 1_000_000, 1_000_000);
+    expect(cost).toBeCloseTo(0.75, 10);
   });
 
   it("returns 0 cost for zero tokens", () => {
@@ -349,10 +340,10 @@ describe("listSupportedModels", () => {
 
   it("includes known Google models", () => {
     const models = listSupportedModels();
+    expect(models).toContain("gemini-3-pro-preview");
+    expect(models).toContain("gemini-3-flash-preview");
     expect(models).toContain("gemini-2.5-pro");
     expect(models).toContain("gemini-2.5-flash");
-    expect(models).toContain("gemini-2.0-flash");
-    expect(models).toContain("gemini-2.0-flash-lite");
   });
 
   it("includes known Mistral models", () => {
@@ -393,13 +384,7 @@ describe("listSupportedModels", () => {
   it("includes known MiniMax models", () => {
     const models = listSupportedModels();
     expect(models).toContain("MiniMax-M2");
-    expect(models).toContain("MiniMax-01");
-  });
-
-  it("includes known Baichuan models", () => {
-    const models = listSupportedModels();
-    expect(models).toContain("Baichuan4");
-    expect(models).toContain("Baichuan3-Turbo");
+    expect(models).toContain("MiniMax-M2.1");
   });
 
   it("includes known Yi models", () => {

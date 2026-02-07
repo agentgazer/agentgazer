@@ -10,8 +10,6 @@ import {
   getDbPath,
   getConfigDir,
   setProvider,
-  removeProvider,
-  listProviders,
   saveConfig,
   type ProviderConfig,
 } from "./config.js";
@@ -24,6 +22,13 @@ import {
 import { startServer } from "@agentgazer/server";
 import { startProxy } from "@agentgazer/proxy";
 import { KNOWN_PROVIDER_NAMES, validateProviderKey, type ProviderName } from "@agentgazer/shared";
+
+// New command imports
+import { cmdAgents } from "./commands/agents.js";
+import { cmdAgent } from "./commands/agent.js";
+import { cmdProviders } from "./commands/providers.js";
+import { cmdProvider } from "./commands/provider.js";
+// cmdOverview is imported dynamically to avoid ESM top-level await issues
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -78,14 +83,28 @@ Commands:
   start                       Start the server, proxy, and dashboard
   status                      Show current configuration
   reset-token                 Generate a new auth token
-  providers list              List configured providers
-  providers set-key           Interactive provider key setup
-  providers set <name> <key>  Set provider key (non-interactive)
-  providers remove <name>     Remove a provider
+  overview                    Launch real-time TUI dashboard
+
+  agents                      List all registered agents
+  agent <name> active         Activate an agent
+  agent <name> deactive       Deactivate an agent
+  agent <name> killswitch on|off  Toggle kill switch
+  agent <name> delete         Delete agent and all data
+  agent <name> stat           Show agent statistics
+  agent <name> model          List model overrides
+  agent <name> model-override <model>  Set model override
+
+  providers                   List all configured providers
+  provider add [name] [key]   Add provider (interactive if args omitted)
+  provider <name> active      Activate a provider
+  provider <name> deactive    Deactivate a provider
+  provider <name> test-connection  Test API key validity
+  provider <name> delete      Delete provider and key
+  provider <name> models      List available models
+  provider <name> stat        Show provider statistics
+
   version                     Show version
   doctor                      Check system health
-  agents                      List registered agents
-  stats [agentId]             Show agent statistics (auto-selects if only one agent)
   uninstall                   Remove AgentGazer (curl-installed only)
   help                        Show this help message
 
@@ -95,24 +114,19 @@ Options (for start):
   --retention-days <number>  Data retention period in days (default: 30)
   --no-open                  Don't auto-open browser
 
-Options (for doctor, stats, agents):
-  --port <number>            Server port to check (default: 8080)
-  --proxy-port <number>      Proxy port to check (default: 4000)
+Options (for agent/provider stat):
+  --range <period>           Time range: 1h, 24h, 7d, 30d (default: 24h)
 
-Options (for stats):
-  --range <period>           Time range (default: 24h)
-
-Options (for uninstall):
+Options (for delete commands):
   --yes                      Skip confirmation prompts
 
 Examples:
-  agentgazer onboard                           First-time setup
-  agentgazer start                             Start with defaults
-  agentgazer start --port 9090                 Use custom server port
-  agentgazer providers set-key                 Interactive provider setup
-  agentgazer providers list                    List configured providers
-  agentgazer stats                             Show stats (auto-selects agent)
-  agentgazer stats my-agent --range 7d         Show stats for specific agent
+  agentgazer onboard                    First-time setup
+  agentgazer start                      Start with defaults
+  agentgazer overview                   Launch TUI dashboard
+  agentgazer provider add openai        Add OpenAI (prompts for key)
+  agentgazer agent my-bot stat          Show stats for my-bot
+  agentgazer agent my-bot killswitch on Enable kill switch
 `);
 }
 
@@ -211,139 +225,6 @@ async function cmdOnboard(): Promise<void> {
 `);
 }
 
-async function cmdProviders(args: string[]): Promise<void> {
-  const action = args[0];
-
-  switch (action) {
-    case "list": {
-      // List reads from config.json only — no secret store access needed.
-      const providers = listProviders();
-      const names = Object.keys(providers);
-      if (names.length === 0) {
-        console.log("No providers configured. Use \"agentgazer providers set-key\" to add one.");
-        return;
-      }
-      console.log("\n  Configured providers:");
-      console.log("  ───────────────────────────────────────");
-      for (const name of names) {
-        const p = providers[name];
-        const keyStatus = p.apiKey ? "(plaintext — run \"agentgazer start\" to migrate)" : "(secured)";
-        const rateInfo = p.rateLimit
-          ? ` (rate limit: ${p.rateLimit.maxRequests} req / ${p.rateLimit.windowSeconds}s)`
-          : "";
-        console.log(`  ${name}: ${keyStatus}${rateInfo}`);
-      }
-      console.log();
-      break;
-    }
-    case "set": {
-      const name = args[1];
-      const key = args[2];
-      if (!name || !key) {
-        console.error("Usage: agentgazer providers set <provider-name> <api-key>");
-        process.exit(1);
-      }
-      if (!(KNOWN_PROVIDERS as readonly string[]).includes(name)) {
-        console.warn(`Warning: "${name}" is not a known provider (${KNOWN_PROVIDERS.join(", ")}). Proceeding anyway.`);
-      }
-
-      // Validate the API key before storing
-      console.log(`  Validating API key for ${name}...`);
-      const validationResult = await validateProviderKey(name as ProviderName, key);
-      if (validationResult.valid) {
-        console.log("  \u2713 API key is valid.");
-      } else {
-        console.warn(`  \u26A0 Validation failed: ${validationResult.error}`);
-        console.warn("    Proceeding with save anyway. You can test the connection from the dashboard.");
-      }
-
-      const { store, backendName } = await detectSecretStore(getConfigDir());
-      // Store API key in secret store
-      await store.set(PROVIDER_SERVICE, name, key);
-      // Ensure provider entry exists in config.json (for rate limits etc.)
-      const config = ensureConfig();
-      if (!config.providers) config.providers = {};
-      if (!config.providers[name]) {
-        config.providers[name] = { apiKey: "" };
-      }
-      // Remove any plaintext apiKey that might be in config
-      config.providers[name].apiKey = "";
-      saveConfig(config);
-      console.log(`Provider "${name}" configured (secret stored in ${backendName}).`);
-      break;
-    }
-    case "set-key": {
-      // Interactive provider key setup
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-      });
-
-      console.log("\n  Available providers:");
-      console.log("  ───────────────────────────────────────");
-      KNOWN_PROVIDERS.forEach((p, i) => {
-        console.log(`  ${i + 1}. ${p}`);
-      });
-      console.log();
-
-      try {
-        const choice = await ask(rl, "  Select provider (number): ");
-        const idx = parseInt(choice, 10) - 1;
-        if (isNaN(idx) || idx < 0 || idx >= KNOWN_PROVIDERS.length) {
-          console.error("  Invalid selection.");
-          process.exit(1);
-        }
-        const provider = KNOWN_PROVIDERS[idx];
-
-        const apiKey = await ask(rl, `  API key for ${provider}: `);
-        if (!apiKey) {
-          console.error("  API key is required.");
-          process.exit(1);
-        }
-
-        // Validate the API key before storing
-        console.log(`\n  Validating API key for ${provider}...`);
-        const validationResult = await validateProviderKey(provider as ProviderName, apiKey);
-        if (validationResult.valid) {
-          console.log("  \u2713 API key is valid.");
-        } else {
-          console.warn(`  \u26A0 Validation failed: ${validationResult.error}`);
-          console.warn("    Proceeding with save anyway. You can test the connection from the dashboard.");
-        }
-
-        // Store API key in secret store
-        const { store, backendName: backend } = await detectSecretStore(getConfigDir());
-        await store.set(PROVIDER_SERVICE, provider, apiKey);
-
-        // Store provider entry in config.json (apiKey is empty — actual key is in secret store)
-        const providerConfig: ProviderConfig = { apiKey: "" };
-        setProvider(provider, providerConfig);
-        console.log(`\n  \u2713 ${provider} configured (secret stored in ${backend}).`);
-        console.log(`  Rate limits can be configured in the Dashboard.`);
-      } finally {
-        rl.close();
-      }
-      break;
-    }
-    case "remove": {
-      const name = args[1];
-      if (!name) {
-        console.error("Usage: agentgazer providers remove <provider-name>");
-        process.exit(1);
-      }
-      const { store } = await detectSecretStore(getConfigDir());
-      // Delete from secret store
-      await store.delete(PROVIDER_SERVICE, name);
-      // Remove from config.json
-      removeProvider(name);
-      console.log(`Provider "${name}" removed.`);
-      break;
-    }
-    default:
-      console.error("Usage: agentgazer providers <list|set-key|set|remove>");
-      process.exit(1);
-  }
-}
 
 function cmdStatus(): void {
   const config = readConfig();
@@ -515,59 +396,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-function formatNumber(n: number): string {
-  return n.toLocaleString("en-US");
-}
-
-function timeAgo(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 0) return "just now";
-  const seconds = Math.floor(diff / 1000);
-  if (seconds < 60) return `${seconds} seconds ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} day${days === 1 ? "" : "s"} ago`;
-}
-
-// ---------------------------------------------------------------------------
-// API helper
-// ---------------------------------------------------------------------------
-
-async function apiGet(urlPath: string, port: number): Promise<unknown> {
-  const config = readConfig();
-  const token = config?.token ?? "";
-  try {
-    const res = await fetch(`http://localhost:${port}${urlPath}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) {
-      console.error(`Server responded with ${res.status} ${res.statusText}`);
-      process.exit(1);
-    }
-    return await res.json();
-  } catch (err: unknown) {
-    if (
-      err instanceof TypeError &&
-      (err as NodeJS.ErrnoException & { cause?: { code?: string } }).cause
-        ?.code === "ECONNREFUSED"
-    ) {
-      console.error('Server not running. Run "agentgazer start" first.');
-      process.exit(1);
-    }
-    throw err;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// New subcommands
+// Subcommands
 // ---------------------------------------------------------------------------
 
 function cmdVersion(): void {
@@ -667,125 +496,6 @@ async function cmdDoctor(flags: Record<string, string>): Promise<void> {
   console.log(`\n  ${passed}/${total} checks passed.`);
 }
 
-interface AgentRecord {
-  agent_id: string;
-  status: string;
-  total_events: number;
-  last_heartbeat: string | null;
-}
-
-interface AgentsResponse {
-  agents: AgentRecord[];
-  total?: number;
-}
-
-async function cmdAgents(flags: Record<string, string>): Promise<void> {
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
-  if (isNaN(port) || port < 1 || port > 65535) {
-    console.error("Error: --port must be a valid port number (1-65535)");
-    process.exit(1);
-  }
-  const resp = (await apiGet("/api/agents", port)) as AgentsResponse;
-  const agents = resp.agents;
-
-  if (!agents || agents.length === 0) {
-    console.log("No agents registered yet.");
-    return;
-  }
-
-  const header = `  ${"Agent ID".padEnd(18)}${"Status".padEnd(11)}${"Events".padStart(8)}   Last Heartbeat`;
-  console.log(header);
-  console.log("  " + "─".repeat(header.trimStart().length));
-
-  for (const a of agents) {
-    const id = (a.agent_id ?? "").padEnd(18);
-    const status = (a.status ?? "unknown").padEnd(11);
-    const events = formatNumber(a.total_events ?? 0).padStart(8);
-    const heartbeat = timeAgo(a.last_heartbeat);
-    console.log(`  ${id}${status}${events}   ${heartbeat}`);
-  }
-}
-
-interface StatsResponse {
-  total_requests: number;
-  total_errors: number;
-  error_rate: number;
-  total_cost: number;
-  total_tokens: number;
-  p50_latency: number | null;
-  p99_latency: number | null;
-  cost_by_model: { model: string; provider: string; cost: number; count: number }[];
-  token_series: { timestamp: string; tokens_in: number | null; tokens_out: number | null }[];
-}
-
-async function cmdStats(flags: Record<string, string>): Promise<void> {
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
-  const range = flags["range"] || "24h";
-  const positional = parsePositional(process.argv.slice(3));
-  let agentId = positional[0];
-
-  // Auto-select agent if not specified
-  if (!agentId) {
-    const resp = (await apiGet("/api/agents", port)) as AgentsResponse;
-    const agents = resp.agents;
-    if (!agents || agents.length === 0) {
-      console.log("No agents registered yet.");
-      return;
-    }
-    if (agents.length === 1) {
-      agentId = agents[0].agent_id;
-    } else {
-      console.log("Multiple agents found. Please specify one:\n");
-      for (const a of agents) {
-        console.log(`  agentgazer stats ${a.agent_id}`);
-      }
-      console.log();
-      process.exit(1);
-    }
-  }
-
-  let data: StatsResponse;
-  try {
-    data = (await apiGet(
-      `/api/stats/${encodeURIComponent(agentId)}?range=${encodeURIComponent(range)}`,
-      port,
-    )) as StatsResponse;
-  } catch (err: unknown) {
-    if (err && typeof err === "object" && "message" in err) {
-      console.error(`Error fetching stats for "${agentId}": ${(err as Error).message}`);
-    } else {
-      console.error(`Error fetching stats for "${agentId}".`);
-    }
-    process.exit(1);
-  }
-
-  const errorPct =
-    data.total_requests > 0
-      ? ((data.total_errors / data.total_requests) * 100).toFixed(2)
-      : "0.00";
-
-  console.log(`
-  AgentGazer — Stats for "${agentId}" (last ${range})
-  ───────────────────────────────────────
-
-  Requests:   ${formatNumber(data.total_requests)}
-  Errors:     ${formatNumber(data.total_errors)} (${errorPct}%)
-  Cost:       $${data.total_cost.toFixed(2)}
-  Tokens:     ${formatNumber(data.total_tokens)}
-
-  Latency:    p50 = ${data.p50_latency != null ? formatNumber(data.p50_latency) : "--"}ms   p99 = ${data.p99_latency != null ? formatNumber(data.p99_latency) : "--"}ms`);
-
-  if (data.cost_by_model && data.cost_by_model.length > 0) {
-    console.log("\n  Cost by model:");
-    for (const m of data.cost_by_model) {
-      const model = m.model.padEnd(16);
-      const cost = `$${m.cost.toFixed(2)}`;
-      console.log(`    ${model}${cost}  (${formatNumber(m.count)} calls)`);
-    }
-  }
-
-  console.log();
-}
 
 // ---------------------------------------------------------------------------
 // Uninstall
@@ -869,7 +579,10 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
 
 async function main(): Promise<void> {
   const subcommand = process.argv[2];
-  const flags = parseFlags(process.argv.slice(3));
+  const allArgs = process.argv.slice(3);
+  const flags = parseFlags(allArgs);
+  const positional = parsePositional(allArgs);
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
 
   switch (subcommand) {
     case "onboard":
@@ -884,20 +597,28 @@ async function main(): Promise<void> {
     case "reset-token":
       cmdResetToken();
       break;
+    case "overview": {
+      const { cmdOverview } = await import("./commands/overview.js");
+      await cmdOverview(port);
+      break;
+    }
+    case "agents":
+      await cmdAgents(port);
+      break;
+    case "agent":
+      await cmdAgent(positional[0], positional[1], positional.slice(2), flags);
+      break;
     case "providers":
-      await cmdProviders(process.argv.slice(3));
+      await cmdProviders(port);
+      break;
+    case "provider":
+      await cmdProvider(positional[0], positional.slice(1), flags);
       break;
     case "version":
       cmdVersion();
       break;
     case "doctor":
       await cmdDoctor(flags);
-      break;
-    case "agents":
-      await cmdAgents(flags);
-      break;
-    case "stats":
-      await cmdStats(flags);
       break;
     case "uninstall":
       await cmdUninstall(flags);

@@ -2,7 +2,69 @@
 
 The Proxy is a local HTTP proxy that transparently intercepts your AI Agent's requests to LLM Providers, automatically extracting metrics such as token usage, latency, and cost — **without modifying any existing code**.
 
-## Path Prefix Routing (Recommended)
+## Simplified Routing (Recommended)
+
+The simplest way to use the Proxy is with **simplified routing**. You only need to specify the agent name and provider — the Proxy handles all endpoint path construction internally:
+
+```
+POST http://localhost:4000/agents/{agent-name}/{provider}
+```
+
+### Supported Providers
+
+| Provider | Endpoint |
+|----------|----------|
+| `openai` | OpenAI Chat Completions |
+| `anthropic` | Anthropic Messages |
+| `google` | Google Gemini (OpenAI-compatible) |
+| `mistral` | Mistral Chat |
+| `cohere` | Cohere Chat v2 |
+| `deepseek` | DeepSeek Chat |
+| `moonshot` | Moonshot / Kimi Chat |
+| `zhipu` | Zhipu GLM Chat |
+| `minimax` | MiniMax Chat |
+| `yi` | Yi / 01.ai Chat |
+
+### Example: OpenAI via Simplified Routing
+
+```typescript
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+  baseURL: "http://localhost:4000/agents/my-bot/openai",
+  apiKey: "dummy",  // Will be replaced by stored key
+});
+
+const response = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+### Example: Anthropic via Simplified Routing
+
+```typescript
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic({
+  baseURL: "http://localhost:4000/agents/my-bot/anthropic",
+  apiKey: "dummy",  // Will be replaced by stored key
+});
+
+const message = await anthropic.messages.create({
+  model: "claude-sonnet-4-20250514",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+### Benefits
+
+- **No path knowledge required** — You don't need to know `/v1/chat/completions`, `/v1/messages`, or provider-specific paths
+- **Automatic key injection** — The Proxy injects the stored API key for the provider
+- **Built-in agent tracking** — The agent name is embedded in the URL
+
+## Path Prefix Routing
 
 The Proxy supports path prefix routing, which automatically forwards requests to the corresponding Provider:
 

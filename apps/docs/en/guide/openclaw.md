@@ -377,23 +377,20 @@ When using multiple providers simultaneously, the AgentGazer Dashboard can:
 - Compare latency performance between providers
 - Provide complete call records during provider failovers
 
-## Agent Governance (Optional)
+## Simplified Routing (Recommended)
 
-AgentGazer supports agent-level governance policies that allow you to control and limit LLM usage on a per-agent basis. When using governance features, you'll need to use agent path routing to identify which agent is making the request.
-
-### Agent Path Routing
-
-Instead of the simple provider path (`/anthropic`), you can use an agent-specific path that includes an agent ID:
+The easiest way to integrate OpenClaw with AgentGazer is using **simplified routing**. You only need to specify the agent name and provider — the proxy handles all endpoint path construction automatically:
 
 ```
-http://localhost:4000/agents/{agent-id}/{provider}
+http://localhost:4000/agents/{agent-name}/{provider}
 ```
 
-For example:
-- `http://localhost:4000/agents/openclaw/anthropic` — routes to Anthropic, identified as agent "openclaw"
-- `http://localhost:4000/agents/discord-bot/openai` — routes to OpenAI, identified as agent "discord-bot"
+This is the **recommended approach** because:
+- No need to understand provider-specific API paths
+- Built-in agent tracking (the agent name is in the URL)
+- Automatic API key injection
 
-### OpenClaw Configuration with Agent Path
+### OpenClaw Configuration with Simplified Routing
 
 ```json5
 {
@@ -418,6 +415,17 @@ For example:
     }
   }
 }
+```
+
+::: tip Why Simplified Routing?
+With simplified routing, you don't need to worry about paths like `/v1/chat/completions` or `/v1/messages`. The proxy automatically forwards to the correct provider endpoint based on the provider name in the URL.
+:::
+
+## Agent Governance (Optional)
+
+AgentGazer supports agent-level governance policies that allow you to control and limit LLM usage on a per-agent basis. The simplified routing pattern (`/agents/{agent-id}/{provider}`) automatically identifies the agent, so you can configure policies in the Dashboard.
+
+### Governance Features
 ```
 
 ### Governance Features

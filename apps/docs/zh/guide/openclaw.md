@@ -377,23 +377,20 @@ OpenClaw 支援同時使用多個 LLM Provider。以下設定同時啟用 Anthro
 - 比較不同 Provider 的延遲表現
 - 在 Provider 切換（failover）時提供完整的呼叫記錄
 
-## Agent 治理（選用）
+## 簡化路由（推薦）
 
-AgentGazer 支援 Agent 層級的治理策略，讓你可以針對每個 Agent 控制和限制 LLM 使用。使用治理功能時，你需要使用 Agent 路徑路由來識別發出請求的 Agent。
-
-### Agent 路徑路由
-
-除了簡單的 Provider 路徑（`/anthropic`），你可以使用包含 Agent ID 的特定路徑：
+將 OpenClaw 與 AgentGazer 整合最簡單的方式是使用**簡化路由**。你只需要指定 agent 名稱和 provider 名稱，proxy 會自動處理所有端點路徑：
 
 ```
-http://localhost:4000/agents/{agent-id}/{provider}
+http://localhost:4000/agents/{agent-name}/{provider}
 ```
 
-例如：
-- `http://localhost:4000/agents/openclaw/anthropic` — 路由到 Anthropic，識別為 "openclaw" Agent
-- `http://localhost:4000/agents/discord-bot/openai` — 路由到 OpenAI，識別為 "discord-bot" Agent
+這是**推薦做法**，因為：
+- 不需要了解 provider 特定的 API 路徑
+- 內建 agent 追蹤（agent 名稱在 URL 中）
+- 自動 API 金鑰注入
 
-### 使用 Agent 路徑的 OpenClaw 設定
+### 使用簡化路由的 OpenClaw 設定
 
 ```json5
 {
@@ -420,9 +417,17 @@ http://localhost:4000/agents/{agent-id}/{provider}
 }
 ```
 
+::: tip 為什麼選擇簡化路由？
+使用簡化路由，你不需要擔心 `/v1/chat/completions` 或 `/v1/messages` 這類路徑。Proxy 會根據 URL 中的 provider 名稱自動轉發到正確的 provider 端點。
+:::
+
+## Agent 治理（選用）
+
+AgentGazer 支援 Agent 層級的治理策略，讓你可以針對每個 Agent 控制和限制 LLM 使用。簡化路由模式（`/agents/{agent-id}/{provider}`）會自動識別 agent，所以你可以在 Dashboard 中設定策略。
+
 ### 治理功能
 
-當請求透過 Agent 路徑路由後，你可以在 AgentGazer Dashboard 中設定策略：
+當請求透過簡化路由後，你可以在 AgentGazer Dashboard 中設定策略：
 
 | 功能 | 說明 |
 |------|------|
