@@ -770,10 +770,10 @@ async function cmdStats(flags: Record<string, string>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function cmdUninstall(flags: Record<string, string>): Promise<void> {
-  const home = process.env.AGENTTRACE_HOME || path.join(require("os").homedir(), ".agentgazer");
+  const home = process.env.AGENTGAZER_HOME || path.join(require("os").homedir(), ".agentgazer");
   const libDir = path.join(home, "lib");
   const nodeDir = path.join(home, "node");
-  const wrapperPath = path.join(process.env.AGENTTRACE_BIN || "/usr/local/bin", "agentgazer");
+  const wrapperPath = path.join(process.env.AGENTGAZER_BIN || "/usr/local/bin", "agentgazer");
 
   // Detect install method
   if (!fs.existsSync(libDir)) {

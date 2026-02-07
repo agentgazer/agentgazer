@@ -2,7 +2,7 @@
 
 - [x] 1.1 Create `packages/cli/src/secret-store.ts` with `SecretStore` interface (`get`, `set`, `delete`, `list`, `isAvailable`)
 - [x] 1.2 Implement `EncryptedFileStore` class using AES-256-GCM + scrypt KDF, storing to `~/.agentgazer/secrets.enc` with 0600 permissions
-- [x] 1.3 Implement passphrase acquisition: env var `AGENTTRACE_PASSPHRASE` → interactive stdin prompt → error with instructions
+- [x] 1.3 Implement passphrase acquisition: env var `AGENTGAZER_PASSPHRASE` → interactive stdin prompt → error with instructions
 - [x] 1.4 Write unit tests for `EncryptedFileStore` (encrypt/decrypt, wrong passphrase, tampered file, file permissions)
 
 ## 2. OS Keychain Backends

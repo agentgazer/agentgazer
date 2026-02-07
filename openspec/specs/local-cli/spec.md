@@ -12,7 +12,7 @@ The package SHALL export a bin command `agentgazer` that starts the local API se
 - **THEN** the CLI SHALL prompt for the passphrase, decrypt provider keys, then start the server and proxy with keys in memory
 
 #### Scenario: Startup with passphrase env var
-- **WHEN** the user runs `AGENTTRACE_PASSPHRASE=xxx agentgazer start`
+- **WHEN** the user runs `AGENTGAZER_PASSPHRASE=xxx agentgazer start`
 - **THEN** the CLI SHALL use the env var as passphrase without prompting and start normally
 
 #### Scenario: Startup output

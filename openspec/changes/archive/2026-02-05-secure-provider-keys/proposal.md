@@ -9,7 +9,7 @@ Provider API keys are stored as plaintext in `~/.agentgazer/config.json` (defaul
 - **SecretStore abstraction**: Platform-agnostic interface with pluggable backends (encrypted-file, macOS Keychain, libsecret), auto-detected based on OS and session type.
 - **Hostname-only key injection**: Proxy only injects provider API keys when the target URL's hostname matches a known provider. Path-only detection is restricted to metrics extraction only. **BREAKING** for users relying on path-based detection for key injection with custom `x-target-url` targets.
 - **Config migration**: Existing plaintext keys in `config.json` are automatically migrated to the secret store on first run, then removed from the config file.
-- **Passphrase support**: `agentgazer start` prompts for passphrase (stdin). Also accepts `AGENTTRACE_PASSPHRASE` environment variable for scripting/CI.
+- **Passphrase support**: `agentgazer start` prompts for passphrase (stdin). Also accepts `AGENTGAZER_PASSPHRASE` environment variable for scripting/CI.
 
 ## Capabilities
 

@@ -568,7 +568,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 import OpenAI from "openai";
 
 const at = AgentGazer.init({
-  apiKey: process.env.AGENTTRACE_TOKEN!,
+  apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
   endpoint: "http://localhost:8080/api/events",
 });
@@ -752,7 +752,7 @@ AgentGazer supports multiple keystore backends, automatically detected in the fo
 
 | Priority | Backend | Description |
 |----------|---------|-------------|
-| 1 | Environment variable | Manually specified via `AGENTTRACE_SECRET_BACKEND` |
+| 1 | Environment variable | Manually specified via `AGENTGAZER_SECRET_BACKEND` |
 | 2 | macOS Keychain | Automatically used on macOS with a GUI session |
 | 3 | Linux libsecret | Automatically used on Linux |
 | 4 | MachineKeyStore (default) | AES-256-GCM encryption based on machine-id + username |
@@ -1020,7 +1020,7 @@ Docker uses an `agentgazer-data` volume to persist the `~/.agentgazer/` director
 | `SMTP_PASS` | SMTP password | — |
 | `SMTP_FROM` | Sender email address | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | Whether to use TLS | `false` |
-| `AGENTTRACE_SECRET_BACKEND` | Manually specify the keystore backend | Auto-detected |
+| `AGENTGAZER_SECRET_BACKEND` | Manually specify the keystore backend | Auto-detected |
 
 ### Email Alert Configuration Example
 

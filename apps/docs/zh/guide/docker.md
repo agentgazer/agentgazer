@@ -29,7 +29,7 @@ Docker 使用 `agentgazer-data` Volume 來持久化 `~/.agentgazer/` 目錄，�
 | `SMTP_PASS` | SMTP 密碼 | — |
 | `SMTP_FROM` | 寄件者 Email 地址 | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | 是否使用 TLS | `false` |
-| `AGENTTRACE_SECRET_BACKEND` | 手動指定金鑰庫後端 | 自動偵測 |
+| `AGENTGAZER_SECRET_BACKEND` | 手動指定金鑰庫後端 | 自動偵測 |
 
 ### Email 告警設定範例
 

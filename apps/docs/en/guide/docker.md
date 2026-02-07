@@ -29,7 +29,7 @@ Docker uses an `agentgazer-data` volume to persist the `~/.agentgazer/` director
 | `SMTP_PASS` | SMTP password | — |
 | `SMTP_FROM` | Sender email address | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | Whether to use TLS | `false` |
-| `AGENTTRACE_SECRET_BACKEND` | Manually specify the keystore backend | Auto-detected |
+| `AGENTGAZER_SECRET_BACKEND` | Manually specify the keystore backend | Auto-detected |
 
 ### Email Alert Configuration Example
 

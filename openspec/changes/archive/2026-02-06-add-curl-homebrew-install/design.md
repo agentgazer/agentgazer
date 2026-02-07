@@ -55,13 +55,13 @@ A thin shell wrapper that resolves the correct Node.js binary and executes the C
 
 ```sh
 #!/bin/sh
-AGENTTRACE_HOME="${AGENTTRACE_HOME:-$HOME/.agentgazer}"
-if [ -x "$AGENTTRACE_HOME/node/bin/node" ]; then
-  NODE="$AGENTTRACE_HOME/node/bin/node"
+AGENTGAZER_HOME="${AGENTGAZER_HOME:-$HOME/.agentgazer}"
+if [ -x "$AGENTGAZER_HOME/node/bin/node" ]; then
+  NODE="$AGENTGAZER_HOME/node/bin/node"
 else
   NODE="$(command -v node)"
 fi
-exec "$NODE" "$AGENTTRACE_HOME/lib/node_modules/agentgazer/dist/cli.js" "$@"
+exec "$NODE" "$AGENTGAZER_HOME/lib/node_modules/agentgazer/dist/cli.js" "$@"
 ```
 
 **Rationale**: A wrapper script (rather than symlink) lets us pick the right Node.js binary at runtime. If the user later installs system Node.js, we still use the embedded one for consistency.

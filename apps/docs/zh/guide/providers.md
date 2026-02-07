@@ -26,7 +26,7 @@ AgentGazer 支援多種金鑰庫後端，依以下優先順序自動偵測：
 
 | 優先順序 | 後端 | 說明 |
 |----------|------|------|
-| 1 | 環境變數指定 | 透過 `AGENTTRACE_SECRET_BACKEND` 手動指定 |
+| 1 | 環境變數指定 | 透過 `AGENTGAZER_SECRET_BACKEND` 手動指定 |
 | 2 | macOS Keychain | 在有 GUI 的 macOS 環境下自動使用 |
 | 3 | Linux libsecret | 在 Linux 環境下自動使用 |
 | 4 | MachineKeyStore（預設） | 基於 machine-id + 使用者名稱的 AES-256-GCM 加密 |

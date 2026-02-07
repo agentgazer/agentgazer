@@ -369,7 +369,7 @@ export async function detectSecretStore(
   configDir: string
 ): Promise<{ store: SecretStore; backendName: string }> {
   // 1. Environment variable override
-  const override = process.env.AGENTTRACE_SECRET_BACKEND;
+  const override = process.env.AGENTGAZER_SECRET_BACKEND;
   if (override) {
     return createBackend(override, configDir);
   }

@@ -38,7 +38,7 @@ The system needs to protect provider keys from co-resident AI agents while maint
 
 ```
 detectSecretStore():
-├── AGENTTRACE_SECRET_BACKEND env var set?
+├── AGENTGAZER_SECRET_BACKEND env var set?
 │   └── Use specified backend (override)
 ├── process.platform === "darwin" && GUI session detected?
 │   └── KeychainStore
@@ -53,7 +53,7 @@ detectSecretStore():
 ### 3. Passphrase handling for encrypted-file backend
 
 **Decision:** Passphrase is obtained from (in priority order):
-1. `AGENTTRACE_PASSPHRASE` environment variable
+1. `AGENTGAZER_PASSPHRASE` environment variable
 2. Interactive stdin prompt (TTY detected)
 3. Error with instructions if neither is available
 
@@ -110,9 +110,9 @@ The `apiKey` field is removed from each provider entry. The `secretBackend` fiel
 
 ## Risks / Trade-offs
 
-- **[UX friction]** Encrypted-file backend requires passphrase on every `agentgazer start`. → Mitigated by `AGENTTRACE_PASSPHRASE` env var for scripting. Users on GUI desktops can opt into Keychain/libsecret for passphrase-free experience.
+- **[UX friction]** Encrypted-file backend requires passphrase on every `agentgazer start`. → Mitigated by `AGENTGAZER_PASSPHRASE` env var for scripting. Users on GUI desktops can opt into Keychain/libsecret for passphrase-free experience.
 
-- **[Env var passphrase visible on Linux /proc]** `AGENTTRACE_PASSPHRASE` is readable via `/proc/<pid>/environ` on Linux by the same user. → macOS has no /proc; on Linux this is documented as a known limitation. Using stdin prompt is more secure.
+- **[Env var passphrase visible on Linux /proc]** `AGENTGAZER_PASSPHRASE` is readable via `/proc/<pid>/environ` on Linux by the same user. → macOS has no /proc; on Linux this is documented as a known limitation. Using stdin prompt is more secure.
 
 - **[Keychain imperfect on macOS]** Even with `-T ""` ACL, if both proxy and agent run via `node`, Keychain ACLs can't distinguish them. → Keychain is an optional UX upgrade, not the security boundary. The encrypted-file backend remains the secure option.
 

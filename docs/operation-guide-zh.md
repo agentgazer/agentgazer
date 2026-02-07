@@ -568,7 +568,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 import OpenAI from "openai";
 
 const at = AgentGazer.init({
-  apiKey: process.env.AGENTTRACE_TOKEN!,
+  apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
   endpoint: "http://localhost:8080/api/events",
 });
@@ -752,7 +752,7 @@ AgentGazer 支援多種金鑰庫後端，依以下優先順序自動偵測：
 
 | 優先順序 | 後端 | 說明 |
 |----------|------|------|
-| 1 | 環境變數指定 | 透過 `AGENTTRACE_SECRET_BACKEND` 手動指定 |
+| 1 | 環境變數指定 | 透過 `AGENTGAZER_SECRET_BACKEND` 手動指定 |
 | 2 | macOS Keychain | 在有 GUI 的 macOS 環境下自動使用 |
 | 3 | Linux libsecret | 在 Linux 環境下自動使用 |
 | 4 | MachineKeyStore（預設） | 基於 machine-id + 使用者名稱的 AES-256-GCM 加密 |
@@ -1020,7 +1020,7 @@ Docker 使用 `agentgazer-data` Volume 來持久化 `~/.agentgazer/` 目錄，�
 | `SMTP_PASS` | SMTP 密碼 | — |
 | `SMTP_FROM` | 寄件者 Email 地址 | `alerts@agentgazer.com` |
 | `SMTP_SECURE` | 是否使用 TLS | `false` |
-| `AGENTTRACE_SECRET_BACKEND` | 手動指定金鑰庫後端 | 自動偵測 |
+| `AGENTGAZER_SECRET_BACKEND` | 手動指定金鑰庫後端 | 自動偵測 |
 
 ### Email 告警設定範例
 

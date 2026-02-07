@@ -5,8 +5,8 @@
 
 set -e
 
-AGENTTRACE_HOME="${AGENTTRACE_HOME:-$HOME/.agentgazer}"
-WRAPPER_PATH="${AGENTTRACE_BIN:-/usr/local/bin}/agentgazer"
+AGENTGAZER_HOME="${AGENTGAZER_HOME:-$HOME/.agentgazer}"
+WRAPPER_PATH="${AGENTGAZER_BIN:-/usr/local/bin}/agentgazer"
 
 info() {
   printf '  \033[1;34m>\033[0m %s\n' "$1"
@@ -26,8 +26,8 @@ echo "  ────────────────────────
 echo ""
 
 # Check if curl-installed (lib/ directory exists)
-if [ ! -d "$AGENTTRACE_HOME/lib" ]; then
-  warn "No curl-based installation found at $AGENTTRACE_HOME/lib"
+if [ ! -d "$AGENTGAZER_HOME/lib" ]; then
+  warn "No curl-based installation found at $AGENTGAZER_HOME/lib"
   echo ""
   echo "  If you installed via npm, run:"
   echo "    npm uninstall -g @agentgazer/cli"
@@ -39,16 +39,16 @@ if [ ! -d "$AGENTTRACE_HOME/lib" ]; then
 fi
 
 # Remove embedded Node.js
-if [ -d "$AGENTTRACE_HOME/node" ]; then
-  rm -rf "$AGENTTRACE_HOME/node"
-  success "Removed embedded Node.js ($AGENTTRACE_HOME/node)"
+if [ -d "$AGENTGAZER_HOME/node" ]; then
+  rm -rf "$AGENTGAZER_HOME/node"
+  success "Removed embedded Node.js ($AGENTGAZER_HOME/node)"
 else
   info "No embedded Node.js found (skipped)"
 fi
 
 # Remove installed lib
-rm -rf "$AGENTTRACE_HOME/lib"
-success "Removed agentgazer installation ($AGENTTRACE_HOME/lib)"
+rm -rf "$AGENTGAZER_HOME/lib"
+success "Removed agentgazer installation ($AGENTGAZER_HOME/lib)"
 
 # Remove wrapper script
 if [ -f "$WRAPPER_PATH" ]; then
@@ -66,28 +66,28 @@ fi
 # Prompt for user data
 echo ""
 HAS_DATA=false
-[ -f "$AGENTTRACE_HOME/config.json" ] && HAS_DATA=true
-[ -f "$AGENTTRACE_HOME/data.db" ] && HAS_DATA=true
+[ -f "$AGENTGAZER_HOME/config.json" ] && HAS_DATA=true
+[ -f "$AGENTGAZER_HOME/data.db" ] && HAS_DATA=true
 
 if [ "$HAS_DATA" = true ]; then
   echo "  User data found:"
-  [ -f "$AGENTTRACE_HOME/config.json" ] && echo "    - $AGENTTRACE_HOME/config.json (auth token, provider config)"
-  [ -f "$AGENTTRACE_HOME/data.db" ] && echo "    - $AGENTTRACE_HOME/data.db (event history)"
+  [ -f "$AGENTGAZER_HOME/config.json" ] && echo "    - $AGENTGAZER_HOME/config.json (auth token, provider config)"
+  [ -f "$AGENTGAZER_HOME/data.db" ] && echo "    - $AGENTGAZER_HOME/data.db (event history)"
   echo ""
   printf "  Remove user data? [y/N] "
   read -r REPLY
   case "$REPLY" in
     [yY]|[yY][eE][sS])
-      rm -rf "$AGENTTRACE_HOME"
-      success "Removed all data ($AGENTTRACE_HOME)"
+      rm -rf "$AGENTGAZER_HOME"
+      success "Removed all data ($AGENTGAZER_HOME)"
       ;;
     *)
-      info "User data preserved at $AGENTTRACE_HOME"
+      info "User data preserved at $AGENTGAZER_HOME"
       ;;
   esac
 else
   # No user data, clean up empty dir if possible
-  rmdir "$AGENTTRACE_HOME" 2>/dev/null || true
+  rmdir "$AGENTGAZER_HOME" 2>/dev/null || true
 fi
 
 echo ""

@@ -9,7 +9,7 @@ services:
     volumes:
       - agentgazer-data:/root/.agentgazer
     # environment:
-    #   AGENTTRACE_SECRET_BACKEND: machine  # default; uses encrypted file with machine-derived key
+    #   AGENTGAZER_SECRET_BACKEND: machine  # default; uses encrypted file with machine-derived key
 
 volumes:
   agentgazer-data:

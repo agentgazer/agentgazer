@@ -61,7 +61,7 @@ The system SHALL implement a `LibsecretStore` backend that uses the `secret-tool
 - **THEN** it SHALL return `false`
 
 ### Requirement: Backend auto-detection
-The system SHALL automatically detect the best available backend using the following priority: (1) `AGENTTRACE_SECRET_BACKEND` environment variable override, (2) macOS Keychain if on darwin with GUI session, (3) Linux libsecret if `secret-tool` is available, (4) encrypted-file as default fallback. The detection result SHALL be logged at startup.
+The system SHALL automatically detect the best available backend using the following priority: (1) `AGENTGAZER_SECRET_BACKEND` environment variable override, (2) macOS Keychain if on darwin with GUI session, (3) Linux libsecret if `secret-tool` is available, (4) encrypted-file as default fallback. The detection result SHALL be logged at startup.
 
 #### Scenario: macOS with GUI session
 - **WHEN** `detectSecretStore()` is called on macOS with WindowServer running
@@ -76,22 +76,22 @@ The system SHALL automatically detect the best available backend using the follo
 - **THEN** the `LibsecretStore` backend SHALL be selected
 
 #### Scenario: Environment variable override
-- **WHEN** `AGENTTRACE_SECRET_BACKEND=encrypted-file` is set
+- **WHEN** `AGENTGAZER_SECRET_BACKEND=encrypted-file` is set
 - **THEN** the `EncryptedFileStore` backend SHALL be selected regardless of platform
 
 ### Requirement: Passphrase acquisition
-When the encrypted-file backend is active, the system SHALL obtain the passphrase from (in order): (1) `AGENTTRACE_PASSPHRASE` environment variable, (2) interactive stdin prompt if a TTY is detected, (3) error with instructions if neither is available.
+When the encrypted-file backend is active, the system SHALL obtain the passphrase from (in order): (1) `AGENTGAZER_PASSPHRASE` environment variable, (2) interactive stdin prompt if a TTY is detected, (3) error with instructions if neither is available.
 
 #### Scenario: Passphrase from environment variable
-- **WHEN** `AGENTTRACE_PASSPHRASE` is set and the encrypted-file backend is active
+- **WHEN** `AGENTGAZER_PASSPHRASE` is set and the encrypted-file backend is active
 - **THEN** the system SHALL use the env var value as the passphrase without prompting
 
 #### Scenario: Passphrase from interactive prompt
-- **WHEN** `AGENTTRACE_PASSPHRASE` is not set and stdin is a TTY
+- **WHEN** `AGENTGAZER_PASSPHRASE` is not set and stdin is a TTY
 - **THEN** the system SHALL prompt "Enter passphrase to unlock provider keys:" and read the passphrase from stdin (input not echoed)
 
 #### Scenario: No passphrase available
-- **WHEN** `AGENTTRACE_PASSPHRASE` is not set and stdin is not a TTY
+- **WHEN** `AGENTGAZER_PASSPHRASE` is not set and stdin is not a TTY
 - **THEN** the system SHALL print an error explaining how to provide a passphrase and exit with code 1
 
 ### Requirement: Migration from plaintext config

@@ -113,7 +113,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 import OpenAI from "openai";
 
 const at = AgentGazer.init({
-  apiKey: process.env.AGENTTRACE_TOKEN!,
+  apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
   endpoint: "http://localhost:8080/api/events",
 });
