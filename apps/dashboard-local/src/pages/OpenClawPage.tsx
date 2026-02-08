@@ -20,9 +20,8 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   cohere: ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024", "command-r7b-12-2024"],
   deepseek: ["deepseek-chat", "deepseek-reasoner"],
   moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
-  zhipu: ["glm-4.7", "glm-4.7-flash", "glm-4.5", "glm-4.5-flash", "glm-4", "glm-4-air", "glm-4-flash"],
+  zhipu: ["glm-4.7", "glm-4.7-flash", "glm-4.5", "glm-4.5-flash"],
   minimax: ["MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2", "M2-her"],
-  yi: ["yi-lightning", "yi-large", "yi-medium"],
 };
 
 // Map AgentGazer provider names to OpenClaw API types

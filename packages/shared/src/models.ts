@@ -50,20 +50,12 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "glm-4.7-flash",
     "glm-4.5",
     "glm-4.5-flash",
-    "glm-4",
-    "glm-4-air",
-    "glm-4-flash",
   ],
   minimax: [
     "MiniMax-M2.1",
     "MiniMax-M2.1-lightning",
     "MiniMax-M2",
     "M2-her",
-  ],
-  yi: [
-    "yi-lightning",
-    "yi-large",
-    "yi-medium",
   ],
 };
 

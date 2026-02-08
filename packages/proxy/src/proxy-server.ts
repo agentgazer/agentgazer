@@ -174,6 +174,19 @@ function normalizeRequestBody(
     modified = true;
   }
 
+  // OpenAI o1/o3 models require max_completion_tokens instead of max_tokens
+  if (provider === "openai" && "max_tokens" in result) {
+    const model = (result.model as string) ?? "";
+    if (model.startsWith("o1") || model.startsWith("o3")) {
+      if (!("max_completion_tokens" in result)) {
+        result.max_completion_tokens = result.max_tokens;
+        changes.push(`max_tokens→max_completion_tokens (${model})`);
+      }
+      delete result.max_tokens;
+      modified = true;
+    }
+  }
+
   // Remove OpenAI-only fields for other providers
   if (provider !== "openai") {
     for (const field of openaiOnlyFields) {
@@ -926,6 +939,12 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           return;
         }
         targetUrl = rootUrl + trailingPath;
+
+        // For Google native API, add key as query parameter
+        if (routeProvider === "google" && providerKeys["google"]) {
+          const separator = targetUrl.includes("?") ? "&" : "?";
+          targetUrl = `${targetUrl}${separator}key=${providerKeys["google"]}`;
+        }
       } else {
         // Fixed endpoint routing
         const chatEndpoint = getProviderChatEndpoint(routeProvider);
@@ -939,8 +958,11 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       log.info(`[PROXY] Simplified route: agent=${routeAgentId}, provider=${routeProvider}`);
       log.info(`[PROXY] Forwarding to: ${targetUrl}`);
 
+      // For path-based routing (e.g., Google native API), we use different auth
+      const useNativeApi = providerUsesPathRouting(routeProvider) && !!trailingPath;
+
       // Handle the simplified route request
-      await handleSimplifiedRoute(req, res, routeAgentId, routeProvider, targetUrl);
+      await handleSimplifiedRoute(req, res, routeAgentId, routeProvider, targetUrl, useNativeApi);
       return;
     }
 
@@ -955,7 +977,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         if (chatEndpoint) {
           log.info(`[PROXY] Legacy route /${legacyProvider}/... -> agents/default/${legacyProvider}`);
           log.info(`[PROXY] Forwarding to: ${chatEndpoint}`);
-          await handleSimplifiedRoute(req, res, "default", legacyProvider, chatEndpoint);
+          await handleSimplifiedRoute(req, res, "default", legacyProvider, chatEndpoint, false);
           return;
         }
       }
@@ -1092,6 +1114,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     effectiveAgentId: string,
     provider: ProviderName,
     targetUrl: string,
+    useNativeApi: boolean = false,
   ): Promise<void> {
     // Provider policy check
     const providerPolicyResult = checkProviderPolicy(db, provider);
@@ -1275,15 +1298,24 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     // Inject API key
     const providerKey = providerKeys[provider];
     if (providerKey) {
-      const authHeader = getProviderAuthHeader(provider, providerKey);
+      const authHeader = getProviderAuthHeader(provider, providerKey, useNativeApi);
       if (authHeader) {
         const existingAuthKey = Object.keys(forwardHeaders).find(k => k.toLowerCase() === authHeader.name.toLowerCase());
         if (existingAuthKey) delete forwardHeaders[existingAuthKey];
         forwardHeaders[authHeader.name] = authHeader.value;
-        log.info(`[PROXY] Injected ${authHeader.name} header for ${provider}`);
+        log.info(`[PROXY] Injected ${authHeader.name} header for ${provider}${useNativeApi ? " (native API)" : ""}`);
       }
     } else {
       log.warn(`[PROXY] No API key configured for provider: ${provider}`);
+    }
+
+    // Add provider-specific required headers
+    if (provider === "anthropic") {
+      // Anthropic requires anthropic-version header
+      if (!forwardHeaders["anthropic-version"]) {
+        forwardHeaders["anthropic-version"] = "2023-06-01";
+        log.info(`[PROXY] Added anthropic-version header`);
+      }
     }
 
     // Debug logging for request details (mask sensitive headers)

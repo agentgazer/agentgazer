@@ -203,10 +203,12 @@ export function getProviderChatEndpoint(provider: ProviderName): string | null {
 /**
  * Returns the auth header name and value for a given provider.
  * Different providers use different header conventions.
+ * @param useNativeApi - For Google, whether to use native API auth (x-goog-api-key) vs OpenAI-compatible (Bearer)
  */
 export function getProviderAuthHeader(
   provider: ProviderName,
-  apiKey: string
+  apiKey: string,
+  useNativeApi: boolean = false
 ): { name: string; value: string } | null {
   switch (provider) {
     case "openai":
@@ -221,7 +223,11 @@ export function getProviderAuthHeader(
     case "anthropic":
       return { name: "x-api-key", value: apiKey };
     case "google":
-      return { name: "x-goog-api-key", value: apiKey };
+      // Google native API uses x-goog-api-key, OpenAI-compatible uses Bearer
+      if (useNativeApi) {
+        return { name: "x-goog-api-key", value: apiKey };
+      }
+      return { name: "authorization", value: `Bearer ${apiKey}` };
     default:
       return null;
   }
