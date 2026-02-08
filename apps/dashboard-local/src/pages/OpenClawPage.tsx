@@ -13,7 +13,7 @@ import ErrorBanner from "../components/ErrorBanner";
 
 // Model lists per provider (must match what OpenClaw expects)
 const PROVIDER_MODELS: Record<string, string[]> = {
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o1-mini", "o1-pro", "o3-mini"],
+  openai: ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
   anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
   google: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
   mistral: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
