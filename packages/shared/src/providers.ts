@@ -31,6 +31,22 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "yi",
 ];
 
+/**
+ * Provider names available for user selection in UI/CLI.
+ * Excludes providers without active API access.
+ */
+export const SELECTABLE_PROVIDER_NAMES: ProviderName[] = [
+  "openai",
+  "anthropic",
+  "google",
+  "mistral",
+  "cohere",
+  "deepseek",
+  "moonshot",
+  "zhipu",
+  "minimax",
+];
+
 const PROVIDER_PATTERNS: ProviderPattern[] = [
   {
     name: "openai",

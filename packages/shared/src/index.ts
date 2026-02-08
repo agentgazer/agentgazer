@@ -27,6 +27,7 @@ export {
   parsePathPrefix,
   parseAgentPath,
   KNOWN_PROVIDER_NAMES,
+  SELECTABLE_PROVIDER_NAMES,
   type ProviderName,
 } from "./providers.js";
 

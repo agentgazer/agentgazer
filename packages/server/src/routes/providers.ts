@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import type Database from "better-sqlite3";
-import { KNOWN_PROVIDER_NAMES, ProviderName } from "@agentgazer/shared";
+import { KNOWN_PROVIDER_NAMES, SELECTABLE_PROVIDER_NAMES, ProviderName } from "@agentgazer/shared";
 import { PROVIDER_MODELS } from "@agentgazer/shared";
 import {
   getProviderSettings,
@@ -69,7 +69,7 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
       const allStats = getAllProviderListStats(db);
       const statsMap = new Map(allStats.map(s => [s.provider, s]));
 
-      const providers = KNOWN_PROVIDER_NAMES.map(name => {
+      const providers = SELECTABLE_PROVIDER_NAMES.map(name => {
         const configured = configuredProviders.includes(name);
         const providerSettings = settingsMap.get(name);
         const stats = statsMap.get(name);
