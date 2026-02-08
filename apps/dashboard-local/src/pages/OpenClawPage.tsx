@@ -17,7 +17,7 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
   google: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
   mistral: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
-  cohere: ["command-r-plus", "command-r"],
+  cohere: ["command-a-03-2025", "command-r-plus-08-2024", "command-r-08-2024", "command-r7b-12-2024"],
   deepseek: ["deepseek-chat", "deepseek-reasoner"],
   moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
   zhipu: ["glm-4.7", "glm-4.7-flash", "glm-4.5", "glm-4.5-flash", "glm-4", "glm-4-air", "glm-4-flash"],
