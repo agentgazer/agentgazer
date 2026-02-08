@@ -150,14 +150,15 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
 }
 
 /**
- * Returns the root API URL for a provider (without any path).
+ * Returns the root API URL for a provider for path-based routing.
+ * Includes version prefix where needed (e.g., /v1beta for Google).
  * Used for providers that need path-based routing (e.g., Google's native API).
  */
 export function getProviderRootUrl(provider: ProviderName): string | null {
   const urls: Record<string, string> = {
     openai: "https://api.openai.com",
     anthropic: "https://api.anthropic.com",
-    google: "https://generativelanguage.googleapis.com",
+    google: "https://generativelanguage.googleapis.com/v1beta",  // Include version prefix
     mistral: "https://api.mistral.ai",
     cohere: "https://api.cohere.com",
     deepseek: "https://api.deepseek.com",
