@@ -1256,8 +1256,18 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       log.warn(`[PROXY] No API key configured for provider: ${provider}`);
     }
 
-    // Debug logging for request details
-    log.debug(`[PROXY] Request headers: ${JSON.stringify(forwardHeaders)}`);
+    // Debug logging for request details (mask sensitive headers)
+    const maskedHeaders: Record<string, string> = {};
+    const sensitiveHeaders = ["authorization", "x-api-key", "x-goog-api-key", "api-key"];
+    for (const [key, value] of Object.entries(forwardHeaders)) {
+      if (sensitiveHeaders.includes(key.toLowerCase())) {
+        // Show first 8 chars + masked rest
+        maskedHeaders[key] = value.length > 12 ? `${value.slice(0, 8)}...****` : "****";
+      } else {
+        maskedHeaders[key] = value;
+      }
+    }
+    log.debug(`[PROXY] Request headers: ${JSON.stringify(maskedHeaders)}`);
     try {
       const bodyPreview = modifiedRequestBody.toString("utf-8").slice(0, 2000);
       log.debug(`[PROXY] Request body: ${bodyPreview}${modifiedRequestBody.length > 2000 ? "... (truncated)" : ""}`);
