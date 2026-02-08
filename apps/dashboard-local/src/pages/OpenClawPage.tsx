@@ -26,13 +26,15 @@ const PROVIDER_MODELS: Record<string, string[]> = {
 };
 
 // Map AgentGazer provider names to OpenClaw API types
+// Valid values: openai-completions, openai-responses, anthropic-messages,
+//               google-generative-ai, github-copilot, bedrock-converse-stream
 const PROVIDER_API_MAP: Record<string, string> = {
   anthropic: "anthropic-messages",
   openai: "openai-completions",
-  google: "google-ai",
-  mistral: "mistral",
-  cohere: "cohere",
-  // OpenAI-compatible providers
+  google: "google-generative-ai",
+  // All other providers use OpenAI-compatible API
+  mistral: "openai-completions",
+  cohere: "openai-completions",
   deepseek: "openai-completions",
   moonshot: "openai-completions",
   zhipu: "openai-completions",
@@ -47,7 +49,7 @@ function generateOpenclawConfig(
 ): OpenclawModels {
   const configuredProviders = providers.filter((p) => p.configured && p.active);
 
-  const providersConfig: Record<string, { baseUrl: string; apiKey: string; api: string; models: { id: string; name: string }[] }> = {};
+  const providersConfig: Record<string, Record<string, unknown>> = {};
 
   for (const provider of configuredProviders) {
     const apiType = PROVIDER_API_MAP[provider.name] || "openai-completions";
@@ -57,6 +59,7 @@ function generateOpenclawConfig(
       : `http://localhost:${proxyPort}/${provider.name}`;
     const modelIds = PROVIDER_MODELS[provider.name] || [];
     const models = modelIds.map((id) => ({ id, name: id }));
+
     providersConfig[`${provider.name}-traced`] = {
       baseUrl,
       apiKey: "managed-by-agentgazer",
@@ -405,7 +408,7 @@ export default function OpenClawPage() {
         </div>
         {configSuccess && (
           <div className="mt-3 rounded-md border border-green-800 bg-green-900/20 p-2 text-center text-sm text-green-300">
-            Configuration applied successfully!
+            Configuration applied successfully! Please restart OpenClaw to load the new settings.
           </div>
         )}
       </div>
