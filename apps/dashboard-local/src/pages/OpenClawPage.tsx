@@ -28,12 +28,10 @@ const PROVIDER_MODELS: Record<string, string[]> = {
 // Map AgentGazer provider names to OpenClaw API types
 // Valid values: openai-completions, openai-responses, anthropic-messages,
 //               google-generative-ai, github-copilot, bedrock-converse-stream
-// Note: We use openai-completions for Google because our proxy uses Google's
-// OpenAI-compatible endpoint (generativelanguage.googleapis.com/v1beta/openai)
 const PROVIDER_API_MAP: Record<string, string> = {
   anthropic: "anthropic-messages",
   openai: "openai-completions",
-  google: "openai-completions",  // Uses Google's OpenAI-compatible endpoint
+  google: "google-generative-ai",  // Uses Google's native Generative AI API
   // All other providers use OpenAI-compatible API
   mistral: "openai-completions",
   cohere: "openai-completions",

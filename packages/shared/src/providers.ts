@@ -150,6 +150,35 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
 }
 
 /**
+ * Returns the root API URL for a provider (without any path).
+ * Used for providers that need path-based routing (e.g., Google's native API).
+ */
+export function getProviderRootUrl(provider: ProviderName): string | null {
+  const urls: Record<string, string> = {
+    openai: "https://api.openai.com",
+    anthropic: "https://api.anthropic.com",
+    google: "https://generativelanguage.googleapis.com",
+    mistral: "https://api.mistral.ai",
+    cohere: "https://api.cohere.com",
+    deepseek: "https://api.deepseek.com",
+    moonshot: "https://api.moonshot.ai",
+    zhipu: "https://api.z.ai",
+    minimax: "https://api.minimax.io",
+    yi: "https://api.01.ai",
+  };
+  return urls[provider] ?? null;
+}
+
+/**
+ * Check if a provider uses path-based routing (client provides the full path).
+ * These providers expect the trailing path to be preserved, not replaced with a fixed endpoint.
+ */
+export function providerUsesPathRouting(provider: ProviderName): boolean {
+  // Google's native API uses paths like /v1beta/models/{model}:generateContent
+  return provider === "google";
+}
+
+/**
  * Returns the complete chat endpoint URL for a provider.
  * This is the full URL including path - no additional path construction needed.
  * Returns null for unknown providers.

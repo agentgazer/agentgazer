@@ -1,7 +1,9 @@
 import * as http from "node:http";
 import {
   getProviderChatEndpoint,
+  getProviderRootUrl,
   getProviderAuthHeader,
+  providerUsesPathRouting,
   parseProviderResponse,
   calculateCost,
   createLogger,
@@ -795,11 +797,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     }
 
     // Simplified routing: POST /agents/:agent/:provider[/...]
-    // This route handles all path construction internally (trailing path is ignored)
+    // For most providers, trailing path is ignored and we use the fixed chat endpoint.
+    // For providers with path-based routing (e.g., Google), we preserve the trailing path.
     const simplifiedRouteMatch = path.match(/^\/agents\/([^/]+)\/([^/]+)(\/.*)?$/);
     if (method === "POST" && simplifiedRouteMatch) {
       const routeAgentId = decodeURIComponent(simplifiedRouteMatch[1]);
       const routeProvider = simplifiedRouteMatch[2].toLowerCase() as ProviderName;
+      const trailingPath = simplifiedRouteMatch[3] || "";
 
       // Validate provider
       if (!KNOWN_PROVIDER_NAMES.includes(routeProvider)) {
@@ -807,17 +811,30 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         return;
       }
 
-      const chatEndpoint = getProviderChatEndpoint(routeProvider);
-      if (!chatEndpoint) {
-        sendJson(res, 400, { error: `No chat endpoint configured for provider: ${routeProvider}` });
-        return;
+      let targetUrl: string;
+      if (providerUsesPathRouting(routeProvider) && trailingPath) {
+        // Path-based routing: append trailing path to root URL
+        const rootUrl = getProviderRootUrl(routeProvider);
+        if (!rootUrl) {
+          sendJson(res, 400, { error: `No root URL configured for provider: ${routeProvider}` });
+          return;
+        }
+        targetUrl = rootUrl + trailingPath;
+      } else {
+        // Fixed endpoint routing
+        const chatEndpoint = getProviderChatEndpoint(routeProvider);
+        if (!chatEndpoint) {
+          sendJson(res, 400, { error: `No chat endpoint configured for provider: ${routeProvider}` });
+          return;
+        }
+        targetUrl = chatEndpoint;
       }
 
       log.info(`[PROXY] Simplified route: agent=${routeAgentId}, provider=${routeProvider}`);
-      log.info(`[PROXY] Forwarding to: ${chatEndpoint}`);
+      log.info(`[PROXY] Forwarding to: ${targetUrl}`);
 
       // Handle the simplified route request
-      await handleSimplifiedRoute(req, res, routeAgentId, routeProvider, chatEndpoint);
+      await handleSimplifiedRoute(req, res, routeAgentId, routeProvider, targetUrl);
       return;
     }
 
