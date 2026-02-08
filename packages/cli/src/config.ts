@@ -21,6 +21,14 @@ export interface ProviderConfig {
 export interface AgentGazerConfig {
   token: string;
   providers?: Record<string, ProviderConfig>;
+  /** Dashboard port (default: 18800) */
+  port?: number;
+  /** LLM proxy port (default: 4000) */
+  proxyPort?: number;
+  /** Auto-open browser on start (default: true) */
+  autoOpen?: boolean;
+  /** Data retention period in days (default: 30) */
+  retentionDays?: number;
 }
 
 const CONFIG_DIR = path.join(os.homedir(), ".agentgazer");
@@ -71,6 +79,18 @@ export function readConfig(): AgentGazerConfig | null {
       const config: AgentGazerConfig = { token: parsed.token };
       if (parsed.providers && typeof parsed.providers === "object") {
         config.providers = parsed.providers;
+      }
+      if (typeof parsed.port === "number") {
+        config.port = parsed.port;
+      }
+      if (typeof parsed.proxyPort === "number") {
+        config.proxyPort = parsed.proxyPort;
+      }
+      if (typeof parsed.autoOpen === "boolean") {
+        config.autoOpen = parsed.autoOpen;
+      }
+      if (typeof parsed.retentionDays === "number") {
+        config.retentionDays = parsed.retentionDays;
       }
       return config;
     }

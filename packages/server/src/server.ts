@@ -17,6 +17,7 @@ import modelRulesRouter from "./routes/model-rules.js";
 import rateLimitsRouter from "./routes/rate-limits.js";
 import { createProvidersRouter } from "./routes/providers.js";
 import { createOverviewRouter } from "./routes/overview.js";
+import { createOpenclawRouter } from "./routes/openclaw.js";
 import { startEvaluator } from "./alerts/evaluator.js";
 
 export interface SecretStore {
@@ -64,6 +65,7 @@ export function createServer(options: ServerOptions): { app: express.Express; db
   app.use("/api/providers", createProvidersRouter({ db, secretStore: options.secretStore }));
   app.use("/api", createProvidersRouter({ db, secretStore: options.secretStore })); // for /api/connection-info
   app.use("/api/overview", createOverviewRouter({ db }));
+  app.use("/api/openclaw", createOpenclawRouter());
 
   // Serve dashboard static files if a directory is provided
   if (options.dashboardDir) {

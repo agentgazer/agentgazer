@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import * as fs from "node:fs";
+import * as net from "node:net";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as readline from "node:readline";
@@ -78,6 +79,31 @@ function parsePositional(argv: string[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Port utilities
+// ---------------------------------------------------------------------------
+
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.once("error", () => resolve(false));
+    server.once("listening", () => {
+      server.close(() => resolve(true));
+    });
+    server.listen(port, "0.0.0.0");
+  });
+}
+
+async function findAvailablePort(startPort: number, maxAttempts: number = 10): Promise<number> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i;
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+  }
+  throw new Error(`No available port found in range ${startPort}-${startPort + maxAttempts - 1}`);
+}
+
+// ---------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------
 
@@ -116,16 +142,18 @@ Commands:
 
   version                     Show version
   doctor                      Check system health
-  uninstall                   Remove AgentGazer (curl-installed only)
+  uninstall                   Remove AgentGazer data (interactive menu)
   help                        Show this help message
 
 Options (for start):
-  --port <number>            Server/dashboard port (default: 8080)
-  --proxy-port <number>      LLM proxy port (default: 4000)
-  --retention-days <number>  Data retention period in days (default: 30)
-  --no-open                  Don't auto-open browser
+  --port <number>            Server/dashboard port (default: 18800, or config.port)
+  --proxy-port <number>      LLM proxy port (default: 4000, or config.proxyPort)
+  --retention-days <number>  Data retention in days (default: 30, or config.retentionDays)
+  --no-open                  Don't auto-open browser (or set config.autoOpen: false)
   -v, --verbose              Print verbose logs to console
   -d, --daemon               Print info and token, then run in background
+
+Config file: ~/.agentgazer/config.json (optional settings: port, proxyPort, autoOpen, retentionDays)
 
 Options (for agent/provider stat):
   --range <period>           Time range: 1h, 24h, 7d, 30d (default: 24h)
@@ -136,6 +164,13 @@ Options (for delete commands):
 Options (for logs):
   -f, --follow               Follow log output (like tail -f)
   -n, --lines <number>       Number of lines to show (default: 50)
+
+Options (for uninstall):
+  --all                      Remove everything (keys, config, data)
+  --config                   Remove config only
+  --keys                     Remove provider keys only
+  --data                     Remove agent data only
+  --yes                      Skip confirmation prompts
 
 Examples:
   agentgazer onboard                    First-time setup
@@ -172,7 +207,7 @@ async function cmdOnboard(): Promise<void> {
   Token:    ${saved.token}
   Config:   ${getConfigDir()}/config.json
   Database: ${getDbPath()}
-  Server:   http://localhost:8080
+  Server:   http://localhost:18800
   Proxy:    http://localhost:4000
 
   ───────────────────────────────────────
@@ -260,7 +295,7 @@ function cmdStatus(): void {
   Token:    ${config.token}
   Config:   ${getConfigDir()}/config.json
   Database: ${getDbPath()}
-  Server:   http://localhost:8080 (default)
+  Server:   http://localhost:18800 (default)
   Proxy:    http://localhost:4000 (default)
 `);
 }
@@ -316,8 +351,9 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     fs.writeFileSync(pidFile, String(child.pid));
 
     const config = ensureConfig();
-    const serverPort = flags["port"] ? parseInt(flags["port"], 10) : 8080;
-    const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : 4000;
+    // Use config values as defaults for daemon mode display
+    const serverPort = flags["port"] ? parseInt(flags["port"], 10) : (config.port ?? 18800);
+    const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : (config.proxyPort ?? 4000);
 
     console.log(`
   ╔════════════════════════════════════════════════════╗
@@ -342,12 +378,18 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
   const config = ensureConfig();
 
-  const serverPort = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  // Use config values as defaults, CLI flags override
+  const defaultPort = config.port ?? 18800;
+  const defaultProxyPort = config.proxyPort ?? 4000;
+  const defaultRetentionDays = config.retentionDays ?? 30;
+  const defaultAutoOpen = config.autoOpen ?? true;
+
+  const requestedServerPort = flags["port"] ? parseInt(flags["port"], 10) : defaultPort;
   const proxyPort = flags["proxy-port"]
     ? parseInt(flags["proxy-port"], 10)
-    : 4000;
+    : defaultProxyPort;
 
-  if (isNaN(serverPort) || serverPort < 1 || serverPort > 65535) {
+  if (isNaN(requestedServerPort) || requestedServerPort < 1 || requestedServerPort > 65535) {
     console.error("Error: --port must be a valid port number (1-65535)");
     process.exit(1);
   }
@@ -357,16 +399,37 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     process.exit(1);
   }
 
-  if (serverPort < 1024) {
-    console.warn("Warning: port %d may require elevated privileges on Unix systems.", serverPort);
+  if (requestedServerPort < 1024) {
+    console.warn("Warning: port %d may require elevated privileges on Unix systems.", requestedServerPort);
   }
   if (proxyPort < 1024) {
     console.warn("Warning: proxy port %d may require elevated privileges on Unix systems.", proxyPort);
   }
 
+  // Check if proxy port is available (no auto-switching for proxy)
+  if (!(await isPortAvailable(proxyPort))) {
+    console.error(`Error: Proxy port ${proxyPort} is already in use.`);
+    console.error("  The proxy port must be fixed for OpenClaw configuration to work.");
+    console.error("  Please stop the process using this port or specify a different port with --proxy-port <number>");
+    process.exit(1);
+  }
+
+  // Find available port for dashboard (auto-increment if in use)
+  let serverPort: number;
+  try {
+    serverPort = await findAvailablePort(requestedServerPort);
+    if (serverPort !== requestedServerPort) {
+      console.log(`  Dashboard port ${requestedServerPort} is in use, using ${serverPort} instead.`);
+    }
+  } catch {
+    console.error(`Error: Could not find available port starting from ${requestedServerPort}`);
+    console.error("  Try specifying a different port with --port <number>");
+    process.exit(1);
+  }
+
   const retentionDays = flags["retention-days"]
     ? parseInt(flags["retention-days"], 10)
-    : 30;
+    : defaultRetentionDays;
 
   if (isNaN(retentionDays) || retentionDays < 1) {
     console.error("Error: --retention-days must be a positive integer");
@@ -447,8 +510,9 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   Providers:     ${KNOWN_PROVIDER_NAMES.join(", ")}
 `);
 
-  // Auto-open browser unless --no-open
-  if (!("no-open" in flags)) {
+  // Auto-open browser unless --no-open flag or autoOpen=false in config
+  const shouldAutoOpen = !("no-open" in flags) && defaultAutoOpen;
+  if (shouldAutoOpen) {
     try {
       const open = await import("open");
       await open.default(`http://localhost:${serverPort}`);
@@ -459,15 +523,28 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
   // Graceful shutdown
   let shuttingDown = false;
+  let forceExitTimeout: ReturnType<typeof setTimeout> | null = null;
   const pidFile = path.join(configDir, "agentgazer.pid");
 
   function handleShutdown(): void {
-    if (shuttingDown) return;
+    if (shuttingDown) {
+      // Second Ctrl+C: force exit immediately
+      console.log("\nForce exiting...");
+      process.exit(1);
+    }
     shuttingDown = true;
-    console.log("\nShutting down...");
+    console.log("\nShutting down... (press Ctrl+C again to force exit)");
+
+    // Force exit after 5 seconds if graceful shutdown hangs
+    forceExitTimeout = setTimeout(() => {
+      console.error("Shutdown timed out, forcing exit.");
+      process.exit(1);
+    }, 5000);
+    forceExitTimeout.unref();
 
     Promise.all([shutdownProxy(), shutdownServer()])
       .then(() => {
+        if (forceExitTimeout) clearTimeout(forceExitTimeout);
         // Clean up PID file if we're a daemon child
         if (process.env.AGENTGAZER_DAEMON_CHILD && fs.existsSync(pidFile)) {
           fs.unlinkSync(pidFile);
@@ -476,6 +553,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
         process.exit(0);
       })
       .catch((err) => {
+        if (forceExitTimeout) clearTimeout(forceExitTimeout);
         console.error("Error during shutdown:", err);
         process.exit(1);
       });
@@ -502,7 +580,7 @@ async function cmdVersion(): Promise<void> {
 }
 
 async function cmdDoctor(flags: Record<string, string>): Promise<void> {
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 18800;
   const proxyPort = flags["proxy-port"]
     ? parseInt(flags["proxy-port"], 10)
     : 4000;
@@ -597,76 +675,297 @@ async function cmdDoctor(flags: Record<string, string>): Promise<void> {
 // Uninstall
 // ---------------------------------------------------------------------------
 
-async function cmdUninstall(flags: Record<string, string>): Promise<void> {
-  const home = process.env.AGENTGAZER_HOME || path.join(os.homedir(), ".agentgazer");
-  const libDir = path.join(home, "lib");
-  const nodeDir = path.join(home, "node");
-  const wrapperPath = path.join(process.env.AGENTGAZER_BIN || "/usr/local/bin", "agentgazer");
+async function confirmPrompt(message: string): Promise<boolean> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = await ask(rl, message);
+  rl.close();
+  return /^y(es)?$/i.test(answer);
+}
 
-  // Detect install method
-  if (!fs.existsSync(libDir)) {
-    console.log('AgentGazer was not installed via the install script.');
-    console.log('');
-    console.log('  If installed via npm:');
-    console.log('    npm uninstall -g agentgazer');
-    console.log('');
-    console.log('  If installed via Homebrew:');
-    console.log('    brew uninstall agentgazer');
-    console.log('');
+async function stopDaemonIfRunning(): Promise<void> {
+  const configDir = getConfigDir();
+  const pidFile = path.join(configDir, "agentgazer.pid");
+
+  if (!fs.existsSync(pidFile)) return;
+
+  const pid = parseInt(fs.readFileSync(pidFile, "utf-8").trim(), 10);
+  try {
+    process.kill(pid, 0); // Check if process exists
+  } catch {
+    // Process doesn't exist, clean up stale PID file
+    fs.unlinkSync(pidFile);
     return;
   }
 
+  console.log("  Stopping AgentGazer daemon...");
+  process.kill(pid, "SIGTERM");
+
+  // Wait for process to exit (poll for up to 3 seconds)
+  for (let i = 0; i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    try {
+      process.kill(pid, 0);
+    } catch {
+      if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+      console.log("  ✓ Daemon stopped");
+      return;
+    }
+  }
+
+  // Force kill
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // Already dead
+  }
+  if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+  console.log("  ✓ Daemon stopped (forced)");
+}
+
+async function removeProviderKeys(): Promise<void> {
+  const configDir = getConfigDir();
+  const { store } = await detectSecretStore(configDir);
+
+  const providers = await store.list(PROVIDER_SERVICE);
+  if (providers.length === 0) {
+    console.log("  No provider keys found.");
+    return;
+  }
+
+  console.log("  Removing provider keys...");
+  for (const provider of providers) {
+    try {
+      await store.delete(PROVIDER_SERVICE, provider);
+      console.log(`    ✓ ${provider}`);
+    } catch (err) {
+      console.log(`    ✗ ${provider}: ${err}`);
+    }
+  }
+}
+
+function removeConfig(): void {
+  const configDir = getConfigDir();
+  const configPath = path.join(configDir, "config.json");
+
+  if (fs.existsSync(configPath)) {
+    fs.unlinkSync(configPath);
+    console.log(`  ✓ Removed config (${configPath})`);
+  } else {
+    console.log("  Config file not found.");
+  }
+}
+
+function removeAgentData(): void {
+  const configDir = getConfigDir();
+  const dbPath = path.join(configDir, "data.db");
+
+  if (fs.existsSync(dbPath)) {
+    const stats = fs.statSync(dbPath);
+    const sizeMB = (stats.size / 1024 / 1024).toFixed(1);
+    fs.unlinkSync(dbPath);
+    console.log(`  ✓ Removed database (${sizeMB} MB)`);
+  } else {
+    console.log("  Database file not found.");
+  }
+}
+
+function removeLogFiles(): void {
+  const configDir = getConfigDir();
+  const logFile = path.join(configDir, "agentgazer.log");
+  const pidFile = path.join(configDir, "agentgazer.pid");
+
+  let removed = 0;
+  if (fs.existsSync(logFile)) {
+    fs.unlinkSync(logFile);
+    removed++;
+  }
+  if (fs.existsSync(pidFile)) {
+    fs.unlinkSync(pidFile);
+    removed++;
+  }
+
+  if (removed > 0) {
+    console.log(`  ✓ Removed log files`);
+  }
+}
+
+function showBinaryRemovalCommands(): void {
+  console.log(`
+  To remove the agentgazer binary:
+
+    npm uninstall -g @agentgazer/cli
+
+  Or if installed via Homebrew:
+
+    brew uninstall agentgazer
+`);
+}
+
+async function cmdUninstall(flags: Record<string, string>): Promise<void> {
+  const configDir = getConfigDir();
   const skipPrompt = "yes" in flags;
 
+  // Handle flags for scripting
+  if ("all" in flags) {
+    if (!skipPrompt) {
+      const confirmed = await confirmPrompt("\n  This will remove ALL AgentGazer data. Continue? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+    }
+    await stopDaemonIfRunning();
+    await removeProviderKeys();
+    removeConfig();
+    removeAgentData();
+    removeLogFiles();
+    showBinaryRemovalCommands();
+    return;
+  }
+
+  if ("config" in flags) {
+    if (!skipPrompt) {
+      const confirmed = await confirmPrompt("\n  Remove config file? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+    }
+    await stopDaemonIfRunning();
+    removeConfig();
+    return;
+  }
+
+  if ("keys" in flags) {
+    if (!skipPrompt) {
+      const { store } = await detectSecretStore(configDir);
+      const providers = await store.list(PROVIDER_SERVICE);
+      if (providers.length === 0) {
+        console.log("  No provider keys to remove.");
+        return;
+      }
+      console.log(`\n  Provider keys to remove: ${providers.join(", ")}`);
+      const confirmed = await confirmPrompt("  Continue? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+    }
+    await removeProviderKeys();
+    return;
+  }
+
+  if ("data" in flags) {
+    if (!skipPrompt) {
+      const dbPath = path.join(configDir, "data.db");
+      if (!fs.existsSync(dbPath)) {
+        console.log("  No database to remove.");
+        return;
+      }
+      const confirmed = await confirmPrompt("\n  Remove agent data (database)? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+    }
+    await stopDaemonIfRunning();
+    removeAgentData();
+    return;
+  }
+
+  // Interactive menu
   console.log(`
   AgentGazer — Uninstall
   ───────────────────────────────────────
+
+  What would you like to remove?
+
+    1. Complete uninstall (everything)
+    2. Binary only (show npm/brew command)
+    3. Config only (~/.agentgazer/config.json)
+    4. Provider keys only (from secret store)
+    5. Agent data only (~/.agentgazer/data.db)
+
 `);
 
-  // Remove embedded Node.js
-  if (fs.existsSync(nodeDir)) {
-    fs.rmSync(nodeDir, { recursive: true, force: true });
-    console.log(`  ✓ Removed embedded Node.js (${nodeDir})`);
-  }
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const choice = await ask(rl, "  Select [1-5]: ");
+  rl.close();
 
-  // Remove lib
-  fs.rmSync(libDir, { recursive: true, force: true });
-  console.log(`  ✓ Removed installation (${libDir})`);
+  console.log("");
 
-  // Remove wrapper
-  if (fs.existsSync(wrapperPath)) {
-    try {
-      fs.unlinkSync(wrapperPath);
-      console.log(`  ✓ Removed wrapper (${wrapperPath})`);
-    } catch {
-      console.log(`  ! Could not remove ${wrapperPath} — try: sudo rm ${wrapperPath}`);
-    }
-  }
-
-  // Handle user data
-  const configPath = path.join(home, "config.json");
-  const dbPath = path.join(home, "data.db");
-  const hasData = fs.existsSync(configPath) || fs.existsSync(dbPath);
-
-  if (hasData) {
-    let removeData = skipPrompt;
-
-    if (!skipPrompt) {
-      const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-      const answer = await ask(rl, "\n  Remove user data (config.json, data.db)? [y/N] ");
-      rl.close();
-      removeData = /^y(es)?$/i.test(answer);
+  switch (choice) {
+    case "1": {
+      // Complete uninstall
+      const confirmed = await confirmPrompt("  This will remove ALL AgentGazer data. Continue? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+      await stopDaemonIfRunning();
+      await removeProviderKeys();
+      removeConfig();
+      removeAgentData();
+      removeLogFiles();
+      showBinaryRemovalCommands();
+      break;
     }
 
-    if (removeData) {
-      fs.rmSync(home, { recursive: true, force: true });
-      console.log(`  ✓ Removed all data (${home})`);
-    } else {
-      console.log(`  → User data preserved at ${home}`);
-    }
-  }
+    case "2":
+      // Binary only
+      showBinaryRemovalCommands();
+      break;
 
-  console.log("\n  ✓ AgentGazer uninstalled.\n");
+    case "3": {
+      // Config only
+      const confirmed = await confirmPrompt("  Remove config file? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+      await stopDaemonIfRunning();
+      removeConfig();
+      break;
+    }
+
+    case "4": {
+      // Provider keys only
+      const { store } = await detectSecretStore(configDir);
+      const providers = await store.list(PROVIDER_SERVICE);
+      if (providers.length === 0) {
+        console.log("  No provider keys to remove.");
+        return;
+      }
+      console.log(`  Provider keys to remove: ${providers.join(", ")}`);
+      const confirmed = await confirmPrompt("  Continue? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+      await removeProviderKeys();
+      break;
+    }
+
+    case "5": {
+      // Agent data only
+      const dbPath = path.join(configDir, "data.db");
+      if (!fs.existsSync(dbPath)) {
+        console.log("  No database to remove.");
+        return;
+      }
+      const confirmed = await confirmPrompt("  Remove agent data (database)? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+      await stopDaemonIfRunning();
+      removeAgentData();
+      break;
+    }
+
+    default:
+      console.log("  Invalid option.");
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -676,9 +975,15 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
 function cmdStop(): void {
   const configDir = getConfigDir();
   const pidFile = path.join(configDir, "agentgazer.pid");
+  const config = readConfig();
+  const port = config?.port ?? 18800;
+  const proxyPort = config?.proxyPort ?? 4000;
 
   if (!fs.existsSync(pidFile)) {
     console.log("AgentGazer is not running (no PID file found).");
+    console.log("");
+    console.log("If processes are still running, kill them manually:");
+    console.log(`  lsof -ti:${port} | xargs kill -9; lsof -ti:${proxyPort} | xargs kill -9`);
     return;
   }
 
@@ -784,7 +1089,7 @@ async function main(): Promise<void> {
   const allArgs = process.argv.slice(3);
   const flags = parseFlags(allArgs);
   const positional = parsePositional(allArgs);
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 18800;
 
   switch (subcommand) {
     case "onboard":

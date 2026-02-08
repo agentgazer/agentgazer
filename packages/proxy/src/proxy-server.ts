@@ -794,9 +794,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
-    // Simplified routing: POST /agents/:agent/:provider (no trailing path)
-    // This route handles all path construction internally
-    const simplifiedRouteMatch = path.match(/^\/agents\/([^/]+)\/([^/]+)$/);
+    // Simplified routing: POST /agents/:agent/:provider[/...]
+    // This route handles all path construction internally (trailing path is ignored)
+    const simplifiedRouteMatch = path.match(/^\/agents\/([^/]+)\/([^/]+)(\/.*)?$/);
     if (method === "POST" && simplifiedRouteMatch) {
       const routeAgentId = decodeURIComponent(simplifiedRouteMatch[1]);
       const routeProvider = simplifiedRouteMatch[2].toLowerCase() as ProviderName;

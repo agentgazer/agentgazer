@@ -206,3 +206,56 @@ export const overviewApi = {
   getRecentEvents: (limit = 10) =>
     api.get<{ events: RecentEvent[] }>(`/api/events/recent?limit=${limit}`),
 };
+
+// ---------------------------------------------------------------------------
+// OpenClaw API Types
+// ---------------------------------------------------------------------------
+
+export interface OpenclawConfigResponse {
+  exists: boolean;
+  models: OpenclawModels | null;
+  agents: OpenclawAgents | null;
+  parseError?: boolean;
+  raw?: string;
+}
+
+export interface OpenclawAgents {
+  defaults?: {
+    model?: {
+      primary?: string;
+    };
+  };
+}
+
+export interface OpenclawModels {
+  mode?: string;
+  providers?: Record<string, OpenclawProvider>;
+  [key: string]: unknown;
+}
+
+export interface OpenclawProvider {
+  baseUrl?: string;
+  apiKey?: string;
+  api?: string;
+  [key: string]: unknown;
+}
+
+// ---------------------------------------------------------------------------
+// OpenClaw API Functions
+// ---------------------------------------------------------------------------
+
+export const openclawApi = {
+  getConfig: () => api.get<OpenclawConfigResponse>("/api/openclaw/config"),
+
+  updateConfig: (models: OpenclawModels) =>
+    api.put<{ success: boolean }>("/api/openclaw/config", { models }),
+
+  updateDefaultModel: (primary: string) =>
+    api.put<{ success: boolean }>("/api/openclaw/config", {
+      agents: {
+        defaults: {
+          model: { primary },
+        },
+      },
+    }),
+};

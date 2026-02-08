@@ -65,10 +65,12 @@ agentgazer start --retention-days 7
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--port` | `8080` | Express server and dashboard port |
+| `--port` | `18800` | Express server and dashboard port |
 | `--proxy-port` | `4000` | LLM Proxy port |
 | `--retention-days` | `30` | Event data retention period in days |
 | `--no-open` | `false` | Do not auto-open the browser on startup |
+
+These defaults can be overridden in the config file (see [Configuration File](#configuration-file)).
 
 ### `agentgazer overview`
 
@@ -159,4 +161,40 @@ Runs a system health check to verify the server and Proxy are operating correctl
 ```bash
 agentgazer doctor
 agentgazer doctor --port 9090 --proxy-port 5000
+```
+
+## Configuration File
+
+AgentGazer stores configuration in `~/.agentgazer/config.json`. You can set persistent defaults here instead of passing CLI flags every time.
+
+### Available Settings
+
+```json
+{
+  "token": "your-auth-token",
+  "port": 18800,
+  "proxyPort": 4000,
+  "autoOpen": true,
+  "retentionDays": 30
+}
+```
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `token` | string | (generated) | Authentication token (auto-generated on first run) |
+| `port` | number | `18800` | Dashboard/server port |
+| `proxyPort` | number | `4000` | LLM Proxy port |
+| `autoOpen` | boolean | `true` | Auto-open browser on `agentgazer start` |
+| `retentionDays` | number | `30` | Data retention period in days |
+
+### Precedence
+
+CLI flags always override config file values:
+
+```bash
+# Uses port from config.json (e.g., 9000)
+agentgazer start
+
+# Overrides config, uses port 8080
+agentgazer start --port 8080
 ```

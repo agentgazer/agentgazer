@@ -65,10 +65,12 @@ agentgazer start --retention-days 7
 
 | 旗標 | 預設值 | 說明 |
 |------|--------|------|
-| `--port` | `8080` | Express 伺服器與儀表板連接埠 |
+| `--port` | `18800` | Express 伺服器與儀表板連接埠 |
 | `--proxy-port` | `4000` | LLM Proxy 連接埠 |
 | `--retention-days` | `30` | 事件資料保留天數 |
 | `--no-open` | `false` | 啟動時不自動開啟瀏覽器 |
+
+這些預設值可以在設定檔中覆寫（請參閱[設定檔](#設定檔)）。
 
 ### `agentgazer overview`
 
@@ -159,4 +161,40 @@ agentgazer provider openai delete --yes  # 跳過確認
 ```bash
 agentgazer doctor
 agentgazer doctor --port 9090 --proxy-port 5000
+```
+
+## 設定檔
+
+AgentGazer 將設定儲存在 `~/.agentgazer/config.json`。您可以在此設定持久化的預設值，而不需每次都傳遞 CLI 旗標。
+
+### 可用設定
+
+```json
+{
+  "token": "your-auth-token",
+  "port": 18800,
+  "proxyPort": 4000,
+  "autoOpen": true,
+  "retentionDays": 30
+}
+```
+
+| 設定 | 類型 | 預設值 | 說明 |
+|------|------|--------|------|
+| `token` | string | (自動產生) | 認證 Token（首次執行時自動產生）|
+| `port` | number | `18800` | 儀表板/伺服器連接埠 |
+| `proxyPort` | number | `4000` | LLM Proxy 連接埠 |
+| `autoOpen` | boolean | `true` | `agentgazer start` 時自動開啟瀏覽器 |
+| `retentionDays` | number | `30` | 資料保留天數 |
+
+### 優先順序
+
+CLI 旗標永遠優先於設定檔：
+
+```bash
+# 使用 config.json 中的 port（例如 9000）
+agentgazer start
+
+# 覆寫設定，使用 port 8080
+agentgazer start --port 8080
 ```

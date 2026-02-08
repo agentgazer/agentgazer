@@ -46,15 +46,16 @@ export interface Logger {
 }
 
 export function createLogger(component: string): Logger {
-  const minLevel = getMinLevel();
-  const json = isProduction();
-
   function log(
     level: LogLevel,
     message: string,
     extra?: Record<string, unknown>,
   ): void {
+    // Check level on each call so LOG_LEVEL changes take effect
+    const minLevel = getMinLevel();
     if (LEVEL_PRIORITY[level] < LEVEL_PRIORITY[minLevel]) return;
+
+    const json = isProduction();
 
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
