@@ -241,11 +241,15 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
         rate_limit?: { max_requests: number; window_seconds: number } | null;
       };
 
-      const settings = upsertProviderSettings(db, name, {
-        active,
-        rate_limit_max_requests: rate_limit?.max_requests ?? null,
-        rate_limit_window_seconds: rate_limit?.window_seconds ?? null,
-      });
+      // Only update rate_limit fields if rate_limit key is explicitly provided in the request
+      // This allows PATCH with just { active: true } without clearing rate_limit
+      const updateFields: Parameters<typeof upsertProviderSettings>[2] = { active };
+      if ("rate_limit" in req.body) {
+        updateFields.rate_limit_max_requests = rate_limit?.max_requests ?? null;
+        updateFields.rate_limit_window_seconds = rate_limit?.window_seconds ?? null;
+      }
+
+      const settings = upsertProviderSettings(db, name, updateFields);
 
       res.json({
         provider: name,
