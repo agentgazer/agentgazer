@@ -103,6 +103,22 @@ export default function ProviderDetailPage() {
     }
   }
 
+  async function handleToggleActive() {
+    if (!name) return;
+    const newActive = !active;
+    setActive(newActive); // Optimistic update
+    setSavingSettings(true);
+    try {
+      await providerApi.updateSettings(name, { active: newActive });
+      await loadData();
+    } catch (err) {
+      setActive(!newActive); // Revert on error
+      setError(String(err));
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
   async function handleTestConnection() {
     if (!name) return;
     setValidating(true);
@@ -234,13 +250,14 @@ export default function ProviderDetailPage() {
           <div className="flex items-center justify-between">
             <div>
               <label className="font-medium text-white">Active</label>
-              <p className="text-sm text-gray-400">Deactivated providers block all requests</p>
+              <p className="text-sm text-gray-400">Deactivated providers block all requests (takes ~5s to take effect)</p>
             </div>
             <button
-              onClick={() => setActive(!active)}
+              onClick={handleToggleActive}
+              disabled={savingSettings}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 active ? "bg-blue-600" : "bg-gray-600"
-              }`}
+              } ${savingSettings ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${

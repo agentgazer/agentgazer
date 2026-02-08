@@ -529,7 +529,7 @@ interface ProviderPolicyCache {
 }
 
 const providerPolicyCache: ProviderPolicyCache = {};
-const PROVIDER_POLICY_CACHE_TTL_MS = 30_000; // 30 seconds
+const PROVIDER_POLICY_CACHE_TTL_MS = 5_000; // 5 seconds (shorter for faster policy updates)
 
 // Provider-level rate limiter (separate from agent rate limiter)
 const providerRateLimiter = new RateLimiter();
