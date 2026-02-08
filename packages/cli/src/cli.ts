@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as net from "node:net";
 import * as os from "node:os";
@@ -101,6 +102,28 @@ async function findAvailablePort(startPort: number, maxAttempts: number = 10): P
     }
   }
   throw new Error(`No available port found in range ${startPort}-${startPort + maxAttempts - 1}`);
+}
+
+/**
+ * Find PIDs of processes listening on the given ports.
+ * Uses lsof on macOS/Linux. Returns empty array on error.
+ */
+function findPidsOnPorts(ports: number[]): number[] {
+  const pids: Set<number> = new Set();
+  for (const port of ports) {
+    try {
+      const result = execSync(`lsof -ti:${port} 2>/dev/null`, { encoding: "utf-8" });
+      for (const line of result.trim().split("\n")) {
+        const pid = parseInt(line.trim(), 10);
+        if (!isNaN(pid) && pid > 0) {
+          pids.add(pid);
+        }
+      }
+    } catch {
+      // No process on this port or lsof not available
+    }
+  }
+  return Array.from(pids);
 }
 
 // ---------------------------------------------------------------------------
@@ -980,10 +1003,33 @@ function cmdStop(): void {
   const proxyPort = config?.proxyPort ?? 18900;
 
   if (!fs.existsSync(pidFile)) {
-    console.log("AgentGazer is not running (no PID file found).");
-    console.log("");
-    console.log("If processes are still running, kill them manually:");
-    console.log(`  lsof -ti:${port} | xargs kill -9; lsof -ti:${proxyPort} | xargs kill -9`);
+    // No PID file, but check if processes are running on ports
+    const pidsOnPorts = findPidsOnPorts([port, proxyPort]);
+    if (pidsOnPorts.length > 0) {
+      console.log("AgentGazer PID file not found, but processes detected on ports.");
+      console.log(`Killing processes: ${pidsOnPorts.join(", ")}...`);
+      for (const pid of pidsOnPorts) {
+        try {
+          process.kill(pid, "SIGTERM");
+        } catch {
+          // Ignore errors
+        }
+      }
+      // Wait a bit and force kill if needed
+      setTimeout(() => {
+        for (const pid of pidsOnPorts) {
+          try {
+            process.kill(pid, 0);
+            process.kill(pid, "SIGKILL");
+          } catch {
+            // Already dead
+          }
+        }
+        console.log("AgentGazer stopped.");
+      }, 1000);
+      return;
+    }
+    console.log("AgentGazer is not running.");
     return;
   }
 
