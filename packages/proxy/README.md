@@ -14,7 +14,6 @@ Transparent HTTP proxy for LLM API calls. Forwards requests to upstream provider
 - Zhipu / GLM (`open.bigmodel.cn`)
 - MiniMax (`api.minimax.chat`)
 - Baichuan (`api.baichuan-ai.com`)
-- Yi / 01.AI (`api.lingyiwanwu.com`)
 
 ## How it works
 
@@ -81,7 +80,7 @@ When `providerKeys` is configured, the proxy injects the correct auth header per
 
 | Provider | Header |
 |----------|--------|
-| OpenAI, Mistral, Cohere, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan, Yi | `Authorization: Bearer <key>` |
+| OpenAI, Mistral, Cohere, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan | `Authorization: Bearer <key>` |
 | Anthropic | `x-api-key: <key>` |
 | Google | `x-goog-api-key: <key>` |
 

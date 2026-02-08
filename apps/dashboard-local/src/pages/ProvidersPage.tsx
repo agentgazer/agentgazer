@@ -17,7 +17,6 @@ const PROVIDER_ICONS: Record<string, string> = {
   moonshot: "m",
   zhipu: "Z",
   minimax: "X",
-  yi: "Y",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -30,7 +29,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   moonshot: "Moonshot (Kimi K2.5)",
   zhipu: "Zhipu / Z.ai (GLM-4.7)",
   minimax: "MiniMax (M2)",
-  yi: "Yi / 01.ai (Yi-Large)",
 };
 
 export default function ProvidersPage() {
@@ -227,7 +225,6 @@ function AddProviderModal({
     "moonshot",
     "zhipu",
     "minimax",
-    "yi",
   ];
 
   async function handleSubmit(e: React.FormEvent) {

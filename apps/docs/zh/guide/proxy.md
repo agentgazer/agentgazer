@@ -23,7 +23,6 @@ POST http://localhost:4000/agents/{agent-name}/{provider}
 | `moonshot` | Moonshot / Kimi Chat |
 | `zhipu` | 智譜 GLM Chat |
 | `minimax` | MiniMax Chat |
-| `yi` | Yi / 01.ai Chat |
 
 ### 範例：透過簡化路由使用 OpenAI
 

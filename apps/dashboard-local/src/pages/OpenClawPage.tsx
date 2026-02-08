@@ -38,7 +38,6 @@ const PROVIDER_API_MAP: Record<string, string> = {
   moonshot: "openai-completions",
   zhipu: "openai-completions",
   minimax: "openai-completions",
-  yi: "openai-completions",
 };
 
 function generateOpenclawConfig(

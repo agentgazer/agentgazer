@@ -102,7 +102,6 @@ The proxy auto-detects the provider from the request URL and forwards to the cor
 | Google | `generativelanguage.googleapis.com` | | Zhipu (智譜) | `open.bigmodel.cn` |
 | Mistral | `api.mistral.ai` | | MiniMax | `api.minimax.chat` |
 | Cohere | `api.cohere.com` | | Baichuan (百川) | `api.baichuan-ai.com` |
-| | | | Yi (零一) | `api.lingyiwanwu.com` |
 
 For providers that can't be auto-detected, set the `x-target-url` header:
 

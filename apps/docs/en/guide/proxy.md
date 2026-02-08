@@ -23,7 +23,6 @@ POST http://localhost:4000/agents/{agent-name}/{provider}
 | `moonshot` | Moonshot / Kimi Chat |
 | `zhipu` | Zhipu GLM Chat |
 | `minimax` | MiniMax Chat |
-| `yi` | Yi / 01.ai Chat |
 
 ### Example: OpenAI via Simplified Routing
 

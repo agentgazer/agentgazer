@@ -13,7 +13,6 @@ const KNOWN_PROVIDER_NAMES = [
   "moonshot",
   "zhipu",
   "minimax",
-  "yi",
 ] as const;
 
 interface RateLimit {
