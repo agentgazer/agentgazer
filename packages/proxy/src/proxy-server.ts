@@ -161,8 +161,8 @@ function normalizeRequestBody(
   let modified = false;
   const changes: string[] = [];
 
-  // Fields that only OpenAI supports
-  const openaiOnlyFields = ["store", "metadata", "parallel_tool_calls", "strict"];
+  // Fields that only OpenAI supports (top-level)
+  const openaiOnlyFields = ["store", "metadata", "parallel_tool_calls"];
 
   // max_completion_tokens -> max_tokens conversion for non-OpenAI providers
   if (provider !== "openai" && "max_completion_tokens" in result) {
@@ -183,6 +183,29 @@ function normalizeRequestBody(
         modified = true;
       }
     }
+
+    // Remove 'strict' from within tools array (OpenAI-specific nested field)
+    if (Array.isArray(result.tools)) {
+      let toolsModified = false;
+      for (const tool of result.tools as Array<Record<string, unknown>>) {
+        if (tool.function && typeof tool.function === "object") {
+          const fn = tool.function as Record<string, unknown>;
+          if ("strict" in fn) {
+            delete fn.strict;
+            toolsModified = true;
+          }
+        }
+        // Also check top-level strict on tool
+        if ("strict" in tool) {
+          delete tool.strict;
+          toolsModified = true;
+        }
+      }
+      if (toolsModified) {
+        changes.push("-tools[].strict");
+        modified = true;
+      }
+    }
   }
 
   // Provider-specific handling
@@ -199,15 +222,22 @@ function normalizeRequestBody(
       }
       break;
     case "cohere":
-      // Cohere has a different API structure entirely
-      // Remove OpenAI-specific fields that Cohere doesn't support
-      const cohereUnsupported = ["logprobs", "top_logprobs", "n", "user", "frequency_penalty", "presence_penalty", "strict"];
+      // Cohere uses different field names and doesn't support some OpenAI fields
+      // See: https://docs.cohere.com/reference/chat
+      const cohereUnsupported = ["top_logprobs", "n", "user"];
       for (const field of cohereUnsupported) {
         if (field in result) {
           delete result[field];
           changes.push(`-${field}`);
           modified = true;
         }
+      }
+      // top_p → p for Cohere
+      if ("top_p" in result && !("p" in result)) {
+        result.p = result.top_p;
+        delete result.top_p;
+        changes.push("top_p→p");
+        modified = true;
       }
       break;
   }
