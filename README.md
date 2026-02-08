@@ -35,7 +35,7 @@ This starts a local Express+SQLite server, an LLM proxy, and a web dashboard —
 
 AgentGazer has two ways to capture data:
 
-1. **LLM Proxy** (zero-code) — Point your LLM client's base URL at `http://localhost:4000`. The proxy forwards requests to the real provider, extracts usage metrics from responses (including SSE streams), and records them locally.
+1. **LLM Proxy** (zero-code) — Point your LLM client's base URL at `http://localhost:18900`. The proxy forwards requests to the real provider, extracts usage metrics from responses (including SSE streams), and records them locally.
 
 2. **SDK** (manual instrumentation) — Import `@agentgazer/sdk` into your agent code and call `track()` to record events with full control over what gets captured.
 
@@ -85,10 +85,10 @@ Configure in the Dashboard or via API.
 
 ```bash
 # Start AgentGazer
-npx agentgazer
+agentgazer start
 
-# Point your OpenAI client at the proxy
-export OPENAI_BASE_URL=http://localhost:4000/v1
+# Point your OpenAI client at the proxy (simplified routing)
+export OPENAI_BASE_URL=http://localhost:18900/agents/my-agent/openai
 
 # Use your LLM client as normal — calls are recorded automatically
 ```
@@ -103,14 +103,16 @@ The proxy auto-detects the provider from the request URL and forwards to the cor
 | Mistral | `api.mistral.ai` | | MiniMax | `api.minimax.chat` |
 | Cohere | `api.cohere.com` | | Baichuan (百川) | `api.baichuan-ai.com` |
 
-For providers that can't be auto-detected, set the `x-target-url` header:
+**Simplified Routing (Recommended):**
 
 ```bash
-curl http://localhost:4000/v1/chat/completions \
-  -H "x-target-url: https://api.openai.com" \
-  -H "Authorization: Bearer $OPENAI_API_KEY" \
+# Format: /agents/{agent-name}/{provider}
+curl http://localhost:18900/agents/my-agent/openai \
+  -H "Content-Type: application/json" \
   -d '{"model": "gpt-4o", "messages": [{"role": "user", "content": "hello"}]}'
 ```
+
+The proxy automatically injects the stored API key and handles provider-specific endpoints.
 
 ### Using the SDK
 
@@ -124,7 +126,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 const at = AgentGazer.init({
   apiKey: "your-token",        // from ~/.agentgazer/config.json
   agentId: "my-agent",
-  endpoint: "http://localhost:8080/api/events",
+  endpoint: "http://localhost:18800/api/events",
 });
 
 // Track an LLM call
@@ -162,18 +164,31 @@ at.track({
 await at.shutdown();
 ```
 
-## CLI options
+## CLI commands
+
+```bash
+agentgazer onboard          # Initial setup wizard
+agentgazer start            # Start server, proxy, and dashboard
+agentgazer start -v         # Start with verbose logging (debug mode)
+agentgazer stop             # Stop all services
+agentgazer status           # Check if services are running
+agentgazer doctor           # Diagnose common issues
+agentgazer providers        # List configured providers
+agentgazer provider set <name> <key>  # Add provider API key
+agentgazer uninstall        # Remove AgentGazer
+```
+
+### Start options
 
 ```
-agentgazer [options]
+agentgazer start [options]
 
 Options:
-  --port <number>            Server/dashboard port (default: 8080)
-  --proxy-port <number>      LLM proxy port (default: 4000)
+  --port <number>            Server/dashboard port (default: 18800)
+  --proxy-port <number>      LLM proxy port (default: 18900)
   --retention-days <number>  Data retention period in days (default: 30)
   --no-open                  Don't auto-open browser
-  --reset-token              Generate a new auth token and exit
-  --help                     Show this help message
+  -v, --verbose              Enable debug logging
 ```
 
 ## API
@@ -292,25 +307,25 @@ export SMTP_SECURE=false
 docker compose up -d
 ```
 
-This builds and runs AgentGazer with persistent storage. The dashboard is available at `http://localhost:8080` and the proxy at `http://localhost:4000`.
+This builds and runs AgentGazer with persistent storage. The dashboard is available at `http://localhost:18800` and the proxy at `http://localhost:18900`.
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────┐
-│                   npx agentgazer                 │
-│                                                  │
-│  ┌─────────────┐  ┌─────────────┐  ┌──────────┐ │
-│  │  Dashboard   │  │   Express   │  │  LLM     │ │
-│  │  (React)     │  │   Server    │  │  Proxy   │ │
-│  │  :8080       │  │   :8080/api │  │  :4000   │ │
-│  └──────┬───────┘  └──────┬──────┘  └────┬─────┘ │
-│         │                 │              │        │
-│         │          ┌──────┴──────┐       │        │
-│         └─────────►│   SQLite    │◄──────┘        │
+┌───────────────────────────────────────────────────┐
+│                  agentgazer start                  │
+│                                                    │
+│  ┌─────────────┐  ┌─────────────┐  ┌───────────┐  │
+│  │  Dashboard   │  │   Express   │  │   LLM     │  │
+│  │  (React)     │  │   Server    │  │   Proxy   │  │
+│  │  :18800      │  │  :18800/api │  │  :18900   │  │
+│  └──────┬───────┘  └──────┬──────┘  └─────┬─────┘  │
+│         │                 │               │        │
+│         │          ┌──────┴──────┐        │        │
+│         └─────────►│   SQLite    │◄───────┘        │
 │                    │  data.db    │                 │
 │                    └─────────────┘                 │
-└──────────────────────────────────────────────────┘
+└───────────────────────────────────────────────────┘
 ```
 
 ## Packages

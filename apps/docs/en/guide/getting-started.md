@@ -39,12 +39,20 @@ This creates `~/.agentgazer/config.json`, generates an auth token, and guides yo
 agentgazer start
 ```
 
-Opens the dashboard at [http://localhost:8080](http://localhost:8080).
+Opens the dashboard at [http://localhost:18800](http://localhost:18800).
 
 | Service | Port |
 |---------|------|
-| Server + Dashboard | 8080 |
-| LLM Proxy | 4000 |
+| Server + Dashboard | 18800 |
+| LLM Proxy | 18900 |
+
+### Verbose Mode
+
+For debugging, start with verbose logging:
+
+```bash
+agentgazer start -v
+```
 
 ## Verify
 

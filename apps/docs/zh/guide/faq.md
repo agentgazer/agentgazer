@@ -3,13 +3,13 @@
 ## 事件沒有出現在儀表板
 
 1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agentgazer/config.json` 中的一致
-2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:8080/api/events`
+2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:18800/api/events`
 3. **確認 Buffer 已 Flush**：事件可能還在 buffer 中。呼叫 `at.shutdown()` 強制送出，或等待 5 秒的自動 flush 週期
 4. **查看 console 警告**：SDK 的網路錯誤不會拋出例外，但會在 console 記錄 warning
 
 ## Proxy 無法偵測 Provider
 
-1. **使用路徑前綴路由**：這是最可靠的方式。例如將 base URL 設為 `http://localhost:4000/openai/v1`
+1. **使用路徑前綴路由**：這是最可靠的方式。例如將 base URL 設為 `http://localhost:18900/openai/v1`
 2. **使用 x-target-url**：在請求中加入 `x-target-url` header 明確指定目標
 3. **檢查 Provider 偵測順序**：路徑前綴 → Host header → 路徑模式 → x-target-url
 4. **查看 Proxy 日誌**：Proxy 會在 console 輸出偵測結果與警告訊息

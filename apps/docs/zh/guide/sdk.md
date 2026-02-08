@@ -14,7 +14,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 const at = AgentGazer.init({
   apiKey: "your-token",           // 必填：在 onboard 時產生的 Token
   agentId: "my-agent",            // 必填：此 Agent 的唯一識別碼
-  endpoint: "http://localhost:8080/api/events",  // 選填：預設指向本地伺服器
+  endpoint: "http://localhost:18800/api/events",  // 選填：預設指向本地伺服器
 });
 ```
 
@@ -115,7 +115,7 @@ import OpenAI from "openai";
 const at = AgentGazer.init({
   apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
-  endpoint: "http://localhost:8080/api/events",
+  endpoint: "http://localhost:18800/api/events",
 });
 
 const openai = new OpenAI();

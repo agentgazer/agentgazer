@@ -34,7 +34,7 @@ agentgazer start
 
 | 方式 | 說明 | 適合 |
 |------|------|------|
-| **Proxy** | 把 LLM client 指向 `localhost:4000`，零程式碼改動 | 既有專案、快速上手 |
+| **Proxy** | 把 LLM client 指向 `localhost:18900`，零程式碼改動 | 既有專案、快速上手 |
 | **SDK** | 在程式碼中手動呼叫 `track()` | 精細控制、自訂事件 |
 
 ```
@@ -43,12 +43,12 @@ agentgazer start
 │                                                             │
 │  ┌──────────┐    ┌─────────────────┐                        │
 │  │ AI Agent │───▶│ AgentGazer Proxy│───▶ LLM Provider       │
-│  └──────────┘    │    (:4000)      │     (OpenAI 等)        │
+│  └──────────┘    │    (:18900)      │     (OpenAI 等)        │
 │       │          └────────┬────────┘                        │
 │       │ SDK               │                                 │
 │       ▼                   ▼                                 │
 │  ┌─────────────────────────────────┐                        │
-│  │   Server (:8080) + Dashboard    │                        │
+│  │   Server (:18800) + Dashboard    │                        │
 │  │         SQLite DB               │                        │
 │  └─────────────────────────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
@@ -68,7 +68,7 @@ agentgazer providers set anthropic sk-ant-xxx
 ```typescript
 // 程式碼中不需要 API Key — Proxy 自動注入
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",  // 會被儲存的金鑰取代
 });
 ```

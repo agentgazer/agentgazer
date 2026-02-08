@@ -39,12 +39,20 @@ agentgazer onboard
 agentgazer start
 ```
 
-自動開啟儀表板 [http://localhost:8080](http://localhost:8080)。
+自動開啟儀表板 [http://localhost:18800](http://localhost:18800)。
 
 | 服務 | 連接埠 |
 |------|--------|
-| 伺服器 + 儀表板 | 8080 |
-| LLM Proxy | 4000 |
+| 伺服器 + 儀表板 | 18800 |
+| LLM Proxy | 18900 |
+
+### 除錯模式
+
+啟動時加上 `-v` 可開啟詳細日誌：
+
+```bash
+agentgazer start -v
+```
 
 ## 驗證
 

@@ -7,7 +7,7 @@ The Proxy is a local HTTP proxy that transparently intercepts your AI Agent's re
 The simplest way to use the Proxy is with **simplified routing**. You only need to specify the agent name and provider — the Proxy handles all endpoint path construction internally:
 
 ```
-POST http://localhost:4000/agents/{agent-name}/{provider}
+POST http://localhost:18900/agents/{agent-name}/{provider}
 ```
 
 ### Supported Providers
@@ -30,7 +30,7 @@ POST http://localhost:4000/agents/{agent-name}/{provider}
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/agents/my-bot/openai",
+  baseURL: "http://localhost:18900/agents/my-bot/openai",
   apiKey: "dummy",  // Will be replaced by stored key
 });
 
@@ -46,7 +46,7 @@ const response = await openai.chat.completions.create({
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/agents/my-bot/anthropic",
+  baseURL: "http://localhost:18900/agents/my-bot/anthropic",
   apiKey: "dummy",  // Will be replaced by stored key
 });
 
@@ -83,14 +83,14 @@ The Proxy supports path prefix routing, which automatically forwards requests to
 If you've stored your API Key with `agentgazer providers set openai <key>`, use the path prefix for automatic injection:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:4000/openai/v1
+export OPENAI_BASE_URL=http://localhost:18900/openai/v1
 ```
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",  // Any value — will be overwritten by Proxy
 });
 ```
@@ -103,7 +103,7 @@ If you want to use your own API Key (not the stored one):
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/v1",
+  baseURL: "http://localhost:18900/v1",
   apiKey: process.env.OPENAI_API_KEY,  // Must provide your own
 });
 ```
@@ -118,7 +118,7 @@ Use the `/anthropic` path prefix — the Proxy will automatically inject the sto
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/anthropic",
+  baseURL: "http://localhost:18900/anthropic",
   apiKey: "dummy",  // Any value — will be overwritten by Proxy
 });
 
@@ -140,7 +140,7 @@ The Proxy supports multiple ways to identify which agent is making a request.
 Include the agent ID in the URL path using `/agents/{agent-id}/`:
 
 ```
-http://localhost:4000/agents/my-bot/openai/v1/chat/completions
+http://localhost:18900/agents/my-bot/openai/v1/chat/completions
                       └─────────┘└────────────────────────────┘
                        Agent ID      Provider path
 ```
@@ -149,7 +149,7 @@ Example with OpenAI SDK:
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/agents/coding-assistant/openai/v1",
+  baseURL: "http://localhost:18900/agents/coding-assistant/openai/v1",
   apiKey: "dummy",
 });
 ```
@@ -165,7 +165,7 @@ Use the `x-agent-id` header to identify the agent:
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",
   defaultHeaders: {
     "x-agent-id": "my-agent-name",
@@ -192,7 +192,7 @@ When the Proxy receives a request for an agent that doesn't exist, it automatica
 If path prefix routing does not meet your needs, you can use the `x-target-url` header to explicitly specify the target:
 
 ```bash
-curl http://localhost:4000/v1/chat/completions \
+curl http://localhost:18900/v1/chat/completions \
   -H "x-target-url: https://api.openai.com" \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
@@ -345,7 +345,7 @@ The Proxy supports both streaming (SSE, Server-Sent Events) and non-streaming re
 ## Health Check
 
 ```bash
-curl http://localhost:4000/health
+curl http://localhost:18900/health
 ```
 
 Response:

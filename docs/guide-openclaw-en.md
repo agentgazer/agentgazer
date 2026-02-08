@@ -90,8 +90,8 @@ npx agentgazer
 Once started, the terminal will display the following information:
 
 ```
-AgentGazer server running on http://localhost:8080
-AgentGazer proxy running on http://localhost:4000
+AgentGazer server running on http://localhost:18800
+AgentGazer proxy running on http://localhost:18900
 Auth token: at_xxxxxxxxxxxxxxxx
 ```
 
@@ -106,7 +106,7 @@ Make note of the displayed **Auth Token** — you will need it later when config
 
 ### Opening the Dashboard
 
-Navigate to [http://localhost:8080](http://localhost:8080) in your browser to access the AgentGazer real-time monitoring dashboard.
+Navigate to [http://localhost:18800](http://localhost:18800) in your browser to access the AgentGazer real-time monitoring dashboard.
 
 ---
 
@@ -124,7 +124,7 @@ The following diagram illustrates the complete data flow of OpenClaw connecting 
 │  │               │     │                  │                 │
 │  │  openclaw.json:│     │  Auto-captures:  │                 │
 │  │  baseUrl →     │     │  - tokens        │                 │
-│  │  localhost:4000│     │  - cost          │                 │
+│  │  localhost:18900│     │  - cost          │                 │
 │  └───────────────┘     │  - latency       │                 │
 │                        └────────┬─────────┘                 │
 │                                 │                           │
@@ -145,7 +145,7 @@ The following diagram illustrates the complete data flow of OpenClaw connecting 
 
 ### Data Flow
 
-1. OpenClaw sends LLM requests to `http://localhost:4000` (AgentGazer Proxy)
+1. OpenClaw sends LLM requests to `http://localhost:18900` (AgentGazer Proxy)
 2. The proxy transparently forwards requests to the actual LLM provider (e.g., `api.anthropic.com`)
 3. Upon receiving the provider's response, the proxy first returns the complete response to OpenClaw
 4. The proxy asynchronously parses the response, extracting metrics such as token usage, model name, latency, and cost
@@ -158,7 +158,7 @@ The following diagram illustrates the complete data flow of OpenClaw connecting 
 
 ## 5. Configuring Provider Keys
 
-The AgentGazer Proxy can automatically inject API keys on your behalf. To enable key injection, you must use **path prefix routing** — include the provider name in the `baseUrl` (e.g., `http://localhost:4000/anthropic`). This allows the proxy to securely identify the provider and inject the correct credentials.
+The AgentGazer Proxy can automatically inject API keys on your behalf. To enable key injection, you must use **path prefix routing** — include the provider name in the `baseUrl` (e.g., `http://localhost:18900/anthropic`). This allows the proxy to securely identify the provider and inject the correct credentials.
 
 ### Storing API Keys in AgentGazer
 
@@ -174,14 +174,14 @@ agentgazer providers set openai $OPENAI_API_KEY
 
 | baseUrl | Provider | Injected Header |
 |---------|----------|-----------------|
-| `http://localhost:4000/anthropic` | Anthropic | `x-api-key: <key>` |
-| `http://localhost:4000/openai` | OpenAI | `Authorization: Bearer <key>` |
+| `http://localhost:18900/anthropic` | Anthropic | `x-api-key: <key>` |
+| `http://localhost:18900/openai` | OpenAI | `Authorization: Bearer <key>` |
 
 When you use path prefix routing (e.g., `/anthropic/...`), the proxy strips the prefix, forwards the request to the real provider URL, and injects the stored API key automatically.
 
 This means you can **omit the `apiKey` field** in your OpenClaw configuration and let the proxy manage all provider keys centrally.
 
-> **Important**: Key injection only works with path prefix routing. If your `baseUrl` is `http://localhost:4000` (no prefix), the proxy can still collect metrics but will **not** inject API keys — in that case, you must include `apiKey` in `openclaw.json` so OpenClaw can authenticate directly.
+> **Important**: Key injection only works with path prefix routing. If your `baseUrl` is `http://localhost:18900` (no prefix), the proxy can still collect metrics but will **not** inject API keys — in that case, you must include `apiKey` in `openclaw.json` so OpenClaw can authenticate directly.
 
 > **Note**: If you choose to specify `apiKey` directly in `openclaw.json`, that key will be attached to the request by OpenClaw, and the proxy will forward it as-is without overriding it.
 
@@ -197,7 +197,7 @@ Edit `~/.openclaw/openclaw.json` and point the Anthropic provider's `baseUrl` to
     "mode": "merge",
     "providers": {
       "anthropic-traced": {
-        "baseUrl": "http://localhost:4000/anthropic",
+        "baseUrl": "http://localhost:18900/anthropic",
         "apiKey": "${ANTHROPIC_API_KEY}",
         "api": "anthropic-messages"
       }
@@ -217,7 +217,7 @@ Edit `~/.openclaw/openclaw.json` and point the Anthropic provider's `baseUrl` to
 
 | Field | Description |
 |-------|-------------|
-| `baseUrl` | Points to the AgentGazer Proxy with the provider path prefix (`http://localhost:4000/anthropic`). The proxy strips the `/anthropic` prefix and forwards to `api.anthropic.com` |
+| `baseUrl` | Points to the AgentGazer Proxy with the provider path prefix (`http://localhost:18900/anthropic`). The proxy strips the `/anthropic` prefix and forwards to `api.anthropic.com` |
 | `apiKey` | Anthropic API key. Can be omitted if already stored via `agentgazer providers set` (requires path prefix in `baseUrl`) |
 | `api` | Specifies the API protocol as `anthropic-messages`, enabling the proxy to correctly detect the provider |
 | `primary` | The model to use, in the format `<provider-name>/<model-name>` |
@@ -232,7 +232,7 @@ If you have already stored the key via `agentgazer providers set anthropic`:
     "mode": "merge",
     "providers": {
       "anthropic-traced": {
-        "baseUrl": "http://localhost:4000/anthropic",
+        "baseUrl": "http://localhost:18900/anthropic",
         "api": "anthropic-messages"
       }
     }
@@ -269,7 +269,7 @@ Edit `~/.openclaw/openclaw.json` and point the OpenAI provider's `baseUrl` to th
     "mode": "merge",
     "providers": {
       "openai-traced": {
-        "baseUrl": "http://localhost:4000/openai",
+        "baseUrl": "http://localhost:18900/openai",
         "apiKey": "${OPENAI_API_KEY}",
         "api": "openai-completions"
       }
@@ -289,7 +289,7 @@ Edit `~/.openclaw/openclaw.json` and point the OpenAI provider's `baseUrl` to th
 
 | Field | Description |
 |-------|-------------|
-| `baseUrl` | Points to the AgentGazer Proxy with the provider path prefix (`http://localhost:4000/openai`). The proxy strips the `/openai` prefix and forwards to `api.openai.com` |
+| `baseUrl` | Points to the AgentGazer Proxy with the provider path prefix (`http://localhost:18900/openai`). The proxy strips the `/openai` prefix and forwards to `api.openai.com` |
 | `apiKey` | OpenAI API key. Can be omitted if already stored via `agentgazer providers set` (requires path prefix in `baseUrl`) |
 | `api` | Specifies the API protocol as `openai-completions`, enabling the proxy to correctly detect the provider |
 | `primary` | The model to use, in the format `<provider-name>/<model-name>` |
@@ -321,12 +321,12 @@ OpenClaw supports using multiple LLM providers simultaneously. The following con
     "mode": "merge",
     "providers": {
       "anthropic-traced": {
-        "baseUrl": "http://localhost:4000/anthropic",
+        "baseUrl": "http://localhost:18900/anthropic",
         "apiKey": "${ANTHROPIC_API_KEY}",
         "api": "anthropic-messages"
       },
       "openai-traced": {
-        "baseUrl": "http://localhost:4000/openai",
+        "baseUrl": "http://localhost:18900/openai",
         "apiKey": "${OPENAI_API_KEY}",
         "api": "openai-completions"
       }
@@ -406,7 +406,7 @@ For example, send the following to the OpenClaw bot in Discord:
 
 ### Step 4: Check the AgentGazer Dashboard
 
-1. Open [http://localhost:8080](http://localhost:8080) in your browser
+1. Open [http://localhost:18800](http://localhost:18800) in your browser
 2. Navigate to the **Agents** page — you should see a new agent entry appear
 3. Click on the agent to view its details page
 
@@ -430,7 +430,7 @@ If all metrics are displayed correctly, congratulations — the integration is c
 You can also check the proxy's operational status directly:
 
 ```bash
-curl http://localhost:4000/health
+curl http://localhost:18900/health
 ```
 
 Expected response:
@@ -455,7 +455,7 @@ When OpenClaw has not sent any LLM requests for an extended period, it may indic
 
 **Configuring via Dashboard:**
 
-1. Open the AgentGazer Dashboard (`http://localhost:8080`)
+1. Open the AgentGazer Dashboard (`http://localhost:18800`)
 2. Navigate to the **Alerts** page
 3. Click **New Alert Rule**
 4. Select the target agent: `openclaw`
@@ -467,7 +467,7 @@ When OpenClaw has not sent any LLM requests for an extended period, it may indic
 **Configuring via API:**
 
 ```bash
-curl -X POST http://localhost:8080/api/alerts \
+curl -X POST http://localhost:18800/api/alerts \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -483,7 +483,7 @@ curl -X POST http://localhost:8080/api/alerts \
 Triggers an alert when the LLM API error rate exceeds a threshold. Common causes include expired API keys, rate limits, and provider service outages.
 
 ```bash
-curl -X POST http://localhost:8080/api/alerts \
+curl -X POST http://localhost:18800/api/alerts \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -506,7 +506,7 @@ curl -X POST http://localhost:8080/api/alerts \
 Set a daily spending cap to prevent runaway costs from OpenClaw's autonomous LLM calls.
 
 ```bash
-curl -X POST http://localhost:8080/api/alerts \
+curl -X POST http://localhost:18800/api/alerts \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -543,7 +543,7 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
 | Problem | Possible Cause | Solution |
 |---------|---------------|----------|
-| OpenClaw calls do not appear in Dashboard | Incorrect `baseUrl` in `openclaw.json` | Confirm `baseUrl` points to the Proxy's `:4000` with a provider path prefix (e.g., `http://localhost:4000/anthropic`), not the Server's `:8080`, and verify that AgentGazer is running |
+| OpenClaw calls do not appear in Dashboard | Incorrect `baseUrl` in `openclaw.json` | Confirm `baseUrl` points to the Proxy's `:4000` with a provider path prefix (e.g., `http://localhost:18900/anthropic`), not the Server's `:8080`, and verify that AgentGazer is running |
 | Provider not detected | Incorrect `api` protocol field | Use `"api": "anthropic-messages"` for Anthropic and `"api": "openai-completions"` for OpenAI |
 | LLM provider returns authentication error | API key not configured or not injected | Store the key via `agentgazer providers set` and ensure `baseUrl` uses a path prefix (e.g., `/anthropic`), or include the `apiKey` field directly in `openclaw.json` |
 | Connection refused | AgentGazer not started or incorrect port | Run `agentgazer doctor` to check service status and verify consistent port configuration |
@@ -558,7 +558,7 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
    ```bash
    # Check if the proxy is listening
-   curl http://localhost:4000/health
+   curl http://localhost:18900/health
    ```
 
    If a connection error is returned, restart AgentGazer:
@@ -574,7 +574,7 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
    cat ~/.openclaw/openclaw.json | grep baseUrl
    ```
 
-   The output should contain `http://localhost:4000`, not `http://localhost:8080` or any other address.
+   The output should contain `http://localhost:18900`, not `http://localhost:18800` or any other address.
 
 3. **Confirm OpenClaw has been restarted**: Configuration changes require restarting OpenClaw to take effect.
 
@@ -591,7 +591,7 @@ For typical OpenClaw usage scenarios, the following alert configuration combinat
 
    ```bash
    # Send a test request directly through the proxy (OpenAI example)
-   curl http://localhost:4000/v1/chat/completions \
+   curl http://localhost:18900/v1/chat/completions \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer $OPENAI_API_KEY" \
      -d '{
@@ -661,7 +661,7 @@ Complete the following steps in order for a quick integration:
 - [ ] Install AgentGazer (`npm install -g agentgazer` or use `npx`)
 - [ ] Start AgentGazer (`npx agentgazer`)
 - [ ] Store provider keys (`agentgazer providers set anthropic <key>`)
-- [ ] Edit `~/.openclaw/openclaw.json` and set `baseUrl` to `http://localhost:4000/<provider>` (e.g., `http://localhost:4000/anthropic`)
+- [ ] Edit `~/.openclaw/openclaw.json` and set `baseUrl` to `http://localhost:18900/<provider>` (e.g., `http://localhost:18900/anthropic`)
 - [ ] Restart the OpenClaw Gateway
 - [ ] Send a test message and confirm events appear in the Dashboard
 - [ ] Set up an Agent Down alert (recommended: 10 minutes)

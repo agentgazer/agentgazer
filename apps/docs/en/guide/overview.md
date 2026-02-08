@@ -34,7 +34,7 @@ Two ways to capture data:
 
 | Method | Description | Best For |
 |--------|-------------|----------|
-| **Proxy** | Point your LLM client at `localhost:4000`. Zero code changes. | Existing codebases, quick setup |
+| **Proxy** | Point your LLM client at `localhost:18900`. Zero code changes. | Existing codebases, quick setup |
 | **SDK** | Call `track()` manually in your code. | Fine-grained control, custom events |
 
 ```
@@ -43,12 +43,12 @@ Two ways to capture data:
 │                                                             │
 │  ┌──────────┐    ┌─────────────────┐                        │
 │  │ AI Agent │───▶│ AgentGazer Proxy│───▶ LLM Provider       │
-│  └──────────┘    │    (:4000)      │     (OpenAI, etc.)     │
+│  └──────────┘    │    (:18900)      │     (OpenAI, etc.)     │
 │       │          └────────┬────────┘                        │
 │       │ SDK               │                                 │
 │       ▼                   ▼                                 │
 │  ┌─────────────────────────────────┐                        │
-│  │   Server (:8080) + Dashboard    │                        │
+│  │   Server (:18800) + Dashboard    │                        │
 │  │         SQLite DB               │                        │
 │  └─────────────────────────────────┘                        │
 └─────────────────────────────────────────────────────────────┘
@@ -68,7 +68,7 @@ Keys are encrypted locally (AES-256-GCM) and never leave your machine. When you 
 ```typescript
 // No API key needed in code — Proxy injects it automatically
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",  // Will be replaced by stored key
 });
 ```

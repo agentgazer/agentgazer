@@ -54,7 +54,7 @@ const { server, shutdown } = startProxy({
   port: 4000,
   apiKey: "your-token",
   agentId: "proxy",
-  endpoint: "http://localhost:8080/api/events",
+  endpoint: "http://localhost:18800/api/events",
   providerKeys: {
     openai: "sk-...",
     anthropic: "sk-ant-...",
@@ -70,7 +70,7 @@ await shutdown();
 
 ### Provider detection
 
-The proxy auto-detects the target provider from the `Host` header. Set your LLM client's base URL to `http://localhost:4000` and the proxy handles routing.
+The proxy auto-detects the target provider from the `Host` header. Set your LLM client's base URL to `http://localhost:18900` and the proxy handles routing.
 
 If auto-detection fails, set the `x-target-url` header to specify the upstream base URL explicitly.
 
@@ -93,7 +93,7 @@ When `rateLimits` is configured, the proxy enforces a sliding-window rate limit 
 ### Health check
 
 ```
-GET http://localhost:4000/health
+GET http://localhost:18900/health
 ```
 
 ## Options

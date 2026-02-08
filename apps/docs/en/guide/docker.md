@@ -14,7 +14,7 @@ docker run -d \
   ghcr.io/agentgazer/agentgazer
 ```
 
-Then open http://localhost:8080 in your browser.
+Then open http://localhost:18800 in your browser.
 
 ## Using Docker Compose
 

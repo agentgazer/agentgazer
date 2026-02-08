@@ -182,7 +182,7 @@ agentgazer start
 After startup, a browser window automatically opens to the dashboard:
 
 ```
-http://localhost:8080
+http://localhost:18800
 ```
 
 Default ports:
@@ -198,10 +198,10 @@ After startup, use the following methods to verify the system is running properl
 
 ```bash
 # Check server health
-curl http://localhost:8080/api/health
+curl http://localhost:18800/api/health
 
 # Check Proxy health
-curl http://localhost:4000/health
+curl http://localhost:18900/health
 
 # Use the built-in diagnostic tool
 agentgazer doctor
@@ -335,14 +335,14 @@ The Proxy supports path prefix routing, which automatically forwards requests to
 If you've stored your API Key with `agentgazer providers set openai <key>`, use the path prefix for automatic injection:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:4000/openai/v1
+export OPENAI_BASE_URL=http://localhost:18900/openai/v1
 ```
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",  // Any value — will be overwritten by Proxy
 });
 ```
@@ -355,7 +355,7 @@ If you want to use your own API Key (not the stored one):
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/v1",
+  baseURL: "http://localhost:18900/v1",
   apiKey: process.env.OPENAI_API_KEY,  // Must provide your own
 });
 ```
@@ -370,7 +370,7 @@ Use the `/anthropic` path prefix — the Proxy will automatically inject the sto
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/anthropic",
+  baseURL: "http://localhost:18900/anthropic",
   apiKey: "dummy",  // Any value — will be overwritten by Proxy
 });
 
@@ -389,7 +389,7 @@ When multiple agents share the same Proxy, use the `x-agent-id` header to attrib
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",
   defaultHeaders: {
     "x-agent-id": "my-agent-name",
@@ -404,7 +404,7 @@ Without this header, all requests use the Proxy's default agent ID (set via `--a
 If path prefix routing does not meet your needs, you can use the `x-target-url` header to explicitly specify the target:
 
 ```bash
-curl http://localhost:4000/v1/chat/completions \
+curl http://localhost:18900/v1/chat/completions \
   -H "x-target-url: https://api.openai.com" \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
@@ -427,7 +427,7 @@ The Proxy supports both streaming (SSE, Server-Sent Events) and non-streaming re
 ### 5.6 Health Check
 
 ```bash
-curl http://localhost:4000/health
+curl http://localhost:18900/health
 ```
 
 Response:
@@ -470,7 +470,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 const at = AgentGazer.init({
   apiKey: "your-token",           // Required: Token generated during onboard
   agentId: "my-agent",            // Required: Unique identifier for this Agent
-  endpoint: "http://localhost:8080/api/events",  // Optional: Defaults to local server
+  endpoint: "http://localhost:18800/api/events",  // Optional: Defaults to local server
 });
 ```
 
@@ -570,7 +570,7 @@ import OpenAI from "openai";
 const at = AgentGazer.init({
   apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
-  endpoint: "http://localhost:8080/api/events",
+  endpoint: "http://localhost:18800/api/events",
 });
 
 const openai = new OpenAI();
@@ -1042,13 +1042,13 @@ export SMTP_SECURE=false
 ### Events are not appearing in the dashboard
 
 1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agentgazer/config.json`
-2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:8080/api/events`
+2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:18800/api/events`
 3. **Ensure the buffer has been flushed**: Events may still be in the buffer. Call `at.shutdown()` to force a flush, or wait for the 5-second auto-flush cycle
 4. **Check console warnings**: SDK network errors do not throw exceptions but are logged as warnings in the console
 
 ### Proxy cannot detect the Provider
 
-1. **Use path prefix routing**: This is the most reliable method. For example, set the base URL to `http://localhost:4000/openai/v1`
+1. **Use path prefix routing**: This is the most reliable method. For example, set the base URL to `http://localhost:18900/openai/v1`
 2. **Use x-target-url**: Add the `x-target-url` header to explicitly specify the target
 3. **Check the Provider detection order**: Path prefix -> Host header -> Path pattern -> x-target-url
 4. **Check the Proxy logs**: The Proxy outputs detection results and warnings to the console
@@ -1104,8 +1104,8 @@ agentgazer start
 - [ ] Note down the authentication Token
 - [ ] Use `agentgazer providers set` to configure LLM Provider API keys
 - [ ] Run `agentgazer start` to launch all services
-- [ ] Open `http://localhost:8080` in a browser to log into the dashboard
-- [ ] Configure the Proxy in your AI Agent (point the base URL to `http://localhost:4000`) or integrate the SDK
+- [ ] Open `http://localhost:18800` in a browser to log into the dashboard
+- [ ] Configure the Proxy in your AI Agent (point the base URL to `http://localhost:18900`) or integrate the SDK
 - [ ] Verify that event data appears correctly in the dashboard
 - [ ] Set up alert rules (agent_down / error_rate / budget)
 - [ ] Run `agentgazer doctor` to confirm system health

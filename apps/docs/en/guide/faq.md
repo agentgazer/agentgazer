@@ -3,13 +3,13 @@
 ## Events are not appearing in the dashboard
 
 1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agentgazer/config.json`
-2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:8080/api/events`
+2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:18800/api/events`
 3. **Ensure the buffer has been flushed**: Events may still be in the buffer. Call `at.shutdown()` to force a flush, or wait for the 5-second auto-flush cycle
 4. **Check console warnings**: SDK network errors do not throw exceptions but are logged as warnings in the console
 
 ## Proxy cannot detect the Provider
 
-1. **Use path prefix routing**: This is the most reliable method. For example, set the base URL to `http://localhost:4000/openai/v1`
+1. **Use path prefix routing**: This is the most reliable method. For example, set the base URL to `http://localhost:18900/openai/v1`
 2. **Use x-target-url**: Add the `x-target-url` header to explicitly specify the target
 3. **Check the Provider detection order**: Path prefix -> Host header -> Path pattern -> x-target-url
 4. **Check the Proxy logs**: The Proxy outputs detection results and warnings to the console

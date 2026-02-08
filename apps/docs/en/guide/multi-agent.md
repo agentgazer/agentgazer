@@ -17,13 +17,13 @@ Include the agent ID in the URL path:
 ```typescript
 // Coding assistant
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/agents/coding-assistant/openai/v1",
+  baseURL: "http://localhost:18900/agents/coding-assistant/openai/v1",
   apiKey: "dummy",
 });
 
 // Research assistant
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/agents/research-assistant/anthropic",
+  baseURL: "http://localhost:18900/agents/research-assistant/anthropic",
   apiKey: "dummy",
 });
 ```
@@ -39,7 +39,7 @@ Add the `x-agent-id` header to each request to identify which agent made it:
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",
   defaultHeaders: {
     "x-agent-id": "coding-assistant",
@@ -57,7 +57,7 @@ Each agent uses a different `x-agent-id` value. The Proxy routes all requests to
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",
   defaultHeaders: {
     "x-agent-id": "coding-assistant",
@@ -77,7 +77,7 @@ await openai.chat.completions.create({
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/anthropic",
+  baseURL: "http://localhost:18900/anthropic",
   apiKey: "dummy",
   defaultHeaders: {
     "x-agent-id": "research-assistant",
@@ -111,7 +111,7 @@ With this setup, the AgentGazer Dashboard shows:
 ## Using with curl
 
 ```bash
-curl http://localhost:4000/openai/v1/chat/completions \
+curl http://localhost:18900/openai/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "x-agent-id: my-custom-agent" \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'
@@ -123,7 +123,7 @@ curl http://localhost:4000/openai/v1/chat/completions \
 import openai
 
 client = openai.OpenAI(
-    base_url="http://localhost:4000/openai/v1",
+    base_url="http://localhost:18900/openai/v1",
     api_key="dummy",
     default_headers={
         "x-agent-id": "python-agent",

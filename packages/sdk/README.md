@@ -16,7 +16,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 const at = AgentGazer.init({
   apiKey: "your-token",
   agentId: "my-agent",
-  endpoint: "http://localhost:8080/api/events",
+  endpoint: "http://localhost:18800/api/events",
 });
 
 // Track an LLM call

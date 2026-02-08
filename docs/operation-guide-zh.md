@@ -182,7 +182,7 @@ agentgazer start
 啟動後會自動開啟瀏覽器，前往儀表板：
 
 ```
-http://localhost:8080
+http://localhost:18800
 ```
 
 預設連接埠：
@@ -198,10 +198,10 @@ http://localhost:8080
 
 ```bash
 # 檢查伺服器健康狀態
-curl http://localhost:8080/api/health
+curl http://localhost:18800/api/health
 
 # 檢查 Proxy 健康狀態
-curl http://localhost:4000/health
+curl http://localhost:18900/health
 
 # 使用內建診斷工具
 agentgazer doctor
@@ -335,14 +335,14 @@ Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 如果你已經用 `agentgazer providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:4000/openai/v1
+export OPENAI_BASE_URL=http://localhost:18900/openai/v1
 ```
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",  // 任意值，會被 Proxy 覆蓋
 });
 ```
@@ -355,7 +355,7 @@ const openai = new OpenAI({
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/v1",
+  baseURL: "http://localhost:18900/v1",
   apiKey: process.env.OPENAI_API_KEY,  // 必須自己提供
 });
 ```
@@ -370,7 +370,7 @@ Proxy 會從路徑 `/v1/chat/completions` 偵測到是 OpenAI 請求並透傳你
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/anthropic",
+  baseURL: "http://localhost:18900/anthropic",
   apiKey: "dummy",  // 任意值，會被 Proxy 覆蓋
 });
 
@@ -389,7 +389,7 @@ const message = await anthropic.messages.create({
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",
   defaultHeaders: {
     "x-agent-id": "my-agent-name",
@@ -404,7 +404,7 @@ const openai = new OpenAI({
 若路徑前綴路由無法滿足需求，可使用 `x-target-url` header 明確指定目標：
 
 ```bash
-curl http://localhost:4000/v1/chat/completions \
+curl http://localhost:18900/v1/chat/completions \
   -H "x-target-url: https://api.openai.com" \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
@@ -427,7 +427,7 @@ Proxy 同時支援串流（SSE, Server-Sent Events）與非串流回應。串流
 ### 5.6 健康檢查
 
 ```bash
-curl http://localhost:4000/health
+curl http://localhost:18900/health
 ```
 
 回傳：
@@ -470,7 +470,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 const at = AgentGazer.init({
   apiKey: "your-token",           // 必填：在 onboard 時產生的 Token
   agentId: "my-agent",            // 必填：此 Agent 的唯一識別碼
-  endpoint: "http://localhost:8080/api/events",  // 選填：預設指向本地伺服器
+  endpoint: "http://localhost:18800/api/events",  // 選填：預設指向本地伺服器
 });
 ```
 
@@ -570,7 +570,7 @@ import OpenAI from "openai";
 const at = AgentGazer.init({
   apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
-  endpoint: "http://localhost:8080/api/events",
+  endpoint: "http://localhost:18800/api/events",
 });
 
 const openai = new OpenAI();
@@ -1042,13 +1042,13 @@ export SMTP_SECURE=false
 ### 事件沒有出現在儀表板
 
 1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agentgazer/config.json` 中的一致
-2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:8080/api/events`
+2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:18800/api/events`
 3. **確認 Buffer 已 Flush**：事件可能還在 buffer 中。呼叫 `at.shutdown()` 強制送出，或等待 5 秒的自動 flush 週期
 4. **查看 console 警告**：SDK 的網路錯誤不會拋出例外，但會在 console 記錄 warning
 
 ### Proxy 無法偵測 Provider
 
-1. **使用路徑前綴路由**：這是最可靠的方式。例如將 base URL 設為 `http://localhost:4000/openai/v1`
+1. **使用路徑前綴路由**：這是最可靠的方式。例如將 base URL 設為 `http://localhost:18900/openai/v1`
 2. **使用 x-target-url**：在請求中加入 `x-target-url` header 明確指定目標
 3. **檢查 Provider 偵測順序**：路徑前綴 → Host header → 路徑模式 → x-target-url
 4. **查看 Proxy 日誌**：Proxy 會在 console 輸出偵測結果與警告訊息
@@ -1104,8 +1104,8 @@ agentgazer start
 - [ ] 記下認證 Token
 - [ ] 使用 `agentgazer providers set` 設定 LLM Provider API Key
 - [ ] 執行 `agentgazer start` 啟動所有服務
-- [ ] 在瀏覽器中開啟 `http://localhost:8080` 登入儀表板
-- [ ] 在 AI Agent 中設定 Proxy（將 base URL 指向 `http://localhost:4000`）或整合 SDK
+- [ ] 在瀏覽器中開啟 `http://localhost:18800` 登入儀表板
+- [ ] 在 AI Agent 中設定 Proxy（將 base URL 指向 `http://localhost:18900`）或整合 SDK
 - [ ] 確認事件資料正常出現在儀表板
 - [ ] 設定告警規則（agent_down / error_rate / budget）
 - [ ] 執行 `agentgazer doctor` 確認系統健康

@@ -7,7 +7,7 @@ Proxy 是一個本地 HTTP 代理，透明地攔截你的 AI Agent 對 LLM Provi
 使用 Proxy 最簡單的方式是**簡化路由**。你只需要指定 agent 名稱和 provider 名稱，Proxy 會自動處理所有端點路徑：
 
 ```
-POST http://localhost:4000/agents/{agent-name}/{provider}
+POST http://localhost:18900/agents/{agent-name}/{provider}
 ```
 
 ### 支援的 Provider
@@ -30,7 +30,7 @@ POST http://localhost:4000/agents/{agent-name}/{provider}
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/agents/my-bot/openai",
+  baseURL: "http://localhost:18900/agents/my-bot/openai",
   apiKey: "dummy",  // 會被儲存的金鑰取代
 });
 
@@ -46,7 +46,7 @@ const response = await openai.chat.completions.create({
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/agents/my-bot/anthropic",
+  baseURL: "http://localhost:18900/agents/my-bot/anthropic",
   apiKey: "dummy",  // 會被儲存的金鑰取代
 });
 
@@ -83,14 +83,14 @@ Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 如果你已經用 `agentgazer providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:4000/openai/v1
+export OPENAI_BASE_URL=http://localhost:18900/openai/v1
 ```
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",  // 任意值，會被 Proxy 覆蓋
 });
 ```
@@ -103,7 +103,7 @@ const openai = new OpenAI({
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/v1",
+  baseURL: "http://localhost:18900/v1",
   apiKey: process.env.OPENAI_API_KEY,  // 必須自己提供
 });
 ```
@@ -118,7 +118,7 @@ Proxy 會從路徑 `/v1/chat/completions` 偵測到是 OpenAI 請求並透傳你
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:4000/anthropic",
+  baseURL: "http://localhost:18900/anthropic",
   apiKey: "dummy",  // 任意值，會被 Proxy 覆蓋
 });
 
@@ -140,7 +140,7 @@ Proxy 支援多種方式識別發出請求的 Agent。
 在 URL 路徑中加入 agent ID，使用 `/agents/{agent-id}/` 格式：
 
 ```
-http://localhost:4000/agents/my-bot/openai/v1/chat/completions
+http://localhost:18900/agents/my-bot/openai/v1/chat/completions
                       └─────────┘└────────────────────────────┘
                        Agent ID      Provider 路徑
 ```
@@ -149,7 +149,7 @@ OpenAI SDK 範例：
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/agents/coding-assistant/openai/v1",
+  baseURL: "http://localhost:18900/agents/coding-assistant/openai/v1",
   apiKey: "dummy",
 });
 ```
@@ -165,7 +165,7 @@ const openai = new OpenAI({
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:4000/openai/v1",
+  baseURL: "http://localhost:18900/openai/v1",
   apiKey: "dummy",
   defaultHeaders: {
     "x-agent-id": "my-agent-name",
@@ -192,7 +192,7 @@ const openai = new OpenAI({
 若路徑前綴路由無法滿足需求，可使用 `x-target-url` header 明確指定目標：
 
 ```bash
-curl http://localhost:4000/v1/chat/completions \
+curl http://localhost:18900/v1/chat/completions \
   -H "x-target-url: https://api.openai.com" \
   -H "Authorization: Bearer sk-xxx" \
   -H "Content-Type: application/json" \
@@ -345,7 +345,7 @@ Proxy 同時支援串流（SSE, Server-Sent Events）與非串流回應。串流
 ## 健康檢查
 
 ```bash
-curl http://localhost:4000/health
+curl http://localhost:18900/health
 ```
 
 回傳：
