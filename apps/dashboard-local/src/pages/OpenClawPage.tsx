@@ -44,7 +44,7 @@ const PROVIDER_API_MAP: Record<string, string> = {
 
 function generateOpenclawConfig(
   providers: ProviderInfo[],
-  proxyPort: number = 4000,
+  proxyPort: number = 18900,
   agentName: string = ""
 ): OpenclawModels {
   const configuredProviders = providers.filter((p) => p.configured && p.active);
@@ -85,7 +85,7 @@ export default function OpenClawPage() {
   const [error, setError] = useState<string | null>(null);
   const [configSuccess, setConfigSuccess] = useState(false);
   const [modelSuccess, setModelSuccess] = useState(false);
-  const [proxyPort] = useState(4000); // Could be made configurable
+  const [proxyPort] = useState(18900); // Could be made configurable
   const [agentName, setAgentName] = useState<string>("openclaw");
   const [primaryModel, setPrimaryModel] = useState<string>("");
   const [copied, setCopied] = useState(false);

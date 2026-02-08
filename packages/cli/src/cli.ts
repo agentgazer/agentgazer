@@ -147,7 +147,7 @@ Commands:
 
 Options (for start):
   --port <number>            Server/dashboard port (default: 18800, or config.port)
-  --proxy-port <number>      LLM proxy port (default: 4000, or config.proxyPort)
+  --proxy-port <number>      LLM proxy port (default: 18900, or config.proxyPort)
   --retention-days <number>  Data retention in days (default: 30, or config.retentionDays)
   --no-open                  Don't auto-open browser (or set config.autoOpen: false)
   -v, --verbose              Print verbose logs to console
@@ -208,7 +208,7 @@ async function cmdOnboard(): Promise<void> {
   Config:   ${getConfigDir()}/config.json
   Database: ${getDbPath()}
   Server:   http://localhost:18800
-  Proxy:    http://localhost:4000
+  Proxy:    http://localhost:18900
 
   ───────────────────────────────────────
 `);
@@ -274,7 +274,7 @@ async function cmdOnboard(): Promise<void> {
 
   Or point your LLM client at the proxy (with auto API key injection):
 
-    export OPENAI_BASE_URL=http://localhost:4000/openai/v1
+    export OPENAI_BASE_URL=http://localhost:18900/openai/v1
 
   Next: run "agentgazer start" to launch.
 `);
@@ -296,7 +296,7 @@ function cmdStatus(): void {
   Config:   ${getConfigDir()}/config.json
   Database: ${getDbPath()}
   Server:   http://localhost:18800 (default)
-  Proxy:    http://localhost:4000 (default)
+  Proxy:    http://localhost:18900 (default)
 `);
 }
 
@@ -353,7 +353,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     const config = ensureConfig();
     // Use config values as defaults for daemon mode display
     const serverPort = flags["port"] ? parseInt(flags["port"], 10) : (config.port ?? 18800);
-    const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : (config.proxyPort ?? 4000);
+    const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : (config.proxyPort ?? 18900);
 
     console.log(`
   ╔════════════════════════════════════════════════════╗
@@ -380,7 +380,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
   // Use config values as defaults, CLI flags override
   const defaultPort = config.port ?? 18800;
-  const defaultProxyPort = config.proxyPort ?? 4000;
+  const defaultProxyPort = config.proxyPort ?? 18900;
   const defaultRetentionDays = config.retentionDays ?? 30;
   const defaultAutoOpen = config.autoOpen ?? true;
 
@@ -583,7 +583,7 @@ async function cmdDoctor(flags: Record<string, string>): Promise<void> {
   const port = flags["port"] ? parseInt(flags["port"], 10) : 18800;
   const proxyPort = flags["proxy-port"]
     ? parseInt(flags["proxy-port"], 10)
-    : 4000;
+    : 18900;
 
   if (isNaN(port) || port < 1 || port > 65535) {
     console.error("Error: --port must be a valid port number (1-65535)");
@@ -977,7 +977,7 @@ function cmdStop(): void {
   const pidFile = path.join(configDir, "agentgazer.pid");
   const config = readConfig();
   const port = config?.port ?? 18800;
-  const proxyPort = config?.proxyPort ?? 4000;
+  const proxyPort = config?.proxyPort ?? 18900;
 
   if (!fs.existsSync(pidFile)) {
     console.log("AgentGazer is not running (no PID file found).");

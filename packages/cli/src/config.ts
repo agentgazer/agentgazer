@@ -23,7 +23,7 @@ export interface AgentGazerConfig {
   providers?: Record<string, ProviderConfig>;
   /** Dashboard port (default: 18800) */
   port?: number;
-  /** LLM proxy port (default: 4000) */
+  /** LLM proxy port (default: 18900) */
   proxyPort?: number;
   /** Auto-open browser on start (default: true) */
   autoOpen?: boolean;
