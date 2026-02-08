@@ -144,6 +144,82 @@ function sendJson(
 }
 
 // ---------------------------------------------------------------------------
+// Request body normalization — remove/transform unsupported fields per provider
+// ---------------------------------------------------------------------------
+
+/**
+ * Normalize request body for provider compatibility.
+ * Some providers don't support all OpenAI fields.
+ * Returns the modified body and a list of changes made.
+ */
+function normalizeRequestBody(
+  provider: ProviderName,
+  body: Record<string, unknown>,
+  log: ReturnType<typeof createLogger>,
+): { body: Record<string, unknown>; modified: boolean } {
+  const result = { ...body };
+  let modified = false;
+  const changes: string[] = [];
+
+  // Fields that only OpenAI supports
+  const openaiOnlyFields = ["store", "metadata", "parallel_tool_calls"];
+
+  // max_completion_tokens -> max_tokens conversion for non-OpenAI providers
+  if (provider !== "openai" && "max_completion_tokens" in result) {
+    if (!("max_tokens" in result)) {
+      result.max_tokens = result.max_completion_tokens;
+      changes.push(`max_completion_tokens→max_tokens`);
+    }
+    delete result.max_completion_tokens;
+    modified = true;
+  }
+
+  // Remove OpenAI-only fields for other providers
+  if (provider !== "openai") {
+    for (const field of openaiOnlyFields) {
+      if (field in result) {
+        delete result[field];
+        changes.push(`-${field}`);
+        modified = true;
+      }
+    }
+  }
+
+  // Provider-specific handling
+  switch (provider) {
+    case "mistral":
+      // Mistral doesn't support these additional fields
+      const mistralUnsupported = ["logprobs", "top_logprobs", "n", "user", "service_tier"];
+      for (const field of mistralUnsupported) {
+        if (field in result) {
+          delete result[field];
+          changes.push(`-${field}`);
+          modified = true;
+        }
+      }
+      break;
+    case "cohere":
+      // Cohere has a different API structure entirely
+      // For now, just remove common unsupported fields
+      const cohereUnsupported = ["logprobs", "top_logprobs", "n", "user", "frequency_penalty", "presence_penalty"];
+      for (const field of cohereUnsupported) {
+        if (field in result) {
+          delete result[field];
+          changes.push(`-${field}`);
+          modified = true;
+        }
+      }
+      break;
+  }
+
+  if (modified) {
+    log.debug(`[PROXY] Normalized request body: ${changes.join(", ")}`);
+  }
+
+  return { body: result, modified };
+}
+
+// ---------------------------------------------------------------------------
 // SSE streaming parsers — extract usage/model from provider-specific formats
 // ---------------------------------------------------------------------------
 
@@ -1089,22 +1165,36 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
-    // Model override
+    // Model override and request normalization
     let requestedModel: string | null = null;
     let modifiedRequestBody = requestBody;
     try {
-      const bodyJson = JSON.parse(requestBody.toString("utf-8"));
+      let bodyJson = JSON.parse(requestBody.toString("utf-8"));
+      let bodyModified = false;
+
+      // Extract and optionally override model
       if (bodyJson.model) {
         requestedModel = bodyJson.model;
         const modelOverride = getModelOverride(db, effectiveAgentId, provider);
         if (modelOverride) {
           log.info(`[PROXY] Model override: ${requestedModel} → ${modelOverride}`);
           bodyJson.model = modelOverride;
-          modifiedRequestBody = Buffer.from(JSON.stringify(bodyJson), "utf-8");
+          bodyModified = true;
         }
       }
+
+      // Normalize request body for provider compatibility
+      const normalized = normalizeRequestBody(provider, bodyJson, log);
+      if (normalized.modified) {
+        bodyJson = normalized.body;
+        bodyModified = true;
+      }
+
+      if (bodyModified) {
+        modifiedRequestBody = Buffer.from(JSON.stringify(bodyJson), "utf-8");
+      }
     } catch {
-      // Not JSON or no model field
+      // Not JSON or parse error - forward as-is
     }
 
     // Rate limiting check
