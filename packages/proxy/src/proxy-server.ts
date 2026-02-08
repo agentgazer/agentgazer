@@ -1166,6 +1166,15 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       log.warn(`[PROXY] No API key configured for provider: ${provider}`);
     }
 
+    // Debug logging for request details
+    log.debug(`[PROXY] Request headers: ${JSON.stringify(forwardHeaders)}`);
+    try {
+      const bodyPreview = modifiedRequestBody.toString("utf-8").slice(0, 2000);
+      log.debug(`[PROXY] Request body: ${bodyPreview}${modifiedRequestBody.length > 2000 ? "... (truncated)" : ""}`);
+    } catch {
+      log.debug(`[PROXY] Request body: (binary, ${modifiedRequestBody.length} bytes)`);
+    }
+
     const requestStart = Date.now();
     let providerResponse: Response;
 
@@ -1243,6 +1252,16 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         if (key.toLowerCase() === "transfer-encoding") return;
         responseHeaders[key] = value;
       });
+
+      // Debug log error responses
+      if (providerResponse.status >= 400) {
+        try {
+          const errorBody = responseBodyBuffer.toString("utf-8").slice(0, 2000);
+          log.debug(`[PROXY] Error response body: ${errorBody}${responseBodyBuffer.length > 2000 ? "... (truncated)" : ""}`);
+        } catch {
+          log.debug(`[PROXY] Error response body: (binary, ${responseBodyBuffer.length} bytes)`);
+        }
+      }
 
       res.writeHead(providerResponse.status, responseHeaders);
       res.end(responseBodyBuffer);
