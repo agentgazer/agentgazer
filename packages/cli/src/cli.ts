@@ -427,6 +427,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     endpoint: `http://localhost:${serverPort}/api/events`,
     providerKeys,
     db, // Rate limits are loaded from db
+    secretStore: store, // For hot-reloading provider keys
   });
 
   const modeLabel = verbose ? "running (verbose)" : "running";

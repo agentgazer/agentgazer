@@ -44,7 +44,7 @@ function requireLoopback(req: Request, res: Response, next: () => void): void {
   next();
 }
 
-const PROVIDER_SERVICE = "agentgazer.providers";
+const PROVIDER_SERVICE = "com.agentgazer.provider";
 
 export function createProvidersRouter(options: ProvidersRouterOptions): Router {
   const { db, secretStore } = options;

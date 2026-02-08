@@ -1,12 +1,7 @@
 import * as http from "node:http";
 import {
-  detectProvider,
-  detectProviderByHostname,
-  getProviderBaseUrl,
   getProviderChatEndpoint,
   getProviderAuthHeader,
-  parsePathPrefix,
-  parseAgentPath,
   parseProviderResponse,
   calculateCost,
   createLogger,
@@ -76,6 +71,12 @@ import { EventBuffer } from "./event-buffer.js";
 import { RateLimiter, type RateLimitConfig } from "./rate-limiter.js";
 import { loopDetector, type KillSwitchConfig } from "./loop-detector.js";
 
+/** SecretStore interface for loading provider API keys */
+export interface SecretStore {
+  get(service: string, account: string): Promise<string | null>;
+  list(service: string): Promise<string[]>;
+}
+
 export interface ProxyOptions {
   port?: number;
   apiKey: string;
@@ -88,6 +89,8 @@ export interface ProxyOptions {
   rateLimits?: Record<string, RateLimitConfig>;
   /** Optional database instance for policy enforcement and rate limits */
   db?: Database.Database;
+  /** Optional secret store for hot-reloading provider keys */
+  secretStore?: SecretStore;
 }
 
 export interface ProxyServer {
@@ -103,6 +106,8 @@ const MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_SSE_BUFFER_SIZE = 50 * 1024 * 1024; // 50 MB
 const UPSTREAM_TIMEOUT_MS = 120_000; // 2 minutes
 const RATE_LIMIT_REFRESH_INTERVAL_MS = 30_000; // 30 seconds
+const PROVIDER_KEYS_REFRESH_INTERVAL_MS = 10_000; // 10 seconds
+const PROVIDER_SERVICE = "com.agentgazer.provider";
 
 function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -689,8 +694,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   const endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
   const flushInterval = options.flushInterval ?? DEFAULT_FLUSH_INTERVAL;
   const maxBufferSize = options.maxBufferSize ?? DEFAULT_MAX_BUFFER_SIZE;
-  const providerKeys = options.providerKeys ?? {};
+  let providerKeys = options.providerKeys ?? {};
   const db = options.db;
+  const secretStore = options.secretStore;
 
   // Initialize rate limiter - prefer database, fall back to options for backward compatibility/testing
   let initialRateLimits: Record<string, RateLimitConfig> = {};
@@ -712,6 +718,27 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       rateLimiter.updateConfigs(configs);
     }, RATE_LIMIT_REFRESH_INTERVAL_MS);
     rateLimitRefreshTimer.unref();
+  }
+
+  // Set up periodic refresh of provider keys from secret store
+  let providerKeysRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  if (secretStore) {
+    providerKeysRefreshTimer = setInterval(async () => {
+      try {
+        const accounts = await secretStore.list(PROVIDER_SERVICE);
+        const newKeys: Record<string, string> = {};
+        for (const account of accounts) {
+          const value = await secretStore.get(PROVIDER_SERVICE, account);
+          if (value) {
+            newKeys[account] = value;
+          }
+        }
+        providerKeys = newKeys;
+      } catch (err) {
+        log.error("Failed to refresh provider keys", { err: String(err) });
+      }
+    }, PROVIDER_KEYS_REFRESH_INTERVAL_MS);
+    providerKeysRefreshTimer.unref();
   }
 
   const startTime = Date.now();
@@ -794,531 +821,36 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
-    // Agent identification priority: header > path (/agents/{id}/...) > default
-    let effectiveAgentId = req.headers["x-agent-id"] as string | undefined;
-    let workingPath = path;
+    // Legacy routing: /:provider/... -> treat as /agents/default/:provider
+    // This maintains backward compatibility with old SDK configurations
+    const legacyProviderMatch = path.match(/^\/([^/]+)/);
+    if (method === "POST" && legacyProviderMatch) {
+      const legacyProvider = legacyProviderMatch[1].toLowerCase() as ProviderName;
 
-    // Check for /agents/{id}/... path pattern if no header
-    if (!effectiveAgentId) {
-      const agentPathResult = parseAgentPath(path);
-      if (agentPathResult) {
-        effectiveAgentId = agentPathResult.agentId;
-        workingPath = agentPathResult.remainingPath;
-        log.info(`[PROXY] Agent ID from path: ${effectiveAgentId}`);
-      }
-    }
-
-    // Fall back to default agent ID
-    if (!effectiveAgentId) {
-      effectiveAgentId = agentId;
-    }
-
-    // Proxy logic: use x-target-url header if provided, otherwise auto-detect
-    // provider from the Host header or request path.
-    let targetBase = req.headers["x-target-url"] as string | undefined;
-
-    // Validate x-target-url to prevent SSRF
-    if (targetBase) {
-      try {
-        const parsed = new URL(targetBase);
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          sendJson(res, 400, { error: "x-target-url must use http or https protocol" });
+      if (KNOWN_PROVIDER_NAMES.includes(legacyProvider)) {
+        const chatEndpoint = getProviderChatEndpoint(legacyProvider);
+        if (chatEndpoint) {
+          log.info(`[PROXY] Legacy route /${legacyProvider}/... -> agents/default/${legacyProvider}`);
+          log.info(`[PROXY] Forwarding to: ${chatEndpoint}`);
+          await handleSimplifiedRoute(req, res, "default", legacyProvider, chatEndpoint);
           return;
         }
-      } catch {
-        sendJson(res, 400, { error: "x-target-url must be a valid URL" });
-        return;
       }
     }
 
-    // Path prefix routing: /{provider}/... -> provider base URL + remaining path
-    let pathPrefixProvider: ProviderName | null = null;
-    let effectivePath = workingPath;
-
-    log.info(`[PROXY] ${method} ${path} (working path: ${workingPath}, agent: ${effectiveAgentId})`);
-    log.info(`[PROXY] Headers: ${JSON.stringify(Object.fromEntries(Object.entries(req.headers).filter(([k]) => !k.toLowerCase().includes('key') && !k.toLowerCase().includes('auth'))))}`);
-
-    if (!targetBase) {
-      const prefixResult = parsePathPrefix(workingPath);
-      if (prefixResult) {
-        let baseUrl = getProviderBaseUrl(prefixResult.provider);
-
-        // Google: detect native Gemini API vs OpenAI-compatible
-        // Native: /models/{model}:generateContent, /models/{model}:streamGenerateContent
-        // OpenAI-compatible: /chat/completions, /embeddings
-        if (prefixResult.provider === "google" && baseUrl) {
-          const isNativeGemini = /:(generate|streamGenerate|countTokens|embed)/.test(prefixResult.remainingPath);
-          if (isNativeGemini) {
-            // Use v1beta without /openai for native Gemini API
-            baseUrl = "https://generativelanguage.googleapis.com/v1beta";
-          }
-        }
-
-        if (baseUrl) {
-          targetBase = baseUrl;
-          effectivePath = prefixResult.remainingPath;
-          pathPrefixProvider = prefixResult.provider;
-          log.info(`[PROXY] Detected provider: ${prefixResult.provider}, forwarding to: ${baseUrl}${effectivePath}`);
-        }
-      }
-    }
-
-    if (!targetBase) {
-      // Try to detect provider from the Host header (e.g. api.openai.com)
-      const host = req.headers["host"] ?? "";
-      const hostUrl = `https://${host}${effectivePath}`;
-      const detectedProvider = detectProvider(hostUrl);
-      if (detectedProvider !== "unknown") {
-        targetBase = getProviderBaseUrl(detectedProvider) ?? undefined;
-      }
-      // Fallback: try to detect from path patterns alone
-      if (!targetBase) {
-        const pathProvider = detectProvider(`https://placeholder${effectivePath}`);
-        if (pathProvider !== "unknown") {
-          targetBase = getProviderBaseUrl(pathProvider) ?? undefined;
-        }
-      }
-      if (!targetBase) {
-        sendJson(res, 400, {
-          error:
-            "Could not determine upstream provider. Use path prefix routing (e.g. /openai/v1/...), set the Host header to a known provider (e.g. api.openai.com), or provide x-target-url header.",
-        });
-        return;
-      }
-    }
-
-    // Build target URL: combine base with the effective path (prefix stripped if used)
-    const targetUrl = targetBase.replace(/\/+$/, "") + effectivePath;
-
-    // Detect provider early for policy enforcement response format
-    const earlyProvider: ProviderName = pathPrefixProvider ?? detectProvider(targetUrl);
-
-    // Provider policy check: verify provider is active and within rate limits
-    const providerPolicyResult = checkProviderPolicy(db, earlyProvider);
-    if (!providerPolicyResult.allowed && providerPolicyResult.reason && providerPolicyResult.message) {
-      log.info(`[PROXY] Request blocked for provider "${earlyProvider}": ${providerPolicyResult.reason}`);
-
-      // Record blocked event
-      recordBlockedEvent(db, effectiveAgentId, earlyProvider, providerPolicyResult.reason, providerPolicyResult.message);
-
-      // Return appropriate response based on block reason
-      if (providerPolicyResult.reason === "provider_rate_limited") {
-        const retryAfter = providerRateLimiter.getRetryAfter(earlyProvider, earlyProvider);
-        const rateLimitResponse = generateRateLimitResponse(earlyProvider, effectiveAgentId, retryAfter);
-        res.setHeader("Retry-After", String(retryAfter));
-        sendJson(res, 429, rateLimitResponse);
-      } else {
-        const blockedResponse = generateBlockedResponse(earlyProvider, providerPolicyResult.reason, providerPolicyResult.message);
-        sendJson(res, 200, blockedResponse);
-      }
-      return;
-    }
-
-    // Agent policy check: verify agent is allowed to make requests
-    const policyResult = checkAgentPolicy(db, effectiveAgentId);
-    if (!policyResult.allowed && policyResult.reason && policyResult.message) {
-      log.info(`[PROXY] Request blocked for agent "${effectiveAgentId}": ${policyResult.reason}`);
-
-      // Record blocked event
-      recordBlockedEvent(db, effectiveAgentId, earlyProvider, policyResult.reason, policyResult.message);
-
-      // Return a fake LLM response that indicates the block
-      const blockedResponse = generateBlockedResponse(earlyProvider, policyResult.reason, policyResult.message);
-      sendJson(res, 200, blockedResponse);
-      return;
-    }
-    log.info(`[PROXY] Target URL: ${targetUrl}`);
-
-    // Read the full request body
-    let requestBody: Buffer;
-    try {
-      requestBody = await readRequestBody(req);
-    } catch (err) {
-      if (err instanceof Error && err.message === "Request body too large") {
-        sendJson(res, 413, { error: `Request body too large (max ${MAX_REQUEST_BODY_SIZE / 1024 / 1024}MB)` });
-      } else {
-        sendJson(res, 502, { error: "Failed to read request body" });
-      }
-      return;
-    }
-
-    // Log request body for debugging
-    try {
-      const bodyStr = requestBody.toString("utf-8");
-      const bodyJson = JSON.parse(bodyStr);
-      log.info(`[PROXY] Request body: model=${bodyJson.model}, messages=${bodyJson.messages?.length || 0}`);
-    } catch {
-      log.info(`[PROXY] Request body: (non-JSON or parse error)`);
-    }
-
-    // Strict detection (hostname-only): used for key injection and rate limiting.
-    // Path prefix is definitively trusted (we resolved the provider ourselves).
-    const detectedProviderStrict: ProviderName = pathPrefixProvider
-      ?? detectProviderByHostname(targetUrl);
-
-    // Kill Switch: Check for infinite loop patterns
-    const killSwitchConfig = getKillSwitchConfig(db, effectiveAgentId);
-    if (killSwitchConfig.enabled) {
-      try {
-        const bodyJson = JSON.parse(requestBody.toString("utf-8"));
-        const { promptHash, toolCalls } = loopDetector.recordRequest(effectiveAgentId, bodyJson);
-        const loopCheck = loopDetector.checkLoop(effectiveAgentId, promptHash, toolCalls);
-
-        if (loopCheck.isLoop) {
-          log.warn(`[PROXY] Kill Switch triggered for agent "${effectiveAgentId}": score=${loopCheck.score.toFixed(2)}`);
-
-          const message = `Agent loop detected (score: ${loopCheck.score.toFixed(1)}). Agent deactivated to prevent runaway costs.`;
-
-          // Deactivate the agent
-          if (db) {
-            try {
-              updateAgentPolicy(db, effectiveAgentId, {
-                active: false,
-                deactivated_by: "kill_switch",
-              });
-              log.info(`[PROXY] Agent "${effectiveAgentId}" deactivated by Kill Switch`);
-            } catch (err) {
-              log.error("Failed to deactivate agent", { err: String(err) });
-            }
-          }
-
-          // Record blocked event
-          recordBlockedEvent(db, effectiveAgentId, earlyProvider, "loop_detected", message);
-
-          // Emit kill_switch event for alerts
-          if (db) {
-            try {
-              const killSwitchEvent: InsertEventRow = {
-                agent_id: effectiveAgentId,
-                event_type: "kill_switch",
-                provider: earlyProvider,
-                model: null,
-                tokens_in: null,
-                tokens_out: null,
-                tokens_total: null,
-                cost_usd: null,
-                latency_ms: null,
-                status_code: 200,
-                source: "proxy",
-                timestamp: new Date().toISOString(),
-                tags: {
-                  loop_score: loopCheck.score,
-                  similar_prompts: loopCheck.details.similarPrompts,
-                  similar_responses: loopCheck.details.similarResponses,
-                  repeated_tool_calls: loopCheck.details.repeatedToolCalls,
-                  action: "deactivated",
-                },
-              };
-              insertEvents(db, [killSwitchEvent]);
-            } catch (err) {
-              log.error("Failed to record kill_switch event", { err: String(err) });
-            }
-          }
-
-          // Return standard inactive response (same as checkAgentPolicy inactive)
-          const blockedResponse = generateBlockedResponse(earlyProvider, "inactive", message);
-          sendJson(res, 200, blockedResponse);
-          return;
-        }
-      } catch {
-        // Not JSON body - skip loop detection
-      }
-    }
-
-    // Model override: check if we should rewrite the model in request body
-    let requestedModel: string | null = null;
-    let actualModel: string | null = null;
-    let modifiedRequestBody = requestBody;
-
-    if (detectedProviderStrict !== "unknown") {
-      try {
-        const bodyJson = JSON.parse(requestBody.toString("utf-8"));
-        if (bodyJson.model) {
-          requestedModel = bodyJson.model;
-          const modelOverride = getModelOverride(db, effectiveAgentId, detectedProviderStrict);
-          if (modelOverride) {
-            log.info(`[PROXY] Model override: ${requestedModel} → ${modelOverride}`);
-            bodyJson.model = modelOverride;
-            actualModel = modelOverride;
-            modifiedRequestBody = Buffer.from(JSON.stringify(bodyJson), "utf-8");
-          } else {
-            actualModel = requestedModel;
-          }
-        }
-      } catch {
-        // Not JSON or no model field - continue without modification
-      }
-    }
-
-    // Validate Google model compatibility with OpenAI endpoint (after model override)
-    // Skip validation for native Gemini API (uses :generateContent etc.)
-    const isNativeGeminiApi = /:(generate|streamGenerate|countTokens|embed)/.test(effectivePath);
-    if (detectedProviderStrict === "google" && actualModel && !isNativeGeminiApi) {
-      const GOOGLE_OPENAI_COMPATIBLE_MODELS = [
-        "gemini-3-flash-preview",
-        "gemini-3-pro-preview",
-        "gemini-2.5-flash-preview-05-20",
-        "gemini-2.5-pro-preview-05-06",
-      ];
-      const isCompatible = GOOGLE_OPENAI_COMPATIBLE_MODELS.some(
-        (m) => actualModel === m || actualModel!.startsWith(m.replace("-preview", ""))
-      );
-      if (!isCompatible) {
-        log.warn(`[PROXY] Unsupported Google model for OpenAI-compatible endpoint: ${actualModel}`);
-        const suggestion = requestedModel !== actualModel
-          ? ` (original: ${requestedModel}, after override: ${actualModel})`
-          : "";
-        sendJson(res, 400, {
-          error: {
-            message: `Model "${actualModel}"${suggestion} is not supported via Google's OpenAI-compatible endpoint. Supported models: ${GOOGLE_OPENAI_COMPATIBLE_MODELS.join(", ")}`,
-            type: "invalid_request_error",
-            code: "unsupported_model",
-          },
-        });
-        return;
-      }
-    }
-
-    // Lenient detection (hostname + path fallback): used for metric extraction.
-    let detectedProviderForMetrics: ProviderName = pathPrefixProvider
-      ?? detectProvider(targetUrl);
-    if (detectedProviderForMetrics === "unknown") {
-      detectedProviderForMetrics = detectProvider(`https://placeholder${effectivePath}`);
-    }
-
-    // Warn when path matches a provider but hostname doesn't — key will NOT be injected.
-    // Skip when path prefix was used (provider is already trusted).
-    if (!pathPrefixProvider && detectedProviderStrict === "unknown" && detectedProviderForMetrics !== "unknown") {
-      const providerKey = providerKeys[detectedProviderForMetrics];
-      if (providerKey) {
-        const expectedBase = getProviderBaseUrl(detectedProviderForMetrics) ?? detectedProviderForMetrics;
-        log.warn(
-          `Path matches "${detectedProviderForMetrics}" but hostname does not — ` +
-            `API key NOT injected. Use x-target-url=${expectedBase} for key injection.`
-        );
-      }
-    }
-
-    // Rate limiting: check before forwarding (strict match only)
-    if (detectedProviderStrict !== "unknown") {
-      const rateLimitResult = rateLimiter.check(effectiveAgentId, detectedProviderStrict);
-      if (!rateLimitResult.allowed) {
-        const retryAfter = rateLimitResult.retryAfterSeconds ?? 60;
-        const message = `Rate limit exceeded for agent "${effectiveAgentId}" on ${detectedProviderStrict}. Please retry after ${retryAfter} seconds.`;
-
-        res.writeHead(429, {
-          "Content-Type": "application/json",
-          "Retry-After": String(retryAfter),
-        });
-
-        // Return provider-specific error format
-        let errorBody: object;
-        if (detectedProviderStrict === "anthropic") {
-          // Anthropic error format
-          errorBody = {
-            type: "error",
-            error: {
-              type: "rate_limit_error",
-              message,
-            },
-            retry_after_seconds: retryAfter,
-          };
-        } else {
-          // OpenAI-style error format (used by most providers)
-          errorBody = {
-            error: {
-              message,
-              type: "rate_limit_error",
-              param: null,
-              code: "rate_limit_exceeded",
-            },
-            retry_after_seconds: retryAfter,
-          };
-        }
-
-        res.end(JSON.stringify(errorBody));
-
-        // Record rate limit event
-        const event: AgentEvent = {
-          agent_id: effectiveAgentId,
-          event_type: "error",
-          provider: detectedProviderStrict,
-          model: null,
-          tokens_in: null,
-          tokens_out: null,
-          tokens_total: null,
-          cost_usd: null,
-          latency_ms: null,
-          status_code: 429,
-          source: "proxy",
-          timestamp: new Date().toISOString(),
-          tags: { rate_limited: "true" },
-        };
-        eventBuffer.add(event);
-        return;
-      }
-    }
-
-    // Build forwarded headers, removing proxy-specific ones
-    const forwardHeaders: Record<string, string> = {};
-    for (const [key, value] of Object.entries(req.headers)) {
-      const lowerKey = key.toLowerCase();
-      if (
-        lowerKey === "x-target-url" ||
-        lowerKey === "host" ||
-        lowerKey === "connection" ||
-        lowerKey === "content-length" // Let fetch recalculate after body modification
-      ) {
-        continue;
-      }
-      if (value !== undefined) {
-        forwardHeaders[key] = Array.isArray(value) ? value.join(", ") : value;
-      }
-    }
-
-    // Inject provider API key only for hostname-matched providers (strict).
-    // Path-only matches are NOT trusted for key injection to prevent leakage.
-    log.info(`[PROXY] Provider detection: strict=${detectedProviderStrict}, metrics=${detectedProviderForMetrics}`);
-    if (detectedProviderStrict !== "unknown") {
-      const providerKey = providerKeys[detectedProviderStrict];
-      if (providerKey) {
-        const authHeader = getProviderAuthHeader(
-          detectedProviderStrict,
-          providerKey
-        );
-        if (authHeader) {
-          // Remove any existing auth header and inject the configured one
-          const existingAuthKey = Object.keys(forwardHeaders).find(
-            (k) => k.toLowerCase() === authHeader.name.toLowerCase()
-          );
-          if (existingAuthKey) {
-            log.info(`[PROXY] Replacing existing ${existingAuthKey} header with configured key`);
-            delete forwardHeaders[existingAuthKey];
-          }
-          forwardHeaders[authHeader.name] = authHeader.value;
-          log.info(`[PROXY] Injected ${authHeader.name} header for ${detectedProviderStrict}`);
-        }
-      } else {
-        log.warn(`[PROXY] No API key configured for provider: ${detectedProviderStrict}`);
-      }
-    }
-
-    const requestStart = Date.now();
-    let providerResponse: Response;
-
-    try {
-      providerResponse = await fetch(targetUrl, {
-        method,
-        headers: forwardHeaders,
-        body:
-          method !== "GET" && method !== "HEAD"
-            ? new Uint8Array(modifiedRequestBody)
-            : undefined,
-        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unknown fetch error";
-      log.error(`[PROXY] Upstream request failed: ${message}`);
-      sendJson(res, 502, { error: `Upstream request failed: ${message}` });
-      return;
-    }
-
-    log.info(`[PROXY] Response: ${providerResponse.status} ${providerResponse.statusText}`);
-
-    // Check if the response is an SSE stream
-    const contentType = providerResponse.headers.get("content-type") ?? "";
-    const isSSE = contentType.includes("text/event-stream");
-
-    if (isSSE && providerResponse.body) {
-      // ---------------------------------------------------------------
-      // STREAMING PATH: pipe chunks through to client in real-time,
-      // accumulate them for metric extraction after the stream ends.
-      // ---------------------------------------------------------------
-      const responseHeaders: Record<string, string> = {};
-      providerResponse.headers.forEach((value, key) => {
-        responseHeaders[key] = value;
-      });
-      res.writeHead(providerResponse.status, responseHeaders);
-
-      const chunks: Buffer[] = [];
-      let accumulatedSize = 0;
-      const reader = providerResponse.body.getReader();
-
-      try {
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const buf = Buffer.from(value);
-          res.write(buf);
-          accumulatedSize += buf.length;
-          if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
-            chunks.push(buf);
-          }
-        }
-      } catch (error) {
-        log.error("Stream read error", { err: error instanceof Error ? error.message : String(error) });
-      } finally {
-        res.end();
-      }
-
-      const latencyMs = Date.now() - requestStart;
-      const fullBody = Buffer.concat(chunks);
-
-      try {
-        extractStreamingMetrics(
-          detectedProviderForMetrics,
-          providerResponse.status,
-          fullBody,
-          latencyMs,
-          effectiveAgentId,
-          requestedModel,
-        );
-      } catch (error) {
-        log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
-      }
-    } else {
-      // ---------------------------------------------------------------
-      // NON-STREAMING PATH: buffer full response, forward, extract.
-      // ---------------------------------------------------------------
-      let responseBodyBuffer: Buffer;
-      try {
-        const arrayBuffer = await providerResponse.arrayBuffer();
-        responseBodyBuffer = Buffer.from(arrayBuffer);
-      } catch {
-        sendJson(res, 502, {
-          error: "Failed to read upstream response body",
-        });
-        return;
-      }
-
-      const latencyMs = Date.now() - requestStart;
-
-      // Forward status code and headers back to the client
-      const responseHeaders: Record<string, string> = {};
-      providerResponse.headers.forEach((value, key) => {
-        // Skip transfer-encoding since we are sending the full body
-        if (key.toLowerCase() === "transfer-encoding") return;
-        responseHeaders[key] = value;
-      });
-
-      res.writeHead(providerResponse.status, responseHeaders);
-      res.end(responseBodyBuffer);
-
-      // After response is sent, extract metrics asynchronously
-      try {
-        extractAndQueueMetrics(
-          detectedProviderForMetrics,
-          providerResponse.status,
-          responseBodyBuffer,
-          latencyMs,
-          effectiveAgentId,
-          requestedModel,
-        );
-      } catch (error) {
-        log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
-      }
-    }
+    // All other requests: return error with usage instructions
+    sendJson(res, 400, {
+      error: "Invalid route. Use POST /agents/:agent/:provider for LLM requests.",
+      usage: {
+        endpoint: "POST /agents/{agent_name}/{provider}",
+        example: "POST /agents/my-agent/openai",
+        providers: KNOWN_PROVIDER_NAMES,
+        sdk_config: {
+          openai: "new OpenAI({ baseURL: 'http://localhost:4000/agents/my-agent/openai' })",
+          anthropic: "new Anthropic({ baseURL: 'http://localhost:4000/agents/my-agent/anthropic' })",
+        },
+      },
+    });
   }
 
   function extractStreamingMetrics(
@@ -1714,6 +1246,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   async function shutdown(): Promise<void> {
     if (rateLimitRefreshTimer) {
       clearInterval(rateLimitRefreshTimer);
+    }
+    if (providerKeysRefreshTimer) {
+      clearInterval(providerKeysRefreshTimer);
     }
     loopDetector.stopCleanup();
     await eventBuffer.shutdown();

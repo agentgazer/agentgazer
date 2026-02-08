@@ -132,17 +132,19 @@ export function detectProviderByHostname(url: string): ProviderName {
 }
 
 export function getProviderBaseUrl(provider: ProviderName): string | null {
+  // Base URLs include version path so users can set OPENAI_BASE_URL=http://localhost:4000/openai
+  // and the SDK will send /openai/chat/completions which becomes /v1/chat/completions
   const urls: Record<string, string> = {
-    openai: "https://api.openai.com",
-    anthropic: "https://api.anthropic.com",
+    openai: "https://api.openai.com/v1",
+    anthropic: "https://api.anthropic.com/v1",
     google: "https://generativelanguage.googleapis.com/v1beta/openai",
-    mistral: "https://api.mistral.ai",
-    cohere: "https://api.cohere.com",
-    deepseek: "https://api.deepseek.com",
-    moonshot: "https://api.moonshot.ai",
-    zhipu: "https://api.z.ai/api/paas",
-    minimax: "https://api.minimax.io",
-    yi: "https://api.01.ai",
+    mistral: "https://api.mistral.ai/v1",
+    cohere: "https://api.cohere.com/v2",
+    deepseek: "https://api.deepseek.com/v1",
+    moonshot: "https://api.moonshot.ai/v1",
+    zhipu: "https://api.z.ai/api/paas/v4",
+    minimax: "https://api.minimax.io/v1",
+    yi: "https://api.01.ai/v1",
   };
   return urls[provider] ?? null;
 }

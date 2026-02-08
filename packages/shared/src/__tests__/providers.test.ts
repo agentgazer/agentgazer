@@ -217,12 +217,12 @@ describe("detectProviderByHostname", () => {
 });
 
 describe("getProviderBaseUrl", () => {
-  it("returns base URL for openai", () => {
-    expect(getProviderBaseUrl("openai")).toBe("https://api.openai.com");
+  it("returns base URL with version for openai", () => {
+    expect(getProviderBaseUrl("openai")).toBe("https://api.openai.com/v1");
   });
 
-  it("returns base URL for anthropic", () => {
-    expect(getProviderBaseUrl("anthropic")).toBe("https://api.anthropic.com");
+  it("returns base URL with version for anthropic", () => {
+    expect(getProviderBaseUrl("anthropic")).toBe("https://api.anthropic.com/v1");
   });
 
   it("returns base URL for google", () => {
@@ -231,32 +231,32 @@ describe("getProviderBaseUrl", () => {
     );
   });
 
-  it("returns base URL for mistral", () => {
-    expect(getProviderBaseUrl("mistral")).toBe("https://api.mistral.ai");
+  it("returns base URL with version for mistral", () => {
+    expect(getProviderBaseUrl("mistral")).toBe("https://api.mistral.ai/v1");
   });
 
-  it("returns base URL for cohere", () => {
-    expect(getProviderBaseUrl("cohere")).toBe("https://api.cohere.com");
+  it("returns base URL with version for cohere", () => {
+    expect(getProviderBaseUrl("cohere")).toBe("https://api.cohere.com/v2");
   });
 
-  it("returns base URL for deepseek", () => {
-    expect(getProviderBaseUrl("deepseek")).toBe("https://api.deepseek.com");
+  it("returns base URL with version for deepseek", () => {
+    expect(getProviderBaseUrl("deepseek")).toBe("https://api.deepseek.com/v1");
   });
 
-  it("returns base URL for moonshot", () => {
-    expect(getProviderBaseUrl("moonshot")).toBe("https://api.moonshot.ai");
+  it("returns base URL with version for moonshot", () => {
+    expect(getProviderBaseUrl("moonshot")).toBe("https://api.moonshot.ai/v1");
   });
 
-  it("returns base URL for zhipu", () => {
-    expect(getProviderBaseUrl("zhipu")).toBe("https://api.z.ai/api/paas");
+  it("returns base URL with version for zhipu", () => {
+    expect(getProviderBaseUrl("zhipu")).toBe("https://api.z.ai/api/paas/v4");
   });
 
-  it("returns base URL for minimax", () => {
-    expect(getProviderBaseUrl("minimax")).toBe("https://api.minimax.io");
+  it("returns base URL with version for minimax", () => {
+    expect(getProviderBaseUrl("minimax")).toBe("https://api.minimax.io/v1");
   });
 
-  it("returns base URL for yi", () => {
-    expect(getProviderBaseUrl("yi")).toBe("https://api.01.ai");
+  it("returns base URL with version for yi", () => {
+    expect(getProviderBaseUrl("yi")).toBe("https://api.01.ai/v1");
   });
 
   it("returns null for unknown provider", () => {
