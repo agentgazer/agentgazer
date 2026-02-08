@@ -1,15 +1,13 @@
 /**
- * Selectable models per provider for dashboard dropdowns.
+ * Selectable models per provider for dashboard dropdowns and OpenClaw config.
+ * Single source of truth for all model lists.
  * Only includes commonly available models (excludes those requiring special access).
  */
 export const SELECTABLE_MODELS: Record<string, string[]> = {
   openai: [
     "gpt-4o",
     "gpt-4o-mini",
-    "gpt-4-turbo",
     "o1",
-    "o1-mini",
-    "o1-pro",
     "o3-mini",
   ],
   anthropic: [
@@ -27,22 +25,17 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
   ],
   mistral: [
     "mistral-large-latest",
-    "mistral-medium-latest",
     "mistral-small-latest",
     "codestral-latest",
-    "open-mistral-7b",
-    "open-mixtral-8x7b",
-    "open-mixtral-8x22b",
   ],
   cohere: [
-    "command-r-plus",
-    "command-r",
-    "command",
-    "command-light",
+    "command-a-03-2025",
+    "command-r-plus-08-2024",
+    "command-r-08-2024",
+    "command-r7b-12-2024",
   ],
   deepseek: [
     "deepseek-chat",
-    "deepseek-coder",
     "deepseek-reasoner",
   ],
   moonshot: [
@@ -68,9 +61,9 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "M2-her",
   ],
   yi: [
+    "yi-lightning",
     "yi-large",
     "yi-medium",
-    "yi-spark",
   ],
 };
 

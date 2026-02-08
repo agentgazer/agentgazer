@@ -11,7 +11,7 @@ import { useConnection } from "../contexts/ConnectionContext";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 
-// Model lists per provider (must match what OpenClaw expects)
+// Model lists per provider - keep in sync with packages/shared/src/models.ts
 const PROVIDER_MODELS: Record<string, string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
   anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
