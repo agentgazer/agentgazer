@@ -581,6 +581,7 @@ function checkProviderPolicy(
 
     if (!isAllowed) {
       const retryAfter = providerRateLimiter.getRetryAfter(provider, provider);
+      log.info(`[PROXY] Provider ${provider} rate limited, retry after ${retryAfter}s`);
       return {
         allowed: false,
         reason: "provider_rate_limited",
