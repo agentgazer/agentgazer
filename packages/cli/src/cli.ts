@@ -46,12 +46,16 @@ function parseFlags(argv: string[]): Record<string, string> {
     if (arg.startsWith("--")) {
       const key = arg.slice(2);
       const next = argv[i + 1];
-      if (next !== undefined && !next.startsWith("--")) {
+      if (next !== undefined && !next.startsWith("-")) {
         flags[key] = next;
         i++;
       } else {
         flags[key] = "";
       }
+    } else if (arg.startsWith("-") && arg.length === 2) {
+      // Short flags like -v, -d
+      const key = arg.slice(1);
+      flags[key] = "";
     }
   }
   return flags;
@@ -86,6 +90,8 @@ Usage: agentgazer <command> [options]
 Commands:
   onboard                     First-time setup — generate token and configure providers
   start                       Start the server, proxy, and dashboard
+  stop                        Stop the daemon process
+  logs                        Show daemon logs (use -f to follow)
   status                      Show current configuration
   reset-token                 Generate a new auth token
   overview                    Launch real-time TUI dashboard
@@ -118,6 +124,8 @@ Options (for start):
   --proxy-port <number>      LLM proxy port (default: 4000)
   --retention-days <number>  Data retention period in days (default: 30)
   --no-open                  Don't auto-open browser
+  -v, --verbose              Print verbose logs to console
+  -d, --daemon               Print info and token, then run in background
 
 Options (for agent/provider stat):
   --range <period>           Time range: 1h, 24h, 7d, 30d (default: 24h)
@@ -125,9 +133,16 @@ Options (for agent/provider stat):
 Options (for delete commands):
   --yes                      Skip confirmation prompts
 
+Options (for logs):
+  -f, --follow               Follow log output (like tail -f)
+  -n, --lines <number>       Number of lines to show (default: 50)
+
 Examples:
   agentgazer onboard                    First-time setup
   agentgazer start                      Start with defaults
+  agentgazer start -d                   Start as daemon (background)
+  agentgazer stop                       Stop the daemon
+  agentgazer logs -f                    Follow daemon logs
   agentgazer overview                   Launch TUI dashboard
   agentgazer provider add openai        Add OpenAI (prompts for key)
   agentgazer agent my-bot stat          Show stats for my-bot
@@ -256,6 +271,75 @@ function cmdResetToken(): void {
 }
 
 async function cmdStart(flags: Record<string, string>): Promise<void> {
+  const verbose = "v" in flags || "verbose" in flags;
+  const daemon = "d" in flags || "daemon" in flags;
+
+  // Set log level for verbose mode
+  if (verbose) {
+    process.env.LOG_LEVEL = "debug";
+  }
+
+  // Handle daemon mode: fork process and exit
+  if (daemon && !process.env.AGENTGAZER_DAEMON_CHILD) {
+    const { spawn } = await import("node:child_process");
+    const configDir = getConfigDir();
+    const pidFile = path.join(configDir, "agentgazer.pid");
+    const logFile = path.join(configDir, "agentgazer.log");
+
+    // Check if already running
+    if (fs.existsSync(pidFile)) {
+      const existingPid = parseInt(fs.readFileSync(pidFile, "utf-8").trim(), 10);
+      try {
+        process.kill(existingPid, 0); // Check if process exists
+        console.error(`AgentGazer is already running (PID: ${existingPid})`);
+        console.error(`Use "agentgazer stop" to stop it first.`);
+        process.exit(1);
+      } catch {
+        // Process doesn't exist, clean up stale PID file
+        fs.unlinkSync(pidFile);
+      }
+    }
+
+    // Open log file for output
+    const logFd = fs.openSync(logFile, "a");
+
+    const args = process.argv.slice(2).filter((a) => a !== "-d" && a !== "--daemon");
+    const child = spawn(process.execPath, [process.argv[1], ...args], {
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+      env: { ...process.env, AGENTGAZER_DAEMON_CHILD: "1" },
+    });
+    child.unref();
+    fs.closeSync(logFd);
+
+    // Write PID file
+    fs.writeFileSync(pidFile, String(child.pid));
+
+    const config = ensureConfig();
+    const serverPort = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+    const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : 4000;
+
+    console.log(`
+  ╔════════════════════════════════════════════════════╗
+  ║          AgentGazer started (daemon)               ║
+  ╠════════════════════════════════════════════════════╣
+  ║                                                    ║
+  ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}                ║
+  ║  Proxy:      http://localhost:${String(proxyPort).padEnd(5)}                ║
+  ║                                                    ║
+  ║  Token:      ${config.token.padEnd(32)}    ║
+  ║                                                    ║
+  ╚════════════════════════════════════════════════════╝
+
+  Process running in background (PID: ${child.pid})
+  Logs:    ${logFile}
+
+  To stop:  agentgazer stop
+  To logs:  agentgazer logs -f
+`);
+    process.exit(0);
+  }
+
   const config = ensureConfig();
 
   const serverPort = flags["port"] ? parseInt(flags["port"], 10) : 8080;
@@ -345,9 +429,10 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     db, // Rate limits are loaded from db
   });
 
+  const modeLabel = verbose ? "running (verbose)" : "running";
   console.log(`
   ╔════════════════════════════════════════════════════╗
-  ║              AgentGazer running                    ║
+  ║              AgentGazer ${modeLabel.padEnd(21)}   ║
   ╠════════════════════════════════════════════════════╣
   ║                                                    ║
   ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}                ║
@@ -373,6 +458,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
   // Graceful shutdown
   let shuttingDown = false;
+  const pidFile = path.join(configDir, "agentgazer.pid");
 
   function handleShutdown(): void {
     if (shuttingDown) return;
@@ -381,6 +467,10 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
     Promise.all([shutdownProxy(), shutdownServer()])
       .then(() => {
+        // Clean up PID file if we're a daemon child
+        if (process.env.AGENTGAZER_DAEMON_CHILD && fs.existsSync(pidFile)) {
+          fs.unlinkSync(pidFile);
+        }
         console.log("Shutdown complete.");
         process.exit(0);
       })
@@ -579,6 +669,112 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Stop command
+// ---------------------------------------------------------------------------
+
+function cmdStop(): void {
+  const configDir = getConfigDir();
+  const pidFile = path.join(configDir, "agentgazer.pid");
+
+  if (!fs.existsSync(pidFile)) {
+    console.log("AgentGazer is not running (no PID file found).");
+    return;
+  }
+
+  const pid = parseInt(fs.readFileSync(pidFile, "utf-8").trim(), 10);
+
+  try {
+    process.kill(pid, 0); // Check if process exists
+  } catch {
+    // Process doesn't exist
+    fs.unlinkSync(pidFile);
+    console.log("AgentGazer is not running (stale PID file removed).");
+    return;
+  }
+
+  // Send SIGTERM
+  try {
+    process.kill(pid, "SIGTERM");
+    console.log(`Stopping AgentGazer (PID: ${pid})...`);
+
+    // Wait for process to exit (poll for up to 5 seconds)
+    let attempts = 0;
+    const maxAttempts = 50;
+    const checkInterval = 100;
+
+    const waitForExit = (): void => {
+      try {
+        process.kill(pid, 0);
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(waitForExit, checkInterval);
+        } else {
+          console.log("Process did not exit gracefully, sending SIGKILL...");
+          try {
+            process.kill(pid, "SIGKILL");
+          } catch {
+            // Already dead
+          }
+          if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+          console.log("AgentGazer stopped.");
+        }
+      } catch {
+        // Process exited
+        if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+        console.log("AgentGazer stopped.");
+      }
+    };
+
+    waitForExit();
+  } catch (err) {
+    console.error(`Failed to stop AgentGazer: ${err}`);
+    process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Logs command
+// ---------------------------------------------------------------------------
+
+async function cmdLogs(flags: Record<string, string>): Promise<void> {
+  const configDir = getConfigDir();
+  const logFile = path.join(configDir, "agentgazer.log");
+
+  if (!fs.existsSync(logFile)) {
+    console.log("No log file found. Start AgentGazer with -d flag first.");
+    console.log(`  agentgazer start -d`);
+    return;
+  }
+
+  const follow = "f" in flags || "follow" in flags;
+  const lines = flags["n"] ? parseInt(flags["n"], 10) : (flags["lines"] ? parseInt(flags["lines"], 10) : 50);
+
+  if (follow) {
+    // Follow mode: tail -f equivalent
+    const { spawn } = await import("node:child_process");
+    const tail = spawn("tail", ["-f", "-n", String(lines), logFile], {
+      stdio: "inherit",
+    });
+
+    // Handle Ctrl+C gracefully
+    process.on("SIGINT", () => {
+      tail.kill();
+      process.exit(0);
+    });
+
+    await new Promise<void>((resolve) => {
+      tail.on("close", () => resolve());
+    });
+  } else {
+    // Just show last N lines
+    const content = fs.readFileSync(logFile, "utf-8");
+    const allLines = content.split("\n");
+    const lastLines = allLines.slice(-lines).join("\n");
+    console.log(lastLines);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -595,6 +791,12 @@ async function main(): Promise<void> {
       break;
     case "start":
       await cmdStart(flags);
+      break;
+    case "stop":
+      cmdStop();
+      break;
+    case "logs":
+      await cmdLogs(flags);
       break;
     case "status":
       cmdStatus();

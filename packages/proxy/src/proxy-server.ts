@@ -841,7 +841,19 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     if (!targetBase) {
       const prefixResult = parsePathPrefix(workingPath);
       if (prefixResult) {
-        const baseUrl = getProviderBaseUrl(prefixResult.provider);
+        let baseUrl = getProviderBaseUrl(prefixResult.provider);
+
+        // Google: detect native Gemini API vs OpenAI-compatible
+        // Native: /models/{model}:generateContent, /models/{model}:streamGenerateContent
+        // OpenAI-compatible: /chat/completions, /embeddings
+        if (prefixResult.provider === "google" && baseUrl) {
+          const isNativeGemini = /:(generate|streamGenerate|countTokens|embed)/.test(prefixResult.remainingPath);
+          if (isNativeGemini) {
+            // Use v1beta without /openai for native Gemini API
+            baseUrl = "https://generativelanguage.googleapis.com/v1beta";
+          }
+        }
+
         if (baseUrl) {
           targetBase = baseUrl;
           effectivePath = prefixResult.remainingPath;
@@ -928,6 +940,15 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         sendJson(res, 502, { error: "Failed to read request body" });
       }
       return;
+    }
+
+    // Log request body for debugging
+    try {
+      const bodyStr = requestBody.toString("utf-8");
+      const bodyJson = JSON.parse(bodyStr);
+      log.info(`[PROXY] Request body: model=${bodyJson.model}, messages=${bodyJson.messages?.length || 0}`);
+    } catch {
+      log.info(`[PROXY] Request body: (non-JSON or parse error)`);
     }
 
     // Strict detection (hostname-only): used for key injection and rate limiting.
@@ -1026,6 +1047,35 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         }
       } catch {
         // Not JSON or no model field - continue without modification
+      }
+    }
+
+    // Validate Google model compatibility with OpenAI endpoint (after model override)
+    // Skip validation for native Gemini API (uses :generateContent etc.)
+    const isNativeGeminiApi = /:(generate|streamGenerate|countTokens|embed)/.test(effectivePath);
+    if (detectedProviderStrict === "google" && actualModel && !isNativeGeminiApi) {
+      const GOOGLE_OPENAI_COMPATIBLE_MODELS = [
+        "gemini-3-flash-preview",
+        "gemini-3-pro-preview",
+        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.5-pro-preview-05-06",
+      ];
+      const isCompatible = GOOGLE_OPENAI_COMPATIBLE_MODELS.some(
+        (m) => actualModel === m || actualModel!.startsWith(m.replace("-preview", ""))
+      );
+      if (!isCompatible) {
+        log.warn(`[PROXY] Unsupported Google model for OpenAI-compatible endpoint: ${actualModel}`);
+        const suggestion = requestedModel !== actualModel
+          ? ` (original: ${requestedModel}, after override: ${actualModel})`
+          : "";
+        sendJson(res, 400, {
+          error: {
+            message: `Model "${actualModel}"${suggestion} is not supported via Google's OpenAI-compatible endpoint. Supported models: ${GOOGLE_OPENAI_COMPATIBLE_MODELS.join(", ")}`,
+            type: "invalid_request_error",
+            code: "unsupported_model",
+          },
+        });
+        return;
       }
     }
 
