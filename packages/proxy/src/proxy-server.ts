@@ -162,7 +162,7 @@ function normalizeRequestBody(
   const changes: string[] = [];
 
   // Fields that only OpenAI supports
-  const openaiOnlyFields = ["store", "metadata", "parallel_tool_calls"];
+  const openaiOnlyFields = ["store", "metadata", "parallel_tool_calls", "strict"];
 
   // max_completion_tokens -> max_tokens conversion for non-OpenAI providers
   if (provider !== "openai" && "max_completion_tokens" in result) {
@@ -200,8 +200,8 @@ function normalizeRequestBody(
       break;
     case "cohere":
       // Cohere has a different API structure entirely
-      // For now, just remove common unsupported fields
-      const cohereUnsupported = ["logprobs", "top_logprobs", "n", "user", "frequency_penalty", "presence_penalty"];
+      // Remove OpenAI-specific fields that Cohere doesn't support
+      const cohereUnsupported = ["logprobs", "top_logprobs", "n", "user", "frequency_penalty", "presence_penalty", "strict"];
       for (const field of cohereUnsupported) {
         if (field in result) {
           delete result[field];
