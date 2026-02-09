@@ -63,8 +63,8 @@ const WEIGHTS = {
   toolCallRepetition: 1.5,
 };
 
-// Hamming distance threshold for similarity
-const SIMILARITY_THRESHOLD = 3;
+// Hamming distance threshold for similarity (lower = stricter, must be nearly identical)
+const SIMILARITY_THRESHOLD = 2;
 
 /**
  * Circular buffer for sliding window storage
