@@ -1219,6 +1219,8 @@ async function main(): Promise<void> {
       await cmdEvents(flags);
       break;
     case "version":
+    case "--version":
+    case "-V":
       await cmdVersion();
       break;
     case "doctor":

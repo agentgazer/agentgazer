@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
-import { clearToken } from "../lib/api";
+import { clearToken, fetchHealth } from "../lib/api";
 import Logo from "./Logo";
 
 const SIDEBAR_COLLAPSED_KEY = "agentgazer-sidebar-collapsed";
@@ -88,10 +88,17 @@ export default function Layout() {
     const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
     return saved === "true";
   });
+  const [version, setVersion] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    fetchHealth()
+      .then((data) => setVersion(data.version))
+      .catch(() => setVersion(null));
+  }, []);
 
   function handleLogout() {
     clearToken();
@@ -156,8 +163,11 @@ export default function Layout() {
           })}
         </nav>
 
-        {/* Logout */}
+        {/* Version & Logout */}
         <div className="border-t border-gray-800 p-3">
+          {version && !collapsed && (
+            <div className="mb-2 px-3 text-xs text-gray-500">v{version}</div>
+          )}
           <button
             onClick={handleLogout}
             title={collapsed ? "Logout" : undefined}

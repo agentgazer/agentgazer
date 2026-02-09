@@ -13,7 +13,7 @@
 | `logs` | 查看服務日誌 | `--follow`、`--lines` |
 | `reset-token` | 重新產生認證 Token | — |
 | `overview` | 啟動即時 TUI 儀表板 | `--port` |
-| `version` | 顯示版本號 | — |
+| `version`、`--version`、`-V` | 顯示版本號 | — |
 | `doctor` | 系統健康檢查 | `--port`、`--proxy-port` |
 | `uninstall` | 移除 AgentGazer（僅限 curl 安裝） | `--yes` |
 | `help` | 顯示幫助訊息 | — |

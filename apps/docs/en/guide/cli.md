@@ -13,7 +13,7 @@
 | `logs` | View service logs | `--follow`, `--lines` |
 | `reset-token` | Regenerates the authentication Token | — |
 | `overview` | Launch real-time TUI dashboard | `--port` |
-| `version` | Displays the version number | — |
+| `version`, `--version`, `-V` | Displays the version number | — |
 | `doctor` | Runs a system health check | `--port`, `--proxy-port` |
 | `uninstall` | Remove AgentGazer (curl-installed only) | `--yes` |
 | `help` | Displays help information | — |

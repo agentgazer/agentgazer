@@ -12,6 +12,21 @@ export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// ---------------------------------------------------------------------------
+// Health API
+// ---------------------------------------------------------------------------
+
+export interface HealthResponse {
+  status: string;
+  version: string;
+  uptime_ms: number;
+}
+
+export async function fetchHealth(): Promise<HealthResponse> {
+  const res = await fetch("/api/health");
+  return res.json() as Promise<HealthResponse>;
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
