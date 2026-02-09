@@ -7,14 +7,22 @@
 | Command | Description | Flags |
 |---------|-------------|-------|
 | `onboard` | Initial setup, generates Token, configures Providers | — |
-| `start` | Starts the server, Proxy, and dashboard | `--port`, `--proxy-port`, `--retention-days`, `--no-open` |
+| `start` | Starts the server, Proxy, and dashboard | `--port`, `--proxy-port`, `--retention-days`, `--no-open`, `-v` |
+| `stop` | Stops all running services | — |
 | `status` | Displays current configuration | — |
+| `logs` | View service logs | `--follow`, `--lines` |
 | `reset-token` | Regenerates the authentication Token | — |
 | `overview` | Launch real-time TUI dashboard | `--port` |
 | `version` | Displays the version number | — |
 | `doctor` | Runs a system health check | `--port`, `--proxy-port` |
 | `uninstall` | Remove AgentGazer (curl-installed only) | `--yes` |
 | `help` | Displays help information | — |
+
+### Event Commands
+
+| Command | Description | Flags |
+|---------|-------------|-------|
+| `events` | List recent events | `--port`, `--agent`, `--limit`, `--output` |
 
 ### Agent Commands
 
@@ -172,20 +180,47 @@ AgentGazer stores configuration in `~/.agentgazer/config.json`. You can set pers
 ```json
 {
   "token": "your-auth-token",
-  "port": 18800,
-  "proxyPort": 4000,
-  "autoOpen": true,
-  "retentionDays": 30
+  "server": {
+    "port": 18800,
+    "proxyPort": 18900,
+    "autoOpen": true
+  },
+  "data": {
+    "retentionDays": 30
+  },
+  "alerts": {
+    "defaults": {
+      "telegram": {
+        "botToken": "123456:ABC...",
+        "chatId": "-100123456789"
+      },
+      "webhook": {
+        "url": "https://example.com/webhook"
+      },
+      "email": {
+        "host": "smtp.example.com",
+        "port": 587,
+        "secure": false,
+        "user": "user@example.com",
+        "pass": "password",
+        "from": "alerts@example.com",
+        "to": "admin@example.com"
+      }
+    }
+  }
 }
 ```
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `token` | string | (generated) | Authentication token (auto-generated on first run) |
-| `port` | number | `18800` | Dashboard/server port |
-| `proxyPort` | number | `4000` | LLM Proxy port |
-| `autoOpen` | boolean | `true` | Auto-open browser on `agentgazer start` |
-| `retentionDays` | number | `30` | Data retention period in days |
+| `server.port` | number | `18800` | Dashboard/server port |
+| `server.proxyPort` | number | `18900` | LLM Proxy port |
+| `server.autoOpen` | boolean | `true` | Auto-open browser on `agentgazer start` |
+| `data.retentionDays` | number | `30` | Data retention period in days |
+| `alerts.defaults.telegram` | object | — | Default Telegram settings for new alerts |
+| `alerts.defaults.webhook` | object | — | Default webhook settings for new alerts |
+| `alerts.defaults.email` | object | — | Default SMTP settings for new alerts |
 
 ### Precedence
 

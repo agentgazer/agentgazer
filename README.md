@@ -172,9 +172,13 @@ agentgazer start            # Start server, proxy, and dashboard
 agentgazer start -v         # Start with verbose logging (debug mode)
 agentgazer stop             # Stop all services
 agentgazer status           # Check if services are running
+agentgazer logs             # View service logs
+agentgazer overview         # Real-time TUI dashboard
 agentgazer doctor           # Diagnose common issues
 agentgazer providers        # List configured providers
-agentgazer provider set <name> <key>  # Add provider API key
+agentgazer provider add <name> [key]  # Add provider API key
+agentgazer agents           # List all agents
+agentgazer events           # List recent events
 agentgazer uninstall        # Remove AgentGazer
 ```
 
@@ -269,7 +273,7 @@ Alert rule types:
 - **error_rate** — fires when error rate exceeds `threshold`% over `window_minutes`
 - **budget** — fires when daily spend exceeds `threshold` USD
 
-Delivery channels: webhook (with exponential backoff retry) and email (requires SMTP configuration).
+Delivery channels: webhook (with exponential backoff retry), email (SMTP), and Telegram.
 
 See `packages/server/openapi.yaml` for the full OpenAPI specification.
 
@@ -380,6 +384,8 @@ User data (`~/.agentgazer/`) is preserved by default. The curl uninstaller will 
 | `SMTP_PASS` | SMTP password |
 | `SMTP_FROM` | Sender email address (default: `alerts@agentgazer.com`) |
 | `SMTP_SECURE` | Use TLS (`true`/`false`, default: `false`) |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot API token for Telegram alerts |
+| `TELEGRAM_CHAT_ID` | Telegram chat/group ID for notifications |
 
 ## Development
 

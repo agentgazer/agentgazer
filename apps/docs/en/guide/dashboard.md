@@ -18,6 +18,7 @@ The dashboard uses **Token authentication**. After starting the service, enter y
 | **Costs** | Cost analysis and charts by Provider / Model |
 | **Alerts** | Alert rule management and alert history |
 | **Providers** | Provider configuration, API key management, and usage statistics |
+| **Settings** | Server configuration, default notification channels (Telegram, Email, Webhook) |
 
 ## Providers
 
@@ -266,3 +267,45 @@ The cost page provides aggregated spend across Providers and Models:
 - Cost trend chart
 - Cost breakdown by Provider
 - Cost breakdown by Model
+
+## Settings
+
+The Settings page allows you to configure server settings and default notification channels.
+
+### Server Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Port** | Dashboard/server port (default: 18800) |
+| **Proxy Port** | LLM Proxy port (default: 18900) |
+| **Auto Open** | Auto-open browser on start |
+| **Retention Days** | Data retention period in days |
+
+### Default Notification Channels
+
+Configure default settings for alert notifications. When creating new alert rules, these defaults are pre-filled.
+
+**Telegram**
+
+| Setting | Description |
+|---------|-------------|
+| **Bot Token** | Telegram bot API token (from @BotFather) |
+| **Chat ID** | Target chat/group ID for notifications |
+
+**Email (SMTP)**
+
+| Setting | Description |
+|---------|-------------|
+| **Host** | SMTP server hostname |
+| **Port** | SMTP port (default: 587) |
+| **TLS** | Enable TLS encryption |
+| **User** | SMTP username |
+| **Password** | SMTP password |
+| **From** | Sender email address |
+| **To** | Default recipient email address |
+
+**Webhook**
+
+| Setting | Description |
+|---------|-------------|
+| **URL** | Default webhook endpoint URL |

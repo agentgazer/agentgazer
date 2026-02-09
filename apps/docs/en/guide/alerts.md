@@ -29,9 +29,44 @@ Each alert rule can be configured with the following notification methods:
 - Sends alert notifications via an SMTP server
 - Requires SMTP environment variables to be configured (see the [Deployment](/en/guide/docker) section)
 
+**Telegram**
+
+- Sends alert notifications via Telegram Bot API
+- Requires `bot_token` and `chat_id` configuration
+- Can be configured per-rule or as defaults in Settings
+
 ## Cooldown Mechanism
 
 After a rule fires, it enters a **15-minute** cooldown period during which the same rule will not fire again. This prevents alert fatigue.
+
+## Repeat Alerts
+
+Enable repeat alerts to receive ongoing notifications while an issue persists:
+
+| Setting | Description |
+|---------|-------------|
+| **repeat_enabled** | When `true`, alert will re-fire at the specified interval while condition remains |
+| **repeat_interval_minutes** | How often to re-send the alert (default: 60 minutes) |
+
+## Recovery Notifications
+
+Enable recovery notifications to be notified when an issue is resolved:
+
+| Setting | Description |
+|---------|-------------|
+| **recovery_notify** | When `true`, sends a notification when the alert condition clears |
+
+The alert state machine tracks: `normal` → `alerting` → `normal`. A recovery notification is sent when transitioning from `alerting` back to `normal`.
+
+## Budget Periods
+
+For budget alerts, you can configure the budget period:
+
+| Period | Description |
+|--------|-------------|
+| **daily** | Budget resets at midnight UTC each day (default) |
+| **weekly** | Budget resets at midnight UTC each Monday |
+| **monthly** | Budget resets at midnight UTC on the 1st of each month |
 
 ## Management Methods
 

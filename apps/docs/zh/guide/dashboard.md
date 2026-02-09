@@ -18,6 +18,7 @@
 | **Costs**（成本） | 按 Provider / Model 的成本分析與圖表 |
 | **Alerts**（告警） | 告警規則管理與告警歷史 |
 | **Providers**（Provider） | Provider 設定、API Key 管理與使用統計 |
+| **Settings**（設定） | 伺服器設定、預設通知管道（Telegram、Email、Webhook） |
 
 ## Providers（Provider 管理）
 
@@ -266,3 +267,45 @@ Kill Switch 使用 SimHash 偵測 Agent 行為中的重複模式：
 - 成本趨勢圖
 - 按 Provider 的成本分類
 - 按 Model 的成本分類
+
+## 設定（Settings）
+
+設定頁面讓你設定伺服器選項與預設通知管道。
+
+### 伺服器設定
+
+| 設定 | 說明 |
+|------|------|
+| **Port** | 儀表板/伺服器連接埠（預設：18800） |
+| **Proxy Port** | LLM Proxy 連接埠（預設：18900） |
+| **Auto Open** | 啟動時自動開啟瀏覽器 |
+| **Retention Days** | 資料保留天數 |
+
+### 預設通知管道
+
+設定告警通知的預設值。建立新的告警規則時，這些預設值會自動填入。
+
+**Telegram**
+
+| 設定 | 說明 |
+|------|------|
+| **Bot Token** | Telegram bot API token（從 @BotFather 取得） |
+| **Chat ID** | 通知目標的聊天室/群組 ID |
+
+**Email（SMTP）**
+
+| 設定 | 說明 |
+|------|------|
+| **Host** | SMTP 伺服器主機名稱 |
+| **Port** | SMTP 連接埠（預設：587） |
+| **TLS** | 啟用 TLS 加密 |
+| **User** | SMTP 使用者名稱 |
+| **Password** | SMTP 密碼 |
+| **From** | 寄件者電子郵件地址 |
+| **To** | 預設收件者電子郵件地址 |
+
+**Webhook**
+
+| 設定 | 說明 |
+|------|------|
+| **URL** | 預設 webhook 端點 URL |

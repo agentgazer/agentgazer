@@ -7,14 +7,22 @@
 | 指令 | 說明 | 旗標 |
 |------|------|------|
 | `onboard` | 首次設定，產生 Token，設定 Provider | — |
-| `start` | 啟動伺服器、Proxy、儀表板 | `--port`、`--proxy-port`、`--retention-days`、`--no-open` |
+| `start` | 啟動伺服器、Proxy、儀表板 | `--port`、`--proxy-port`、`--retention-days`、`--no-open`、`-v` |
+| `stop` | 停止所有執行中的服務 | — |
 | `status` | 顯示目前設定資訊 | — |
+| `logs` | 查看服務日誌 | `--follow`、`--lines` |
 | `reset-token` | 重新產生認證 Token | — |
 | `overview` | 啟動即時 TUI 儀表板 | `--port` |
 | `version` | 顯示版本號 | — |
 | `doctor` | 系統健康檢查 | `--port`、`--proxy-port` |
 | `uninstall` | 移除 AgentGazer（僅限 curl 安裝） | `--yes` |
 | `help` | 顯示幫助訊息 | — |
+
+### 事件指令
+
+| 指令 | 說明 | 旗標 |
+|------|------|------|
+| `events` | 列出最近事件 | `--port`、`--agent`、`--limit`、`--output` |
 
 ### Agent 指令
 
@@ -172,20 +180,47 @@ AgentGazer 將設定儲存在 `~/.agentgazer/config.json`。您可以在此設�
 ```json
 {
   "token": "your-auth-token",
-  "port": 18800,
-  "proxyPort": 4000,
-  "autoOpen": true,
-  "retentionDays": 30
+  "server": {
+    "port": 18800,
+    "proxyPort": 18900,
+    "autoOpen": true
+  },
+  "data": {
+    "retentionDays": 30
+  },
+  "alerts": {
+    "defaults": {
+      "telegram": {
+        "botToken": "123456:ABC...",
+        "chatId": "-100123456789"
+      },
+      "webhook": {
+        "url": "https://example.com/webhook"
+      },
+      "email": {
+        "host": "smtp.example.com",
+        "port": 587,
+        "secure": false,
+        "user": "user@example.com",
+        "pass": "password",
+        "from": "alerts@example.com",
+        "to": "admin@example.com"
+      }
+    }
+  }
 }
 ```
 
 | 設定 | 類型 | 預設值 | 說明 |
 |------|------|--------|------|
 | `token` | string | (自動產生) | 認證 Token（首次執行時自動產生）|
-| `port` | number | `18800` | 儀表板/伺服器連接埠 |
-| `proxyPort` | number | `4000` | LLM Proxy 連接埠 |
-| `autoOpen` | boolean | `true` | `agentgazer start` 時自動開啟瀏覽器 |
-| `retentionDays` | number | `30` | 資料保留天數 |
+| `server.port` | number | `18800` | 儀表板/伺服器連接埠 |
+| `server.proxyPort` | number | `18900` | LLM Proxy 連接埠 |
+| `server.autoOpen` | boolean | `true` | `agentgazer start` 時自動開啟瀏覽器 |
+| `data.retentionDays` | number | `30` | 資料保留天數 |
+| `alerts.defaults.telegram` | object | — | 新告警的預設 Telegram 設定 |
+| `alerts.defaults.webhook` | object | — | 新告警的預設 Webhook 設定 |
+| `alerts.defaults.email` | object | — | 新告警的預設 SMTP 設定 |
 
 ### 優先順序
 
