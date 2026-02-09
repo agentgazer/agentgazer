@@ -4,6 +4,8 @@
 
 Most observability tools just **watch**. AgentGazer **controls**.
 
+![AgentGazer Dashboard](assets/dashboard-screenshot.png)
+
 | Feature | Langsmith | Langfuse | Helicone | AgentGazer |
 |---------|:---------:|:--------:|:--------:|:----------:|
 | Tracing | ✅ | ✅ | ✅ | ✅ |
