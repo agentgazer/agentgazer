@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/server",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "AgentGazer local server with Express and SQLite",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -46,7 +46,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentgazer/shared": "^0.3.2",
+    "@agentgazer/shared": "^0.3.3",
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
     "express": "^4.21.0",
