@@ -14,6 +14,7 @@
 | `reset-token` | 重新產生認證 Token | — |
 | `overview` | 啟動即時 TUI 儀表板 | `--port` |
 | `version`、`--version`、`-V` | 顯示版本號 | — |
+| `update` | 更新到最新版本（保留設定） | — |
 | `doctor` | 系統健康檢查 | `--port`、`--proxy-port` |
 | `uninstall` | 移除 AgentGazer（僅限 curl 安裝） | `--yes` |
 | `help` | 顯示幫助訊息 | — |
@@ -217,6 +218,31 @@ agentgazer provider openai delete --yes  # 跳過確認
 agentgazer doctor
 agentgazer doctor --port 9090 --proxy-port 5000
 ```
+
+### `agentgazer update`
+
+檢查更新並升級到最新版本。自動偵測 AgentGazer 是透過 npm 或 Homebrew 安裝，並執行對應的更新指令。
+
+```bash
+agentgazer update
+```
+
+輸出範例：
+```
+  Current version: 0.3.2
+  Checking for updates...
+
+  New version available: 0.3.3
+
+  Detected: npm global installation
+  Updating via npm...
+
+  ✓ Update complete!
+
+  Your settings in ~/.agentgazer/ have been preserved.
+```
+
+更新過程中，`~/.agentgazer/` 中的設定檔、資料庫和 Provider Key 都會被保留。
 
 ## 設定檔
 

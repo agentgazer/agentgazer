@@ -14,6 +14,7 @@
 | `reset-token` | Regenerates the authentication Token | — |
 | `overview` | Launch real-time TUI dashboard | `--port` |
 | `version`, `--version`, `-V` | Displays the version number | — |
+| `update` | Update to latest version (preserves settings) | — |
 | `doctor` | Runs a system health check | `--port`, `--proxy-port` |
 | `uninstall` | Remove AgentGazer (curl-installed only) | `--yes` |
 | `help` | Displays help information | — |
@@ -217,6 +218,31 @@ Runs a system health check to verify the server and Proxy are operating correctl
 agentgazer doctor
 agentgazer doctor --port 9090 --proxy-port 5000
 ```
+
+### `agentgazer update`
+
+Check for updates and upgrade to the latest version. Automatically detects whether AgentGazer was installed via npm or Homebrew and runs the appropriate update command.
+
+```bash
+agentgazer update
+```
+
+Example output:
+```
+  Current version: 0.3.2
+  Checking for updates...
+
+  New version available: 0.3.3
+
+  Detected: npm global installation
+  Updating via npm...
+
+  ✓ Update complete!
+
+  Your settings in ~/.agentgazer/ have been preserved.
+```
+
+Your configuration, database, and provider keys in `~/.agentgazer/` are preserved during updates.
 
 ## Configuration File
 
