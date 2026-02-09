@@ -16,7 +16,7 @@ set -e
 
 # --- Configuration -----------------------------------------------------------
 
-NODE_VERSION="22.13.1"
+NODE_VERSION="24.13.0"
 AGENTGAZER_HOME="${AGENTGAZER_HOME:-$HOME/.agentgazer}"
 AGENTGAZER_BIN="${AGENTGAZER_BIN:-/usr/local/bin}"
 NODE_DIR="$AGENTGAZER_HOME/node"
