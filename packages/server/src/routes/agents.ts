@@ -11,6 +11,7 @@ import {
   updateKillSwitchConfig,
   deleteAgent,
 } from "../db.js";
+import { resetKillSwitchAlerts } from "../alerts/evaluator.js";
 import { createLogger } from "@agentgazer/shared";
 
 const router = Router();
@@ -226,9 +227,10 @@ router.put("/api/agents/:agentId/policy", (req, res) => {
     return;
   }
 
-  // Clear loop detector window when activating (fire-and-forget)
+  // Clear loop detector window and reset kill switch alerts when activating
   if (isActivating) {
     void clearLoopDetectorWindow(agentId);
+    resetKillSwitchAlerts(db, agentId);
   }
 
   const newPolicy = getAgentPolicy(db, agentId);

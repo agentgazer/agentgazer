@@ -61,6 +61,26 @@ function runMigrations(db: Database.Database): void {
     db.exec("ALTER TABLE alert_rules ADD COLUMN telegram_config TEXT");
   }
 
+  // Migration: Add repeat/recovery columns to alert_rules table
+  if (!alertColNames.includes("repeat_enabled")) {
+    db.exec("ALTER TABLE alert_rules ADD COLUMN repeat_enabled INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!alertColNames.includes("repeat_interval_minutes")) {
+    db.exec("ALTER TABLE alert_rules ADD COLUMN repeat_interval_minutes INTEGER NOT NULL DEFAULT 15");
+  }
+  if (!alertColNames.includes("recovery_notify")) {
+    db.exec("ALTER TABLE alert_rules ADD COLUMN recovery_notify INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!alertColNames.includes("state")) {
+    db.exec("ALTER TABLE alert_rules ADD COLUMN state TEXT NOT NULL DEFAULT 'normal'");
+  }
+  if (!alertColNames.includes("last_triggered_at")) {
+    db.exec("ALTER TABLE alert_rules ADD COLUMN last_triggered_at TEXT");
+  }
+  if (!alertColNames.includes("budget_period")) {
+    db.exec("ALTER TABLE alert_rules ADD COLUMN budget_period TEXT");
+  }
+
   // Migration: Add requested_model column to agent_events table
   const eventCols = db.prepare("PRAGMA table_info(agent_events)").all() as { name: string }[];
   const eventColNames = eventCols.map((c) => c.name);
@@ -359,7 +379,7 @@ export function getAgentByAgentId(
 }
 
 export interface EventQueryOptions {
-  agent_id: string;
+  agent_id?: string;  // Optional - if not provided, queries all agents
   from?: string;
   to?: string;
   event_type?: string;
@@ -368,6 +388,7 @@ export interface EventQueryOptions {
   trace_id?: string;
   search?: string;
   limit?: number;
+  offset?: number;
 }
 
 export interface EventRow {
@@ -417,13 +438,22 @@ export function purgeOldData(
   };
 }
 
+export interface EventQueryResult {
+  events: EventRow[];
+  total: number;
+}
+
 export function queryEvents(
   db: Database.Database,
   options: EventQueryOptions,
-): EventRow[] {
-  const conditions: string[] = ["agent_id = ?"];
-  const params: unknown[] = [options.agent_id];
+): EventQueryResult {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
 
+  if (options.agent_id) {
+    conditions.push("agent_id = ?");
+    params.push(options.agent_id);
+  }
   if (options.from) {
     conditions.push("timestamp >= ?");
     params.push(options.from);
@@ -454,11 +484,19 @@ export function queryEvents(
     params.push(term, term, term, term);
   }
 
-  const limit = options.limit ?? 1000;
-  const sql = `SELECT * FROM agent_events WHERE ${conditions.join(" AND ")} ORDER BY timestamp DESC LIMIT ?`;
-  params.push(limit);
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
-  return db.prepare(sql).all(...params) as EventRow[];
+  // Get total count
+  const countSql = `SELECT COUNT(*) as total FROM agent_events ${whereClause}`;
+  const countResult = db.prepare(countSql).get(...params) as { total: number };
+
+  // Get paginated results
+  const limit = options.limit ?? 50;
+  const offset = options.offset ?? 0;
+  const sql = `SELECT * FROM agent_events ${whereClause} ORDER BY timestamp DESC LIMIT ? OFFSET ?`;
+  const events = db.prepare(sql).all(...params, limit, offset) as EventRow[];
+
+  return { events, total: countResult.total };
 }
 
 /**
@@ -1096,17 +1134,18 @@ export interface TopAgentRow {
   percentage: number;
 }
 
-export function getTopAgentsByCost(db: Database.Database, limit = 5): TopAgentRow[] {
-  const todayUTC = new Date();
-  todayUTC.setUTCHours(0, 0, 0, 0);
-  const todayStart = todayUTC.toISOString();
+export function getTopAgentsByCost(db: Database.Database, limit = 5, days = 7): TopAgentRow[] {
+  const startDate = new Date();
+  startDate.setUTCDate(startDate.getUTCDate() - days + 1);
+  startDate.setUTCHours(0, 0, 0, 0);
+  const periodStart = startDate.toISOString();
 
   // Get total cost first
   const totalResult = db.prepare(`
     SELECT COALESCE(SUM(cost_usd), 0) as total
     FROM agent_events
     WHERE timestamp >= ?
-  `).get(todayStart) as { total: number };
+  `).get(periodStart) as { total: number };
 
   const totalCost = totalResult.total || 1; // Avoid division by zero
 
@@ -1120,7 +1159,7 @@ export function getTopAgentsByCost(db: Database.Database, limit = 5): TopAgentRo
     GROUP BY agent_id
     ORDER BY cost DESC
     LIMIT ?
-  `).all(todayStart, limit) as { agent_id: string; cost: number }[];
+  `).all(periodStart, limit) as { agent_id: string; cost: number }[];
 
   return rows.map(row => ({
     agent_id: row.agent_id,
@@ -1135,17 +1174,18 @@ export interface TopModelRow {
   percentage: number;
 }
 
-export function getTopModelsByTokens(db: Database.Database, limit = 5): TopModelRow[] {
-  const todayUTC = new Date();
-  todayUTC.setUTCHours(0, 0, 0, 0);
-  const todayStart = todayUTC.toISOString();
+export function getTopModelsByTokens(db: Database.Database, limit = 5, days = 7): TopModelRow[] {
+  const startDate = new Date();
+  startDate.setUTCDate(startDate.getUTCDate() - days + 1);
+  startDate.setUTCHours(0, 0, 0, 0);
+  const periodStart = startDate.toISOString();
 
   // Get total tokens first
   const totalResult = db.prepare(`
     SELECT COALESCE(SUM(tokens_total), 0) as total
     FROM agent_events
     WHERE timestamp >= ?
-  `).get(todayStart) as { total: number };
+  `).get(periodStart) as { total: number };
 
   const totalTokens = totalResult.total || 1; // Avoid division by zero
 
@@ -1159,7 +1199,7 @@ export function getTopModelsByTokens(db: Database.Database, limit = 5): TopModel
     GROUP BY model
     ORDER BY tokens DESC
     LIMIT ?
-  `).all(todayStart, limit) as { model: string; tokens: number }[];
+  `).all(periodStart, limit) as { model: string; tokens: number }[];
 
   return rows.map(row => ({
     model: row.model,

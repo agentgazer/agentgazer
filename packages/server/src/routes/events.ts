@@ -2,7 +2,9 @@ import { Router } from "express";
 import type Database from "better-sqlite3";
 import { insertEvents, upsertAgent, queryEvents, getRecentEvents, type InsertEventRow } from "../db.js";
 import { rateLimitEvents } from "../middleware/rate-limit.js";
-import { fireKillSwitchAlert, type KillSwitchEventData } from "../alerts/evaluator.js";
+import { createLogger } from "@agentgazer/shared";
+
+const log = createLogger("events");
 
 const router = Router();
 
@@ -239,33 +241,6 @@ router.post("/api/events", rateLimitEvents, (req, res) => {
     upsertAgent(db, agentId, hasHeartbeat);
   }
 
-  // Fire kill_switch alerts for any kill_switch events
-  for (const event of validEvents) {
-    if (event.event_type === "kill_switch" && event.tags) {
-      const tags = event.tags as {
-        score?: number;
-        window_size?: number;
-        threshold?: number;
-        details?: {
-          similarPrompts: number;
-          similarResponses: number;
-          repeatedToolCalls: number;
-        };
-      };
-      if (tags.score !== undefined && tags.details) {
-        const killSwitchData: KillSwitchEventData = {
-          agent_id: event.agent_id,
-          score: tags.score,
-          window_size: tags.window_size ?? 20,
-          threshold: tags.threshold ?? 10,
-          details: tags.details,
-        };
-        // Fire alert asynchronously - don't block the response
-        void fireKillSwitchAlert(db, killSwitchData);
-      }
-    }
-  }
-
   // Build results for valid events
   let idIdx = 0;
   for (const originalIndex of validIndices) {
@@ -291,10 +266,7 @@ router.get("/api/events", (req, res) => {
   const db = req.app.locals.db as Database.Database;
 
   const agentId = req.query.agent_id as string | undefined;
-  if (!agentId) {
-    res.status(400).json({ error: "agent_id query parameter is required" });
-    return;
-  }
+  // agent_id is now optional - allows global event queries
 
   const from = req.query.from as string | undefined;
   const to = req.query.to as string | undefined;
@@ -304,9 +276,11 @@ router.get("/api/events", (req, res) => {
   const traceId = req.query.trace_id as string | undefined;
   const search = req.query.search as string | undefined;
   const limitStr = req.query.limit as string | undefined;
+  const offsetStr = req.query.offset as string | undefined;
   const limit = limitStr ? parseInt(limitStr, 10) : undefined;
+  const offset = offsetStr ? parseInt(offsetStr, 10) : undefined;
 
-  const rows = queryEvents(db, {
+  const result = queryEvents(db, {
     agent_id: agentId,
     from,
     to,
@@ -316,15 +290,21 @@ router.get("/api/events", (req, res) => {
     trace_id: traceId,
     search,
     limit: limit && !isNaN(limit) ? Math.min(limit, MAX_QUERY_LIMIT) : undefined,
+    offset: offset && !isNaN(offset) ? offset : undefined,
   });
 
   // Parse tags from JSON string to object
-  const events = rows.map((row) => ({
+  const events = result.events.map((row) => ({
     ...row,
     tags: safeParseTags(row.tags),
   }));
 
-  res.json({ events });
+  res.json({
+    events,
+    total: result.total,
+    offset: offset ?? 0,
+    limit: limit ?? 50,
+  });
 });
 
 // GET /api/events/export - Export events as CSV or JSON
@@ -332,10 +312,7 @@ router.get("/api/events/export", (req, res) => {
   const db = req.app.locals.db as Database.Database;
 
   const agentId = req.query.agent_id as string | undefined;
-  if (!agentId) {
-    res.status(400).json({ error: "agent_id query parameter is required" });
-    return;
-  }
+  // agent_id is now optional - allows exporting all events
 
   const format = (req.query.format as string | undefined) ?? "json";
   if (format !== "json" && format !== "csv") {
@@ -350,7 +327,7 @@ router.get("/api/events/export", (req, res) => {
   const model = req.query.model as string | undefined;
   const traceId = req.query.trace_id as string | undefined;
 
-  const rows = queryEvents(db, {
+  const result = queryEvents(db, {
     agent_id: agentId,
     from,
     to,
@@ -360,6 +337,7 @@ router.get("/api/events/export", (req, res) => {
     trace_id: traceId,
     limit: 100_000,
   });
+  const rows = result.events;
 
   if (format === "csv") {
     const headers = [
@@ -370,7 +348,7 @@ router.get("/api/events/export", (req, res) => {
     ];
 
     res.setHeader("Content-Type", "text/csv");
-    res.setHeader("Content-Disposition", `attachment; filename="events-${agentId}.csv"`);
+    res.setHeader("Content-Disposition", `attachment; filename="events-${agentId ?? "all"}.csv"`);
 
     res.write(headers.join(",") + "\n");
 

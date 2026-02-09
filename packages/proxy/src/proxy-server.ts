@@ -21,9 +21,11 @@ import {
   getAllRateLimits,
   getProviderSettings,
   updateAgentPolicy,
+  fireKillSwitchAlert,
   type AgentPolicy,
   type InsertEventRow,
   type ProviderSettingsRow,
+  type KillSwitchEventData,
 } from "@agentgazer/server";
 import type Database from "better-sqlite3";
 
@@ -1205,6 +1207,16 @@ export function startProxy(options: ProxyOptions): ProxyServer {
                 },
               };
               insertEvents(db, [killSwitchEvent]);
+
+              // Fire kill_switch alert for Telegram/webhook/email notifications
+              const killSwitchData: KillSwitchEventData = {
+                agent_id: effectiveAgentId,
+                score: loopCheck.score,
+                window_size: killSwitchConfig.windowSize,
+                threshold: killSwitchConfig.threshold,
+                details: loopCheck.details,
+              };
+              void fireKillSwitchAlert(db, killSwitchData);
             } catch (err) {
               log.error("Failed to record kill_switch event", { err: String(err) });
             }

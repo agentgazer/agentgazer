@@ -351,8 +351,13 @@ describe("getProviderAuthHeader", () => {
     expect(result).toEqual({ name: "x-api-key", value: "sk-ant-test" });
   });
 
-  it("returns x-goog-api-key for google", () => {
+  it("returns Bearer Authorization for google (OpenAI-compatible, default)", () => {
     const result = getProviderAuthHeader("google", "AIza-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer AIza-test" });
+  });
+
+  it("returns x-goog-api-key for google native API", () => {
+    const result = getProviderAuthHeader("google", "AIza-test", true);
     expect(result).toEqual({ name: "x-goog-api-key", value: "AIza-test" });
   });
 

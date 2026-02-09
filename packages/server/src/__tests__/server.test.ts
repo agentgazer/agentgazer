@@ -450,10 +450,11 @@ describe("Event query GET /api/events", () => {
     }
   });
 
-  it("returns 400 if agent_id query param is missing", async () => {
+  it("returns events without agent_id filter (paginated)", async () => {
     const res = await request("GET", "/api/events");
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("agent_id query parameter is required");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("events");
+    expect(res.body).toHaveProperty("total");
   });
 });
 

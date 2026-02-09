@@ -24,8 +24,21 @@ interface AlertRuleRow {
   email: string | null;
   smtp_config: string | null;
   telegram_config: string | null;
+  repeat_enabled: number;
+  repeat_interval_minutes: number;
+  recovery_notify: number;
+  state: "normal" | "alerting" | "fired";
+  last_triggered_at: string | null;
+  budget_period: string | null;
   created_at: string;
   updated_at: string;
+}
+
+interface AgentRow {
+  agent_id: string;
+  status: string;
+  updated_at: string | null;
+  name: string | null;
 }
 
 interface SmtpConfig {
@@ -94,7 +107,7 @@ const SQL_ERROR_RATE = `
     AND timestamp >= ?
 `;
 
-const SQL_BUDGET_TODAY = `
+const SQL_BUDGET_SPEND = `
   SELECT COALESCE(SUM(cost_usd), 0) AS total_cost
   FROM agent_events
   WHERE agent_id = ?
@@ -102,10 +115,8 @@ const SQL_BUDGET_TODAY = `
     AND timestamp >= ?
 `;
 
-const SQL_COOLDOWN_CHECK = `
-  SELECT id FROM alert_history
-  WHERE alert_rule_id = ? AND delivered_at > datetime('now', '-15 minutes')
-  LIMIT 1
+const SQL_UPDATE_RULE_STATE = `
+  UPDATE alert_rules SET state = ?, last_triggered_at = ?, updated_at = datetime('now') WHERE id = ?
 `;
 
 const SQL_INSERT_HISTORY = `
@@ -264,25 +275,136 @@ async function sendTelegram(
 }
 
 // ---------------------------------------------------------------------------
-// Evaluation helpers
+// Notification delivery helper
 // ---------------------------------------------------------------------------
+
+async function deliverNotification(
+  db: Database.Database,
+  rule: AlertRuleRow,
+  message: string,
+  isRecovery: boolean = false,
+): Promise<void> {
+  const timestamp = new Date().toISOString();
+  const ruleType = isRecovery ? `${rule.rule_type}_recovery` : rule.rule_type;
+  const payload = {
+    agent_id: rule.agent_id,
+    rule_type: ruleType,
+    message,
+    timestamp,
+  };
+
+  const notificationType = rule.notification_type || "webhook";
+
+  if (notificationType === "webhook" && rule.webhook_url) {
+    postWebhook(rule.webhook_url, payload);
+    db.prepare(SQL_INSERT_HISTORY).run(
+      rule.id,
+      rule.agent_id,
+      ruleType,
+      message,
+      "webhook",
+    );
+  } else if (notificationType === "email") {
+    try {
+      let smtpConfig: SmtpConfig | null = null;
+      if (rule.smtp_config) {
+        try { smtpConfig = JSON.parse(rule.smtp_config); } catch { /* ignore */ }
+      }
+      await sendEmail(payload, smtpConfig, rule.email);
+      db.prepare(SQL_INSERT_HISTORY).run(
+        rule.id,
+        rule.agent_id,
+        ruleType,
+        message,
+        "email",
+      );
+    } catch (emailErr) {
+      log.error("Email delivery failed, history not recorded", { ruleId: rule.id, err: String(emailErr) });
+    }
+  } else if (notificationType === "telegram") {
+    try {
+      let telegramConfig: TelegramConfig | null = null;
+      if (rule.telegram_config) {
+        try { telegramConfig = JSON.parse(rule.telegram_config); } catch { /* ignore */ }
+      }
+      if (telegramConfig) {
+        await sendTelegram(payload, telegramConfig);
+        db.prepare(SQL_INSERT_HISTORY).run(
+          rule.id,
+          rule.agent_id,
+          ruleType,
+          message,
+          "telegram",
+        );
+      } else {
+        log.warn("Telegram alert skipped: no telegram_config", { ruleId: rule.id });
+      }
+    } catch (tgErr) {
+      log.error("Telegram delivery failed, history not recorded", { ruleId: rule.id, err: String(tgErr) });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Budget period helpers
+// ---------------------------------------------------------------------------
+
+function getBudgetPeriodStart(period: string | null): string {
+  const now = new Date();
+
+  switch (period) {
+    case "weekly": {
+      // Start of current week (Sunday)
+      const day = now.getUTCDay();
+      const diff = now.getUTCDate() - day;
+      const weekStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), diff, 0, 0, 0, 0));
+      return weekStart.toISOString();
+    }
+    case "monthly": {
+      // Start of current month
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+      return monthStart.toISOString();
+    }
+    case "daily":
+    default: {
+      // Start of today (UTC midnight)
+      const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+      return todayStart.toISOString();
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Evaluation helpers (with recovery detection)
+// ---------------------------------------------------------------------------
+
+interface EvaluationResult {
+  conditionMet: boolean;
+  message: string | null;
+  recoveryMessage: string | null;
+}
 
 function evaluateAgentDown(
   db: Database.Database,
   rule: AlertRuleRow,
   config: AgentDownConfig,
-): string | null {
-  const agent = db.prepare(SQL_AGENT_BY_ID).get(rule.agent_id) as
-    | { updated_at: string | null; name: string | null }
-    | undefined;
+): EvaluationResult {
+  const agent = db.prepare(SQL_AGENT_BY_ID).get(rule.agent_id) as AgentRow | undefined;
 
   if (!agent) {
-    // Agent has never been registered -- treat as inactive.
-    return `Agent "${rule.agent_id}" has never been registered`;
+    return {
+      conditionMet: true,
+      message: `Agent "${rule.agent_id}" has never been registered`,
+      recoveryMessage: null,
+    };
   }
 
   if (!agent.updated_at) {
-    return `Agent "${rule.agent_id}" has no recorded activity`;
+    return {
+      conditionMet: true,
+      message: `Agent "${rule.agent_id}" has no recorded activity`,
+      recoveryMessage: null,
+    };
   }
 
   const lastActivity = new Date(
@@ -295,17 +417,26 @@ function evaluateAgentDown(
 
   if (now - lastActivity > threshold) {
     const minutesAgo = Math.round((now - lastActivity) / 60_000);
-    return `Agent "${rule.agent_id}" has been inactive for ${minutesAgo} minutes (threshold: ${config.duration_minutes}m)`;
+    return {
+      conditionMet: true,
+      message: `Agent "${rule.agent_id}" has been inactive for ${minutesAgo} minutes (threshold: ${config.duration_minutes}m)`,
+      recoveryMessage: null,
+    };
   }
 
-  return null;
+  // Agent is active - this is a recovery
+  return {
+    conditionMet: false,
+    message: null,
+    recoveryMessage: `Agent "${rule.agent_id}" is back online`,
+  };
 }
 
 function evaluateErrorRate(
   db: Database.Database,
   rule: AlertRuleRow,
   config: ErrorRateConfig,
-): string | null {
+): EvaluationResult {
   const windowStart = new Date(
     Date.now() - config.window_minutes * 60 * 1000,
   ).toISOString();
@@ -316,37 +447,59 @@ function evaluateErrorRate(
   };
 
   if (row.total === 0) {
-    return null; // No events in window, nothing to evaluate.
+    // No events in window - if we were alerting, consider it recovered
+    return {
+      conditionMet: false,
+      message: null,
+      recoveryMessage: rule.state !== "normal" ? `Agent "${rule.agent_id}" error rate returned to normal (no events)` : null,
+    };
   }
 
   const rate = (row.errors / row.total) * 100;
 
   if (rate > config.threshold) {
-    return `Agent "${rule.agent_id}" error rate is ${rate.toFixed(1)}% (${row.errors}/${row.total}) over the last ${config.window_minutes}m (threshold: ${config.threshold}%)`;
+    return {
+      conditionMet: true,
+      message: `Agent "${rule.agent_id}" error rate is ${rate.toFixed(1)}% (${row.errors}/${row.total}) over the last ${config.window_minutes}m (threshold: ${config.threshold}%)`,
+      recoveryMessage: null,
+    };
   }
 
-  return null;
+  // Error rate is within threshold - recovery
+  return {
+    conditionMet: false,
+    message: null,
+    recoveryMessage: `Agent "${rule.agent_id}" error rate returned to normal (${rate.toFixed(1)}%)`,
+  };
 }
 
 function evaluateBudget(
   db: Database.Database,
   rule: AlertRuleRow,
   config: BudgetConfig,
-): string | null {
-  // UTC midnight today
-  const todayUTC = new Date();
-  todayUTC.setUTCHours(0, 0, 0, 0);
-  const since = todayUTC.toISOString();
+): EvaluationResult {
+  const since = getBudgetPeriodStart(rule.budget_period);
 
-  const row = db.prepare(SQL_BUDGET_TODAY).get(rule.agent_id, since) as {
+  const row = db.prepare(SQL_BUDGET_SPEND).get(rule.agent_id, since) as {
     total_cost: number;
   };
 
+  const periodLabel = rule.budget_period || "daily";
+
   if (row.total_cost > config.threshold) {
-    return `Agent "${rule.agent_id}" daily spend is $${row.total_cost.toFixed(4)} (threshold: $${config.threshold})`;
+    return {
+      conditionMet: true,
+      message: `Agent "${rule.agent_id}" ${periodLabel} spend is $${row.total_cost.toFixed(4)} (threshold: $${config.threshold})`,
+      recoveryMessage: null,
+    };
   }
 
-  return null;
+  // Under budget - recovery (new period started or reset)
+  return {
+    conditionMet: false,
+    message: null,
+    recoveryMessage: `Agent "${rule.agent_id}" budget reset for new ${periodLabel} period`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -364,96 +517,75 @@ async function tick(db: Database.Database): Promise<void> {
 
   for (const rule of rules) {
     try {
+      // Skip kill_switch - handled separately via fireKillSwitchAlert()
+      if (rule.rule_type === "kill_switch") {
+        continue;
+      }
+
+      // Check if agent is inactive - skip evaluation
+      const agent = db.prepare(SQL_AGENT_BY_ID).get(rule.agent_id) as AgentRow | undefined;
+      if (agent && agent.status === "inactive") {
+        log.debug("Skipping alert evaluation for inactive agent", { ruleId: rule.id, agentId: rule.agent_id });
+        continue;
+      }
+
       const config = JSON.parse(rule.config);
-      let message: string | null = null;
+      let result: EvaluationResult;
 
       switch (rule.rule_type) {
         case "agent_down":
-          message = evaluateAgentDown(db, rule, config as AgentDownConfig);
+          result = evaluateAgentDown(db, rule, config as AgentDownConfig);
           break;
         case "error_rate":
-          message = evaluateErrorRate(db, rule, config as ErrorRateConfig);
+          result = evaluateErrorRate(db, rule, config as ErrorRateConfig);
           break;
         case "budget":
-          message = evaluateBudget(db, rule, config as BudgetConfig);
+          result = evaluateBudget(db, rule, config as BudgetConfig);
           break;
         default:
           log.warn(`Unknown rule_type "${rule.rule_type}"`, { ruleId: rule.id });
           continue;
       }
 
-      if (message === null) {
-        continue; // Condition not met; nothing to fire.
-      }
+      const currentState = rule.state || "normal";
+      const now = new Date().toISOString();
 
-      // -- Cooldown check: skip if we already delivered for this rule recently.
-      const recent = db.prepare(SQL_COOLDOWN_CHECK).get(rule.id);
-      if (recent) {
-        continue;
-      }
+      if (result.conditionMet && result.message) {
+        // Condition is met
+        if (currentState === "normal") {
+          // First trigger - send notification and update state
+          log.info(`Alert fired: ${result.message}`, { ruleId: rule.id, ruleType: rule.rule_type, agentId: rule.agent_id });
+          await deliverNotification(db, rule, result.message);
 
-      // -- Fire alert --------------------------------------------------------
+          const newState = rule.repeat_enabled ? "alerting" : "fired";
+          db.prepare(SQL_UPDATE_RULE_STATE).run(newState, now, rule.id);
 
-      log.info(`Alert fired: ${message}`, { ruleId: rule.id, ruleType: rule.rule_type, agentId: rule.agent_id });
+        } else if (currentState === "alerting" && rule.repeat_enabled) {
+          // Check if repeat interval has passed
+          const lastTriggered = rule.last_triggered_at ? new Date(rule.last_triggered_at).getTime() : 0;
+          const intervalMs = rule.repeat_interval_minutes * 60 * 1000;
 
-      const timestamp = new Date().toISOString();
-      const payload = {
-        agent_id: rule.agent_id,
-        rule_type: rule.rule_type,
-        message,
-        timestamp,
-      };
-
-      const notificationType = rule.notification_type || "webhook";
-
-      if (notificationType === "webhook" && rule.webhook_url) {
-        postWebhook(rule.webhook_url, payload);
-        db.prepare(SQL_INSERT_HISTORY).run(
-          rule.id,
-          rule.agent_id,
-          rule.rule_type,
-          message,
-          "webhook",
-        );
-      } else if (notificationType === "email") {
-        try {
-          let smtpConfig: SmtpConfig | null = null;
-          if (rule.smtp_config) {
-            try { smtpConfig = JSON.parse(rule.smtp_config); } catch { /* ignore */ }
+          if (Date.now() - lastTriggered >= intervalMs) {
+            log.info(`Alert repeat: ${result.message}`, { ruleId: rule.id, ruleType: rule.rule_type, agentId: rule.agent_id });
+            await deliverNotification(db, rule, result.message);
+            db.prepare(SQL_UPDATE_RULE_STATE).run("alerting", now, rule.id);
           }
-          await sendEmail(payload, smtpConfig, rule.email);
-          db.prepare(SQL_INSERT_HISTORY).run(
-            rule.id,
-            rule.agent_id,
-            rule.rule_type,
-            message,
-            "email",
-          );
-        } catch (emailErr) {
-          log.error("Email delivery failed, history not recorded", { ruleId: rule.id, err: String(emailErr) });
         }
-      } else if (notificationType === "telegram") {
-        try {
-          let telegramConfig: TelegramConfig | null = null;
-          if (rule.telegram_config) {
-            try { telegramConfig = JSON.parse(rule.telegram_config); } catch { /* ignore */ }
-          }
-          if (telegramConfig) {
-            await sendTelegram(payload, telegramConfig);
-            db.prepare(SQL_INSERT_HISTORY).run(
-              rule.id,
-              rule.agent_id,
-              rule.rule_type,
-              message,
-              "telegram",
-            );
-          } else {
-            log.warn("Telegram alert skipped: no telegram_config", { ruleId: rule.id });
-          }
-        } catch (tgErr) {
-          log.error("Telegram delivery failed, history not recorded", { ruleId: rule.id, err: String(tgErr) });
+        // If state is "fired" (one-time), do nothing until recovery
+
+      } else if (!result.conditionMet && (currentState === "alerting" || currentState === "fired")) {
+        // Condition recovered
+        log.info(`Alert recovered`, { ruleId: rule.id, ruleType: rule.rule_type, agentId: rule.agent_id });
+
+        // Send recovery notification if enabled
+        if (rule.recovery_notify && result.recoveryMessage) {
+          await deliverNotification(db, rule, result.recoveryMessage, true);
         }
+
+        // Reset state to normal
+        db.prepare(SQL_UPDATE_RULE_STATE).run("normal", null, rule.id);
       }
+
     } catch (err) {
       log.error(`Error evaluating rule`, { ruleId: rule.id, ruleType: rule.rule_type, err: String(err) });
     }
@@ -486,70 +618,59 @@ export async function fireKillSwitchAlert(
     `Window size: ${data.window_size}`,
   ].join("\n");
 
-  const timestamp = new Date().toISOString();
-  const payload = {
-    agent_id: data.agent_id,
-    rule_type: "kill_switch",
-    message,
-    timestamp,
-    score: data.score,
-    threshold: data.threshold,
-    details: data.details,
-  };
+  const now = new Date().toISOString();
 
   for (const rule of rules) {
     try {
-      // Cooldown check
-      const recent = db.prepare(SQL_COOLDOWN_CHECK).get(rule.id);
-      if (recent) {
-        log.debug("Kill switch alert skipped due to cooldown", { ruleId: rule.id });
+      const currentState = rule.state || "normal";
+
+      // Check if we should send based on state and repeat settings
+      if (currentState === "fired" && !rule.repeat_enabled) {
+        log.debug("Kill switch alert skipped (already fired, one-time)", { ruleId: rule.id });
         continue;
+      }
+
+      if (currentState === "alerting" && rule.repeat_enabled) {
+        // Check repeat interval
+        const lastTriggered = rule.last_triggered_at ? new Date(rule.last_triggered_at).getTime() : 0;
+        const intervalMs = rule.repeat_interval_minutes * 60 * 1000;
+
+        if (Date.now() - lastTriggered < intervalMs) {
+          log.debug("Kill switch alert skipped due to repeat interval", { ruleId: rule.id });
+          continue;
+        }
       }
 
       log.info(`Kill switch alert fired`, { ruleId: rule.id, agentId: data.agent_id, score: data.score });
 
-      const notificationType = rule.notification_type || "webhook";
+      await deliverNotification(db, rule, message);
 
-      if (notificationType === "webhook" && rule.webhook_url) {
-        postWebhook(rule.webhook_url, payload);
-        db.prepare(SQL_INSERT_HISTORY).run(
-          rule.id,
-          rule.agent_id,
-          rule.rule_type,
-          message,
-          "webhook",
-        );
-      } else if (notificationType === "email") {
-        let smtpConfig: SmtpConfig | null = null;
-        if (rule.smtp_config) {
-          try { smtpConfig = JSON.parse(rule.smtp_config); } catch { /* ignore */ }
-        }
-        await sendEmail(payload, smtpConfig, rule.email);
-        db.prepare(SQL_INSERT_HISTORY).run(
-          rule.id,
-          rule.agent_id,
-          rule.rule_type,
-          message,
-          "email",
-        );
-      } else if (notificationType === "telegram") {
-        let telegramConfig: TelegramConfig | null = null;
-        if (rule.telegram_config) {
-          try { telegramConfig = JSON.parse(rule.telegram_config); } catch { /* ignore */ }
-        }
-        if (telegramConfig) {
-          await sendTelegram(payload, telegramConfig);
-          db.prepare(SQL_INSERT_HISTORY).run(
-            rule.id,
-            rule.agent_id,
-            rule.rule_type,
-            message,
-            "telegram",
-          );
-        }
-      }
+      const newState = rule.repeat_enabled ? "alerting" : "fired";
+      db.prepare(SQL_UPDATE_RULE_STATE).run(newState, now, rule.id);
+
     } catch (err) {
       log.error("Error firing kill_switch alert", { ruleId: rule.id, err: String(err) });
+    }
+  }
+}
+
+/**
+ * Reset kill_switch alert state when agent is reactivated.
+ * Called when agent status changes from inactive to active.
+ */
+export function resetKillSwitchAlerts(db: Database.Database, agentId: string): void {
+  const rules = db.prepare(SQL_KILL_SWITCH_RULES).all(agentId) as AlertRuleRow[];
+
+  for (const rule of rules) {
+    if (rule.state !== "normal") {
+      log.info("Resetting kill_switch alert state", { ruleId: rule.id, agentId });
+
+      if (rule.recovery_notify) {
+        const message = `Agent "${agentId}" has been reactivated`;
+        void deliverNotification(db, rule, message, true);
+      }
+
+      db.prepare(SQL_UPDATE_RULE_STATE).run("normal", null, rule.id);
     }
   }
 }

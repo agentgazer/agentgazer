@@ -99,24 +99,100 @@ THEN the system MUST send an email via Resend to the user's email address contai
 WHEN an alert is triggered and the alert rule has both webhook and email channels configured
 THEN the system MUST deliver the alert through both channels.
 
-### Requirement: Alert cooldown
+### Requirement: Alert repeat settings
 
-The system SHALL enforce an alert cooldown period. The same alert rule MUST NOT fire more than once within a 15-minute window. If the alert condition persists beyond the cooldown period, the alert MAY fire again. The cooldown MUST be tracked per alert rule instance, not globally.
+Alert rules SHALL support configurable repeat notification settings.
 
-#### Scenario: Cooldown prevents duplicate alert
+#### Scenario: Default repeat behavior
+- **GIVEN** a new alert rule is created without repeat settings
+- **THEN** repeat_enabled defaults to true
+- **AND** repeat_interval_minutes defaults to 15
 
-WHEN an `agent-down` alert fires at 10:00 AM and the agent remains down at 10:05 AM
-THEN the system MUST NOT fire the same alert again because the 15-minute cooldown has not elapsed.
+#### Scenario: One-time notification
+- **GIVEN** an alert rule with repeat_enabled = false
+- **WHEN** the condition is met
+- **THEN** notification is sent once
+- **AND** state changes to 'fired'
+- **AND** no further notifications until condition recovers
 
-#### Scenario: Alert fires again after cooldown
+#### Scenario: Repeat notification
+- **GIVEN** an alert rule with repeat_enabled = true and repeat_interval_minutes = 30
+- **WHEN** the condition is met and remains met
+- **THEN** notification is sent every 30 minutes
+- **AND** state remains 'alerting'
 
-WHEN an `agent-down` alert fires at 10:00 AM and the agent is still down at 10:16 AM
-THEN the system MUST fire the alert again because the 15-minute cooldown has elapsed.
+### Requirement: Alert state tracking
 
-#### Scenario: Cooldown is per alert rule
+Alert rules SHALL track their current state (normal, alerting, fired).
 
-WHEN agent A's `agent-down` alert fires at 10:00 AM and agent B's `agent-down` alert condition is met at 10:02 AM
-THEN the system MUST fire agent B's alert because the cooldown is tracked independently per alert rule.
+#### Scenario: Initial state
+- **GIVEN** a new alert rule
+- **THEN** state is 'normal'
+
+#### Scenario: State transition to alerting
+- **GIVEN** an alert rule in 'normal' state with repeat_enabled = true
+- **WHEN** the condition is met
+- **THEN** state changes to 'alerting'
+
+#### Scenario: State transition to fired
+- **GIVEN** an alert rule in 'normal' state with repeat_enabled = false
+- **WHEN** the condition is met
+- **THEN** state changes to 'fired'
+
+#### Scenario: State recovery
+- **GIVEN** an alert rule in 'alerting' or 'fired' state
+- **WHEN** the condition recovers
+- **THEN** state changes to 'normal'
+
+### Requirement: Recovery notifications
+
+Alert rules SHALL support optional recovery notifications.
+
+#### Scenario: Recovery notification enabled
+- **GIVEN** an alert rule with recovery_notify = true in 'alerting' state
+- **WHEN** the condition recovers
+- **THEN** a recovery notification is sent
+- **AND** state changes to 'normal'
+
+#### Scenario: Recovery notification disabled
+- **GIVEN** an alert rule with recovery_notify = false in 'alerting' state
+- **WHEN** the condition recovers
+- **THEN** no notification is sent
+- **AND** state changes to 'normal'
+
+### Requirement: Inactive agents skip evaluation
+
+Alert evaluation SHALL skip inactive agents.
+
+#### Scenario: Inactive agent
+- **GIVEN** an agent with status 'inactive'
+- **WHEN** alert evaluation runs
+- **THEN** all rules for that agent are skipped
+- **AND** no notifications are sent
+
+### Requirement: Alert recovery conditions
+
+Each alert type SHALL have defined recovery conditions.
+
+#### Scenario: agent_down recovery
+- **GIVEN** an agent_down alert in alerting state
+- **WHEN** the agent sends a heartbeat
+- **THEN** the condition is considered recovered
+
+#### Scenario: error_rate recovery
+- **GIVEN** an error_rate alert with threshold 10% in alerting state
+- **WHEN** the error rate drops to 10% or below
+- **THEN** the condition is considered recovered
+
+#### Scenario: budget recovery
+- **GIVEN** a budget alert in alerting state
+- **WHEN** user calls reset API or new budget period starts
+- **THEN** the condition is considered recovered
+
+#### Scenario: kill_switch recovery
+- **GIVEN** a kill_switch alert in fired state
+- **WHEN** the agent is reactivated
+- **THEN** the condition is considered recovered
 
 ### Requirement: Alert history in dashboard
 

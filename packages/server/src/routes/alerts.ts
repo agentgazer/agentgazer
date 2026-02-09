@@ -15,6 +15,12 @@ interface AlertRuleRow {
   email: string | null;
   smtp_config: string | null;
   telegram_config: string | null;
+  repeat_enabled: number;
+  repeat_interval_minutes: number;
+  recovery_notify: number;
+  state: string;
+  last_triggered_at: string | null;
+  budget_period: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,6 +59,12 @@ function parseAlertRule(row: AlertRuleRow) {
     email: row.email,
     smtp_config: smtpConfig,
     telegram_config: telegramConfig,
+    repeat_enabled: row.repeat_enabled === 1,
+    repeat_interval_minutes: row.repeat_interval_minutes ?? 15,
+    recovery_notify: row.recovery_notify === 1,
+    state: row.state || "normal",
+    last_triggered_at: row.last_triggered_at,
+    budget_period: row.budget_period,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -133,6 +145,10 @@ router.post("/api/alerts", (req, res) => {
     email?: string;
     smtp_config?: Record<string, unknown>;
     telegram_config?: Record<string, unknown>;
+    repeat_enabled?: boolean;
+    repeat_interval_minutes?: number;
+    recovery_notify?: boolean;
+    budget_period?: string;
   };
 
   // Validate required fields
@@ -202,13 +218,34 @@ router.post("/api/alerts", (req, res) => {
     }
   }
 
+  // Validate budget_period if provided
+  if (body.budget_period !== undefined) {
+    const validPeriods = new Set(["daily", "weekly", "monthly"]);
+    if (!validPeriods.has(body.budget_period)) {
+      res.status(400).json({ error: `budget_period must be one of: ${[...validPeriods].join(", ")}` });
+      return;
+    }
+  }
+
+  // Validate repeat_interval_minutes if provided
+  if (body.repeat_interval_minutes !== undefined) {
+    if (body.repeat_interval_minutes < 1 || body.repeat_interval_minutes > 1440) {
+      res.status(400).json({ error: "repeat_interval_minutes must be between 1 and 1440" });
+      return;
+    }
+  }
+
   const id = randomUUID();
   const now = new Date().toISOString();
   const enabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : 1;
+  const repeatEnabled = body.repeat_enabled !== undefined ? (body.repeat_enabled ? 1 : 0) : 1;
+  const repeatIntervalMinutes = body.repeat_interval_minutes ?? 15;
+  const recoveryNotify = body.recovery_notify !== undefined ? (body.recovery_notify ? 1 : 0) : 0;
+  const budgetPeriod = body.budget_period ?? null;
 
   db.prepare(
-    `INSERT INTO alert_rules (id, agent_id, rule_type, config, enabled, notification_type, webhook_url, email, smtp_config, telegram_config, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO alert_rules (id, agent_id, rule_type, config, enabled, notification_type, webhook_url, email, smtp_config, telegram_config, repeat_enabled, repeat_interval_minutes, recovery_notify, state, budget_period, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?, ?)`,
   ).run(
     id,
     body.agent_id,
@@ -220,6 +257,10 @@ router.post("/api/alerts", (req, res) => {
     body.email ?? null,
     body.smtp_config ? JSON.stringify(body.smtp_config) : null,
     body.telegram_config ? JSON.stringify(body.telegram_config) : null,
+    repeatEnabled,
+    repeatIntervalMinutes,
+    recoveryNotify,
+    budgetPeriod,
     now,
     now,
   );
@@ -242,6 +283,10 @@ router.put("/api/alerts/:id", (req, res) => {
     email?: string;
     smtp_config?: Record<string, unknown>;
     telegram_config?: Record<string, unknown>;
+    repeat_enabled?: boolean;
+    repeat_interval_minutes?: number;
+    recovery_notify?: boolean;
+    budget_period?: string;
   };
 
   const existing = db.prepare("SELECT * FROM alert_rules WHERE id = ?").get(id) as
@@ -273,6 +318,15 @@ router.put("/api/alerts/:id", (req, res) => {
       return;
     }
   }
+
+  // Validate repeat_interval_minutes if provided
+  if (body.repeat_interval_minutes !== undefined) {
+    if (body.repeat_interval_minutes < 1 || body.repeat_interval_minutes > 1440) {
+      res.status(400).json({ error: "repeat_interval_minutes must be between 1 and 1440" });
+      return;
+    }
+  }
+
   const webhookUrl = body.webhook_url !== undefined ? (body.webhook_url || null) : existing.webhook_url;
   const email = body.email !== undefined ? body.email : existing.email;
   const smtpConfig = body.smtp_config !== undefined
@@ -281,12 +335,16 @@ router.put("/api/alerts/:id", (req, res) => {
   const telegramConfig = body.telegram_config !== undefined
     ? (body.telegram_config ? JSON.stringify(body.telegram_config) : null)
     : existing.telegram_config;
+  const repeatEnabled = body.repeat_enabled !== undefined ? (body.repeat_enabled ? 1 : 0) : existing.repeat_enabled;
+  const repeatIntervalMinutes = body.repeat_interval_minutes ?? existing.repeat_interval_minutes;
+  const recoveryNotify = body.recovery_notify !== undefined ? (body.recovery_notify ? 1 : 0) : existing.recovery_notify;
+  const budgetPeriod = body.budget_period !== undefined ? body.budget_period : existing.budget_period;
 
   db.prepare(
     `UPDATE alert_rules
-     SET agent_id = ?, rule_type = ?, config = ?, enabled = ?, notification_type = ?, webhook_url = ?, email = ?, smtp_config = ?, telegram_config = ?, updated_at = ?
+     SET agent_id = ?, rule_type = ?, config = ?, enabled = ?, notification_type = ?, webhook_url = ?, email = ?, smtp_config = ?, telegram_config = ?, repeat_enabled = ?, repeat_interval_minutes = ?, recovery_notify = ?, budget_period = ?, updated_at = ?
      WHERE id = ?`,
-  ).run(agentId, ruleType, config, enabled, notificationType, webhookUrl, email, smtpConfig, telegramConfig, now, id);
+  ).run(agentId, ruleType, config, enabled, notificationType, webhookUrl, email, smtpConfig, telegramConfig, repeatEnabled, repeatIntervalMinutes, recoveryNotify, budgetPeriod, now, id);
 
   const row = db.prepare("SELECT * FROM alert_rules WHERE id = ?").get(id) as AlertRuleRow;
   res.json(parseAlertRule(row));
@@ -333,6 +391,30 @@ router.patch("/api/alerts/:id/toggle", (req, res) => {
   const now = new Date().toISOString();
   db.prepare("UPDATE alert_rules SET enabled = ?, updated_at = ? WHERE id = ?").run(
     body.enabled ? 1 : 0,
+    now,
+    id,
+  );
+
+  const row = db.prepare("SELECT * FROM alert_rules WHERE id = ?").get(id) as AlertRuleRow;
+  res.json(parseAlertRule(row));
+});
+
+// POST /api/alerts/:id/reset - Reset alert rule state to normal
+router.post("/api/alerts/:id/reset", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const { id } = req.params;
+
+  const existing = db.prepare("SELECT * FROM alert_rules WHERE id = ?").get(id) as
+    | AlertRuleRow
+    | undefined;
+
+  if (!existing) {
+    res.status(404).json({ error: "Alert rule not found" });
+    return;
+  }
+
+  const now = new Date().toISOString();
+  db.prepare("UPDATE alert_rules SET state = 'normal', last_triggered_at = NULL, updated_at = ? WHERE id = ?").run(
     now,
     id,
   );

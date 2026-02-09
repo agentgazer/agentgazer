@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { Link } from "react-router-dom";
 import { overviewApi, type OverviewData, type RecentEvent } from "../lib/api";
 import { formatCost } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
@@ -105,9 +106,17 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Recent Events */}
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-          <h3 className="mb-4 text-sm font-medium uppercase tracking-wide text-gray-400">
-            Recent Events
-          </h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-medium uppercase tracking-wide text-gray-400">
+              Recent Events
+            </h3>
+            <Link
+              to="/events"
+              className="text-xs text-blue-400 hover:text-blue-300"
+            >
+              View All
+            </Link>
+          </div>
           {eventsLoading && !eventsData ? (
             <div className="flex h-48 items-center justify-center">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-600 border-t-blue-500" />

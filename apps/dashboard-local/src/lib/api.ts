@@ -259,3 +259,78 @@ export const openclawApi = {
       },
     }),
 };
+
+// ---------------------------------------------------------------------------
+// Events/Logs API Types
+// ---------------------------------------------------------------------------
+
+export interface EventRow {
+  id: string;
+  agent_id: string;
+  event_type: string;
+  provider: string | null;
+  model: string | null;
+  requested_model: string | null;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  tokens_total: number | null;
+  cost_usd: number | null;
+  latency_ms: number | null;
+  status_code: number | null;
+  error_message: string | null;
+  source: string;
+  timestamp: string;
+  trace_id: string | null;
+  span_id: string | null;
+  parent_span_id: string | null;
+  tags: Record<string, unknown> | null;
+}
+
+export interface EventsResponse {
+  events: EventRow[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export interface EventsQueryParams {
+  agent_id?: string;
+  event_type?: string;
+  provider?: string;
+  from?: string;
+  to?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Events/Logs API Functions
+// ---------------------------------------------------------------------------
+
+export const eventsApi = {
+  query: (params: EventsQueryParams = {}) => {
+    const urlParams = new URLSearchParams();
+    if (params.agent_id) urlParams.set("agent_id", params.agent_id);
+    if (params.event_type) urlParams.set("event_type", params.event_type);
+    if (params.provider) urlParams.set("provider", params.provider);
+    if (params.from) urlParams.set("from", params.from);
+    if (params.to) urlParams.set("to", params.to);
+    if (params.search) urlParams.set("search", params.search);
+    if (params.limit) urlParams.set("limit", String(params.limit));
+    if (params.offset) urlParams.set("offset", String(params.offset));
+    const query = urlParams.toString();
+    return api.get<EventsResponse>(`/api/events${query ? `?${query}` : ""}`);
+  },
+
+  exportCsv: (params: EventsQueryParams = {}) => {
+    const urlParams = new URLSearchParams();
+    urlParams.set("format", "csv");
+    if (params.agent_id) urlParams.set("agent_id", params.agent_id);
+    if (params.event_type) urlParams.set("event_type", params.event_type);
+    if (params.provider) urlParams.set("provider", params.provider);
+    if (params.from) urlParams.set("from", params.from);
+    if (params.to) urlParams.set("to", params.to);
+    return `/api/events/export?${urlParams.toString()}`;
+  },
+};

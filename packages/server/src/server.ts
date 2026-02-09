@@ -18,6 +18,7 @@ import rateLimitsRouter from "./routes/rate-limits.js";
 import { createProvidersRouter } from "./routes/providers.js";
 import { createOverviewRouter } from "./routes/overview.js";
 import { createOpenclawRouter } from "./routes/openclaw.js";
+import { createSettingsRouter } from "./routes/settings.js";
 import { startEvaluator } from "./alerts/evaluator.js";
 
 export interface SecretStore {
@@ -34,6 +35,7 @@ export interface ServerOptions {
   dashboardDir?: string;
   retentionDays?: number;
   secretStore?: SecretStore;
+  configPath?: string;
 }
 
 export function createServer(options: ServerOptions): { app: express.Express; db: ReturnType<typeof initDatabase> } {
@@ -64,8 +66,11 @@ export function createServer(options: ServerOptions): { app: express.Express; db
   app.use(rateLimitsRouter);
   app.use("/api/providers", createProvidersRouter({ db, secretStore: options.secretStore }));
   app.use("/api", createProvidersRouter({ db, secretStore: options.secretStore })); // for /api/connection-info
-  app.use("/api/overview", createOverviewRouter({ db }));
+  app.use("/api/overview", createOverviewRouter({ db, startTime: app.locals.startTime }));
   app.use("/api/openclaw", createOpenclawRouter());
+  if (options.configPath) {
+    app.use(createSettingsRouter({ configPath: options.configPath }));
+  }
 
   // Serve dashboard static files if a directory is provided
   if (options.dashboardDir) {

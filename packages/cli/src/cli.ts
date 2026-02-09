@@ -35,6 +35,7 @@ import { cmdAgents } from "./commands/agents.js";
 import { cmdAgent } from "./commands/agent.js";
 import { cmdProviders } from "./commands/providers.js";
 import { cmdProvider } from "./commands/provider.js";
+import { cmdEvents } from "./commands/events.js";
 // cmdOverview is imported dynamically to avoid ESM top-level await issues
 
 // ---------------------------------------------------------------------------
@@ -55,9 +56,15 @@ function parseFlags(argv: string[]): Record<string, string> {
         flags[key] = "";
       }
     } else if (arg.startsWith("-") && arg.length === 2) {
-      // Short flags like -v, -d
+      // Short flags like -v, -d, or short flags with values like -o json
       const key = arg.slice(1);
-      flags[key] = "";
+      const next = argv[i + 1];
+      if (next !== undefined && !next.startsWith("-")) {
+        flags[key] = next;
+        i++;
+      } else {
+        flags[key] = "";
+      }
     }
   }
   return flags;
@@ -144,6 +151,7 @@ Commands:
   status                      Show current configuration
   reset-token                 Generate a new auth token
   overview                    Launch real-time TUI dashboard
+  events                      Query and display agent events
 
   agents                      List all registered agents
   agent <name> active         Activate an agent
@@ -153,6 +161,10 @@ Commands:
   agent <name> stat           Show agent statistics
   agent <name> model          List model overrides
   agent <name> model-override <model>  Set model override
+  agent <name> alerts         List alert rules for agent
+  agent <name> alert add <type>  Add alert rule (agent_down, error_rate, budget)
+  agent <name> alert delete <id>  Delete alert rule
+  agent <name> alert reset <id>   Reset alert state to normal
 
   providers                   List all configured providers
   provider add [name] [key]   Add provider (interactive if args omitted)
@@ -169,10 +181,10 @@ Commands:
   help                        Show this help message
 
 Options (for start):
-  --port <number>            Server/dashboard port (default: 18800, or config.port)
-  --proxy-port <number>      LLM proxy port (default: 18900, or config.proxyPort)
-  --retention-days <number>  Data retention in days (default: 30, or config.retentionDays)
-  --no-open                  Don't auto-open browser (or set config.autoOpen: false)
+  --port <number>            Server/dashboard port (default: 18800, or config.server.port)
+  --proxy-port <number>      LLM proxy port (default: 18900, or config.server.proxyPort)
+  --retention-days <number>  Data retention in days (default: 30, or config.data.retentionDays)
+  --no-open                  Don't auto-open browser (or set config.server.autoOpen: false)
   -v, --verbose              Print verbose logs to console
   -d, --daemon               Print info and token, then run in background
 
@@ -184,9 +196,31 @@ Options (for agent/provider stat):
 Options (for delete commands):
   --yes                      Skip confirmation prompts
 
+Options (for alert add):
+  --threshold <percent>      Error rate threshold (error_rate only, default: 10)
+  --timeout <seconds>        Timeout in seconds (agent_down only, default: 300)
+  --limit <amount>           Budget limit in USD (budget only, required)
+  --period <period>          Budget period: daily, weekly, monthly (budget only)
+  --repeat                   Enable repeat notifications (default: enabled)
+  --no-repeat                Disable repeat notifications (one-time only)
+  --interval <minutes>       Repeat interval in minutes (default: 15)
+  --recovery-notify          Send notification when alert recovers
+  --webhook <url>            Webhook URL for notifications
+  --telegram <chat_id>       Telegram chat ID for notifications
+
 Options (for logs):
   -f, --follow               Follow log output (like tail -f)
   -n, --lines <number>       Number of lines to show (default: 50)
+
+Options (for events):
+  -a, --agent <name>         Filter by agent ID
+  -t, --type <type>          Filter by event type
+  -p, --provider <name>      Filter by provider
+  -s, --since <duration>     Time range: 1h, 24h, 7d, 30d (default: 24h)
+  -n, --limit <number>       Max events (default: 50, max: 1000)
+  -o, --output <format>      Output: table, json, csv (default: table)
+      --search <term>        Search in model/provider/error
+  -f, --follow               Poll for new events every 3s
 
 Options (for uninstall):
   --all                      Remove everything (keys, config, data)
@@ -205,6 +239,13 @@ Examples:
   agentgazer provider add openai        Add OpenAI (prompts for key)
   agentgazer agent my-bot stat          Show stats for my-bot
   agentgazer agent my-bot killswitch on Enable kill switch
+  agentgazer events                     Show recent events
+  agentgazer events -a my-bot -t error  Filter by agent and type
+  agentgazer events -f                  Follow new events live
+  agentgazer agent my-bot alerts        List alerts for my-bot
+  agentgazer agent my-bot alert add error_rate --threshold 20
+  agentgazer agent my-bot alert add budget --limit 50 --period daily
+  agentgazer agent my-bot alert reset abc  Reset alert state
 `);
 }
 
@@ -375,8 +416,8 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
     const config = ensureConfig();
     // Use config values as defaults for daemon mode display
-    const serverPort = flags["port"] ? parseInt(flags["port"], 10) : (config.port ?? 18800);
-    const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : (config.proxyPort ?? 18900);
+    const serverPort = flags["port"] ? parseInt(flags["port"], 10) : (config.server?.port ?? 18800);
+    const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : (config.server?.proxyPort ?? 18900);
 
     console.log(`
   ╔════════════════════════════════════════════════════╗
@@ -402,10 +443,10 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   const config = ensureConfig();
 
   // Use config values as defaults, CLI flags override
-  const defaultPort = config.port ?? 18800;
-  const defaultProxyPort = config.proxyPort ?? 18900;
-  const defaultRetentionDays = config.retentionDays ?? 30;
-  const defaultAutoOpen = config.autoOpen ?? true;
+  const defaultPort = config.server?.port ?? 18800;
+  const defaultProxyPort = config.server?.proxyPort ?? 18900;
+  const defaultRetentionDays = config.data?.retentionDays ?? 30;
+  const defaultAutoOpen = config.server?.autoOpen ?? true;
 
   const requestedServerPort = flags["port"] ? parseInt(flags["port"], 10) : defaultPort;
   const proxyPort = flags["proxy-port"]
@@ -493,6 +534,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     dashboardDir,
     retentionDays,
     secretStore: store,
+    configPath,
   });
   console.log(`  Secret backend: ${backendName}`);
 
@@ -999,8 +1041,8 @@ function cmdStop(): void {
   const configDir = getConfigDir();
   const pidFile = path.join(configDir, "agentgazer.pid");
   const config = readConfig();
-  const port = config?.port ?? 18800;
-  const proxyPort = config?.proxyPort ?? 18900;
+  const port = config?.server?.port ?? 18800;
+  const proxyPort = config?.server?.proxyPort ?? 18900;
 
   if (!fs.existsSync(pidFile)) {
     // No PID file, but check if processes are running on ports
@@ -1172,6 +1214,9 @@ async function main(): Promise<void> {
       break;
     case "provider":
       await cmdProvider(positional[0], positional.slice(1), flags);
+      break;
+    case "events":
+      await cmdEvents(flags);
       break;
     case "version":
       await cmdVersion();

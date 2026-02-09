@@ -18,17 +18,55 @@ export interface ProviderConfig {
   rateLimit?: ProviderRateLimit;
 }
 
-export interface AgentGazerConfig {
-  token: string;
-  providers?: Record<string, ProviderConfig>;
+export interface ServerConfig {
   /** Dashboard port (default: 18800) */
   port?: number;
   /** LLM proxy port (default: 18900) */
   proxyPort?: number;
   /** Auto-open browser on start (default: true) */
   autoOpen?: boolean;
+}
+
+export interface DataConfig {
   /** Data retention period in days (default: 30) */
   retentionDays?: number;
+}
+
+export interface TelegramDefaults {
+  botToken?: string;
+  chatId?: string;
+}
+
+export interface WebhookDefaults {
+  url?: string;
+}
+
+export interface EmailDefaults {
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user?: string;
+  pass?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface AlertDefaults {
+  telegram?: TelegramDefaults;
+  webhook?: WebhookDefaults;
+  email?: EmailDefaults;
+}
+
+export interface AlertsConfig {
+  defaults?: AlertDefaults;
+}
+
+export interface AgentGazerConfig {
+  token: string;
+  server?: ServerConfig;
+  data?: DataConfig;
+  alerts?: AlertsConfig;
+  providers?: Record<string, ProviderConfig>;
 }
 
 const CONFIG_DIR = path.join(os.homedir(), ".agentgazer");
@@ -39,12 +77,66 @@ export function getConfigDir(): string {
   return CONFIG_DIR;
 }
 
+export function getConfigPath(): string {
+  return CONFIG_FILE;
+}
+
 export function getDbPath(): string {
   return DB_FILE;
 }
 
 function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
+}
+
+/**
+ * Migrate old flat config to new hierarchical structure.
+ * Returns true if migration was performed.
+ */
+function migrateConfig(parsed: Record<string, unknown>): { config: AgentGazerConfig; migrated: boolean } {
+  const config: AgentGazerConfig = { token: parsed.token as string };
+  let migrated = false;
+
+  // Check for old flat structure
+  const hasOldFormat =
+    typeof parsed.port === "number" ||
+    typeof parsed.proxyPort === "number" ||
+    typeof parsed.autoOpen === "boolean" ||
+    typeof parsed.retentionDays === "number";
+
+  if (hasOldFormat) {
+    migrated = true;
+    // Migrate to new structure
+    if (typeof parsed.port === "number" || typeof parsed.proxyPort === "number" || typeof parsed.autoOpen === "boolean") {
+      config.server = {};
+      if (typeof parsed.port === "number") config.server.port = parsed.port;
+      if (typeof parsed.proxyPort === "number") config.server.proxyPort = parsed.proxyPort;
+      if (typeof parsed.autoOpen === "boolean") config.server.autoOpen = parsed.autoOpen;
+    }
+    if (typeof parsed.retentionDays === "number") {
+      config.data = { retentionDays: parsed.retentionDays };
+    }
+  } else {
+    // Already new format or fresh config
+    if (parsed.server && typeof parsed.server === "object") {
+      config.server = parsed.server as ServerConfig;
+    }
+    if (parsed.data && typeof parsed.data === "object") {
+      config.data = parsed.data as DataConfig;
+    }
+  }
+
+  // Alerts config (new, no migration needed)
+  if (parsed.alerts && typeof parsed.alerts === "object") {
+    config.alerts = parsed.alerts as AlertsConfig;
+  }
+
+  // Providers
+  if (parsed.providers && typeof parsed.providers === "object") {
+    config.providers = parsed.providers as Record<string, ProviderConfig>;
+  }
+
+  return { config, migrated };
 }
 
 export function ensureConfig(): AgentGazerConfig {
@@ -76,22 +168,13 @@ export function readConfig(): AgentGazerConfig | null {
     const raw = fs.readFileSync(CONFIG_FILE, "utf-8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.token === "string" && parsed.token.length > 0) {
-      const config: AgentGazerConfig = { token: parsed.token };
-      if (parsed.providers && typeof parsed.providers === "object") {
-        config.providers = parsed.providers;
+      const { config, migrated } = migrateConfig(parsed);
+
+      // Write back if migrated
+      if (migrated) {
+        saveConfig(config);
       }
-      if (typeof parsed.port === "number") {
-        config.port = parsed.port;
-      }
-      if (typeof parsed.proxyPort === "number") {
-        config.proxyPort = parsed.proxyPort;
-      }
-      if (typeof parsed.autoOpen === "boolean") {
-        config.autoOpen = parsed.autoOpen;
-      }
-      if (typeof parsed.retentionDays === "number") {
-        config.retentionDays = parsed.retentionDays;
-      }
+
       return config;
     }
     return null;
@@ -142,6 +225,43 @@ export function resetToken(): AgentGazerConfig {
   const config: AgentGazerConfig = {
     ...existing,
     token: generateToken(),
+  };
+  saveConfig(config);
+  return config;
+}
+
+// ---------------------------------------------------------------------------
+// Helper functions for accessing config values with defaults
+// ---------------------------------------------------------------------------
+
+export function getServerPort(config: AgentGazerConfig | null): number {
+  return config?.server?.port ?? 18800;
+}
+
+export function getProxyPort(config: AgentGazerConfig | null): number {
+  return config?.server?.proxyPort ?? 18900;
+}
+
+export function getAutoOpen(config: AgentGazerConfig | null): boolean {
+  return config?.server?.autoOpen ?? true;
+}
+
+export function getRetentionDays(config: AgentGazerConfig | null): number {
+  return config?.data?.retentionDays ?? 30;
+}
+
+export function getAlertDefaults(config: AgentGazerConfig | null): AlertDefaults {
+  return config?.alerts?.defaults ?? {};
+}
+
+export function updateAlertDefaults(defaults: AlertDefaults): AgentGazerConfig {
+  const config = ensureConfig();
+  if (!config.alerts) {
+    config.alerts = {};
+  }
+  config.alerts.defaults = {
+    ...config.alerts.defaults,
+    ...defaults,
   };
   saveConfig(config);
   return config;
