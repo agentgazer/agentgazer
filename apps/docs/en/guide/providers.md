@@ -34,10 +34,22 @@ AgentGazer supports multiple keystore backends, automatically detected in the fo
 
 | Priority | Backend | Description |
 |----------|---------|-------------|
-| 1 | Environment variable | Manually specified via `AGENTGAZER_SECRET_BACKEND` |
-| 2 | macOS Keychain | Automatically used on macOS with a GUI session |
-| 3 | Linux libsecret | Automatically used on Linux |
-| 4 | MachineKeyStore (default) | AES-256-GCM encryption based on machine-id + username |
+| 1 | macOS Keychain | Automatically used on macOS with a GUI session |
+| 2 | Linux libsecret | Automatically used on Linux desktop |
+| 3 | MachineKeyStore (default) | AES-256-GCM encryption based on machine-id + username |
+
+### Manual Backend Override
+
+To override auto-detection, set the environment variable:
+
+```bash
+export AGENTGAZER_SECRET_BACKEND=machine
+```
+
+Valid values:
+- `keychain` — Force macOS Keychain
+- `libsecret` — Force Linux libsecret
+- `machine` — Force AES-256-GCM encrypted file
 
 ## Automatic Migration
 
