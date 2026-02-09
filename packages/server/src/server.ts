@@ -64,13 +64,14 @@ export function createServer(options: ServerOptions): { app: express.Express; db
   app.use(alertsRouter);
   app.use(modelRulesRouter);
   app.use(rateLimitsRouter);
+  // Settings router must come before providers to avoid route conflicts
+  if (options.configPath) {
+    app.use(createSettingsRouter({ configPath: options.configPath }));
+  }
   app.use("/api/providers", createProvidersRouter({ db, secretStore: options.secretStore }));
   app.use("/api", createProvidersRouter({ db, secretStore: options.secretStore })); // for /api/connection-info
   app.use("/api/overview", createOverviewRouter({ db, startTime: app.locals.startTime }));
   app.use("/api/openclaw", createOpenclawRouter());
-  if (options.configPath) {
-    app.use(createSettingsRouter({ configPath: options.configPath }));
-  }
 
   // Serve dashboard static files if a directory is provided
   if (options.dashboardDir) {
