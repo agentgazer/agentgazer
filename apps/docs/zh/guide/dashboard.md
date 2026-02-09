@@ -18,6 +18,7 @@
 | **Costs**（成本） | 按 Provider / Model 的成本分析與圖表 |
 | **Alerts**（告警） | 告警規則管理與告警歷史 |
 | **Providers**（Provider） | Provider 設定、API Key 管理與使用統計 |
+| **OpenClaw** | 一鍵整合 OpenClaw 個人 AI 助手 |
 | **Settings**（設定） | 伺服器設定、預設通知管道（Telegram、Email、Webhook） |
 
 ## Providers（Provider 管理）

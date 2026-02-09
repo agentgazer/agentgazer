@@ -18,6 +18,7 @@ The dashboard uses **Token authentication**. After starting the service, enter y
 | **Costs** | Cost analysis and charts by Provider / Model |
 | **Alerts** | Alert rule management and alert history |
 | **Providers** | Provider configuration, API key management, and usage statistics |
+| **OpenClaw** | One-click integration with OpenClaw personal AI assistant |
 | **Settings** | Server configuration, default notification channels (Telegram, Email, Webhook) |
 
 ## Providers
