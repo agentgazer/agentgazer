@@ -5,14 +5,21 @@ export interface ModelPricing {
 
 // Prices in USD per 1M tokens
 const PRICING_TABLE: Record<string, ModelPricing> = {
-  // OpenAI
+  // OpenAI - GPT-4
   "gpt-4o": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
   "gpt-4o-mini": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
   "gpt-4-turbo": { inputPerMToken: 10.00, outputPerMToken: 30.00 },
+  // OpenAI - o-series
   "o1": { inputPerMToken: 15.00, outputPerMToken: 60.00 },
   "o1-mini": { inputPerMToken: 3.00, outputPerMToken: 12.00 },
   "o1-pro": { inputPerMToken: 150.00, outputPerMToken: 600.00 },
   "o3-mini": { inputPerMToken: 1.10, outputPerMToken: 4.40 },
+  // OpenAI - GPT-5
+  "gpt-5": { inputPerMToken: 5.00, outputPerMToken: 20.00 },
+  "gpt-5-mini": { inputPerMToken: 0.50, outputPerMToken: 2.00 },
+  "gpt-5.2": { inputPerMToken: 1.75, outputPerMToken: 14.00 },
+  "gpt-5.2-pro": { inputPerMToken: 10.00, outputPerMToken: 40.00 },
+  "gpt-5.2-codex": { inputPerMToken: 3.00, outputPerMToken: 12.00 },
 
   // Anthropic
   "claude-opus-4-5-20251101": { inputPerMToken: 15.00, outputPerMToken: 75.00 },
@@ -99,7 +106,7 @@ export interface ProviderModel {
 }
 
 const PROVIDER_MODELS: Record<string, string[]> = {
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "o1", "o1-mini", "o1-pro", "o3-mini"],
+  openai: ["gpt-5.2-pro", "gpt-5.2", "gpt-5.2-codex", "gpt-5", "gpt-5-mini", "gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
   anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
   google: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
   mistral: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
