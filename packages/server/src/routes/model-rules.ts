@@ -7,8 +7,9 @@ import {
   deleteModelRule,
   getAgentProviders,
   getAgentByAgentId,
+  getProviderModels,
 } from "../db.js";
-import { SELECTABLE_MODELS } from "@agentgazer/shared";
+import { SELECTABLE_MODELS, SELECTABLE_PROVIDER_NAMES } from "@agentgazer/shared";
 
 const router = Router();
 
@@ -86,9 +87,23 @@ router.get("/api/agents/:agentId/providers", (req, res) => {
   res.json({ providers: providerDetails });
 });
 
-// Get selectable models for dropdowns
-router.get("/api/models", (_req, res) => {
-  res.json(SELECTABLE_MODELS);
+// Get selectable models for dropdowns (static + custom models from DB)
+router.get("/api/models", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+
+  // Start with static models
+  const result: Record<string, string[]> = {};
+
+  for (const provider of SELECTABLE_PROVIDER_NAMES) {
+    const staticModels = SELECTABLE_MODELS[provider] ?? [];
+    const customModels = getProviderModels(db, provider).map(m => m.model_id);
+
+    // Merge and deduplicate
+    const allModels = [...new Set([...staticModels, ...customModels])];
+    result[provider] = allModels;
+  }
+
+  res.json(result);
 });
 
 export default router;
