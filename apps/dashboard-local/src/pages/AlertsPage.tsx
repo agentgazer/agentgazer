@@ -719,7 +719,7 @@ Content-Type: application/json
             <div>
               <label className="block text-xs font-medium text-gray-400">Bot Token</label>
               <input
-                type="password"
+                type="text"
                 value={form.telegram_config.bot_token}
                 onChange={(e) => handleTelegramChange("bot_token", e.target.value)}
                 className={inputClass}
