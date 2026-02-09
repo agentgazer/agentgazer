@@ -193,6 +193,7 @@ Commands:
   provider <name> stat        Show provider statistics
 
   version                     Show version
+  update                      Update to latest version (preserves settings)
   doctor                      Check system health
   uninstall                   Remove AgentGazer data (interactive menu)
   help                        Show this help message
@@ -703,6 +704,81 @@ async function cmdVersion(): Promise<void> {
   const pkgPath = path.resolve(__dirname, "../package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
   console.log(`agentgazer ${pkg.version}`);
+}
+
+async function cmdUpdate(flags: Record<string, string>): Promise<void> {
+  const pkgPath = path.resolve(__dirname, "../package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
+  const currentVersion = pkg.version;
+
+  console.log(`\n  Current version: ${currentVersion}`);
+  console.log("  Checking for updates...\n");
+
+  // Check latest version from npm
+  let latestVersion: string;
+  try {
+    const res = await fetch("https://registry.npmjs.org/@agentgazer/cli/latest");
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json() as { version: string };
+    latestVersion = data.version;
+  } catch (err) {
+    console.error(`  Error checking npm registry: ${err}`);
+    process.exit(1);
+  }
+
+  if (currentVersion === latestVersion) {
+    console.log(`  ✓ Already up to date (${currentVersion})`);
+    return;
+  }
+
+  console.log(`  New version available: ${latestVersion}`);
+
+  // Detect installation method
+  const execPath = process.argv[1];
+  const isHomebrew = execPath.includes("/homebrew/") || execPath.includes("/Cellar/");
+  const isGlobalNpm = execPath.includes("/lib/node_modules/") || execPath.includes("/npm/");
+
+  if (isHomebrew) {
+    console.log("\n  Detected: Homebrew installation");
+    console.log("  Updating via Homebrew...\n");
+
+    try {
+      execSync("brew update && brew upgrade agentgazer/tap/agentgazer", {
+        stdio: "inherit",
+      });
+      console.log("\n  ✓ Update complete!");
+    } catch {
+      console.error("\n  Update failed. Try manually:");
+      console.error("    brew update && brew upgrade agentgazer/tap/agentgazer");
+      process.exit(1);
+    }
+  } else if (isGlobalNpm) {
+    console.log("\n  Detected: npm global installation");
+    console.log("  Updating via npm...\n");
+
+    try {
+      execSync("npm install -g @agentgazer/cli@latest", {
+        stdio: "inherit",
+      });
+      console.log("\n  ✓ Update complete!");
+    } catch {
+      console.error("\n  Update failed. Try manually:");
+      console.error("    npm install -g @agentgazer/cli@latest");
+      process.exit(1);
+    }
+  } else {
+    // Unknown installation method
+    console.log("\n  Could not detect installation method.");
+    console.log("  Please update manually:\n");
+    console.log("    npm:      npm install -g @agentgazer/cli@latest");
+    console.log("    Homebrew: brew upgrade agentgazer/tap/agentgazer");
+    console.log("    Docker:   docker pull ghcr.io/agentgazer/agentgazer:latest");
+    process.exit(0);
+  }
+
+  console.log("\n  Your settings in ~/.agentgazer/ have been preserved.");
 }
 
 async function cmdDoctor(flags: Record<string, string>): Promise<void> {
@@ -1283,6 +1359,9 @@ async function main(): Promise<void> {
     case "--version":
     case "-V":
       await cmdVersion();
+      break;
+    case "update":
+      await cmdUpdate(flags);
       break;
     case "doctor":
       await cmdDoctor(flags);
