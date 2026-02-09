@@ -320,15 +320,17 @@ export class LoopDetector {
       }
     }
 
-    // Count similar responses (among past requests with responses)
+    // Count similar responses: compare most recent response with older responses (O(n) instead of O(n²))
     let similarResponses = 0;
     const responsesWithHash = pastRequests.filter((r) => r.responseHash !== null);
-    for (let i = 0; i < responsesWithHash.length; i++) {
-      for (let j = i + 1; j < responsesWithHash.length; j++) {
+    if (responsesWithHash.length >= 2) {
+      // Compare the most recent response with all older ones
+      const latestResponse = responsesWithHash[responsesWithHash.length - 1];
+      for (let i = 0; i < responsesWithHash.length - 1; i++) {
         if (
           isSimilar(
+            latestResponse.responseHash!,
             responsesWithHash[i].responseHash!,
-            responsesWithHash[j].responseHash!,
             SIMILARITY_THRESHOLD,
           )
         ) {
