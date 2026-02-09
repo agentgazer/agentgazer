@@ -66,6 +66,31 @@ interface AgentsResponse {
   agents: AgentOption[];
 }
 
+interface AlertDefaults {
+  telegram?: {
+    botToken?: string;
+    chatId?: string;
+  };
+  webhook?: {
+    url?: string;
+  };
+  email?: {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user?: string;
+    pass?: string;
+    from?: string;
+    to?: string;
+  };
+}
+
+interface SettingsResponse {
+  alerts?: {
+    defaults?: AlertDefaults;
+  };
+}
+
 type Tab = "rules" | "history";
 
 type RuleType = "agent_down" | "error_rate" | "budget" | "kill_switch";
@@ -230,6 +255,7 @@ function AlertForm({
 }) {
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
+  const [loadingDefaults, setLoadingDefaults] = useState(!initial); // Only load defaults for new alerts
 
   const [form, setForm] = useState<FormState>(() => {
     if (initial) {
@@ -255,6 +281,38 @@ function AlertForm({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch settings defaults for new alerts
+  useEffect(() => {
+    if (initial) return; // Don't fetch defaults when editing
+
+    api.get<SettingsResponse>("/api/settings")
+      .then((data) => {
+        const defaults = data.alerts?.defaults;
+        if (defaults) {
+          setForm((f) => ({
+            ...f,
+            webhook_url: defaults.webhook?.url ?? f.webhook_url,
+            smtp_config: {
+              host: defaults.email?.host ?? f.smtp_config.host,
+              port: defaults.email?.port ?? f.smtp_config.port,
+              secure: defaults.email?.secure ?? f.smtp_config.secure,
+              user: defaults.email?.user ?? f.smtp_config.user,
+              pass: defaults.email?.pass ?? f.smtp_config.pass,
+              from: defaults.email?.from ?? f.smtp_config.from,
+              to: defaults.email?.to ?? f.smtp_config.to,
+            },
+            telegram_config: {
+              ...f.telegram_config,
+              bot_token: defaults.telegram?.botToken ?? f.telegram_config.bot_token,
+              chat_id: defaults.telegram?.chatId ?? f.telegram_config.chat_id,
+            },
+          }));
+        }
+      })
+      .catch(() => {/* ignore */})
+      .finally(() => setLoadingDefaults(false));
+  }, [initial]);
 
   // Fetch agents for dropdown
   useEffect(() => {
@@ -336,6 +394,14 @@ function AlertForm({
   }
 
   const inputClass = "mt-1 block w-full rounded-md border border-gray-600 bg-gray-900 px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+  if (loadingDefaults) {
+    return (
+      <div className="rounded-lg border border-gray-700 bg-gray-800 p-5">
+        <p className="text-sm text-gray-400">Loading defaults...</p>
+      </div>
+    );
+  }
 
   return (
     <form
