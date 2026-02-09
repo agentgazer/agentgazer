@@ -28,7 +28,7 @@ import {
 } from "./secret-store.js";
 import { startServer } from "@agentgazer/server";
 import { startProxy } from "@agentgazer/proxy";
-import { KNOWN_PROVIDER_NAMES, validateProviderKey, type ProviderName } from "@agentgazer/shared";
+import { KNOWN_PROVIDER_NAMES, PROVIDER_DISPLAY_NAMES, validateProviderKey, type ProviderName } from "@agentgazer/shared";
 
 // New command imports
 import { cmdAgents } from "./commands/agents.js";
@@ -37,6 +37,23 @@ import { cmdProviders } from "./commands/providers.js";
 import { cmdProvider } from "./commands/provider.js";
 import { cmdEvents } from "./commands/events.js";
 // cmdOverview is imported dynamically to avoid ESM top-level await issues
+
+// ---------------------------------------------------------------------------
+// ASCII Logo with ANSI colors
+// ---------------------------------------------------------------------------
+
+const BLUE = "\x1b[34m";
+const BOLD = "\x1b[1m";
+const GRAY = "\x1b[90m";
+const RESET = "\x1b[0m";
+
+const ASCII_LOGO = `
+${BLUE}       .-===-.${RESET}
+${BLUE}      / /   \\ \\${RESET}
+${BLUE}     | |     | |${RESET}    ${BOLD}AgentGazer${RESET}
+${BLUE}      \\ \\   / /${RESET}     ${GRAY}From Observability to Control${RESET}
+${BLUE}       '-===-'${RESET}
+`;
 
 // ---------------------------------------------------------------------------
 // Arg parsing
@@ -261,12 +278,54 @@ function ask(rl: readline.Interface, question: string): Promise<string> {
   });
 }
 
+function askSecret(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    process.stdout.write(question);
+
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding("utf8");
+
+    let input = "";
+
+    const onData = (char: string) => {
+      const code = char.charCodeAt(0);
+
+      if (code === 13 || code === 10) {
+        // Enter
+        stdin.setRawMode(wasRaw ?? false);
+        stdin.removeListener("data", onData);
+        stdin.pause();
+        process.stdout.write("\n");
+        resolve(input.trim());
+      } else if (code === 127 || code === 8) {
+        // Backspace
+        if (input.length > 0) {
+          input = input.slice(0, -1);
+          process.stdout.write("\b \b");
+        }
+      } else if (code === 3) {
+        // Ctrl+C
+        stdin.setRawMode(wasRaw ?? false);
+        process.exit(0);
+      } else if (code >= 32) {
+        // Printable character
+        input += char;
+        process.stdout.write("*");
+      }
+    };
+
+    stdin.on("data", onData);
+  });
+}
+
 async function cmdOnboard(): Promise<void> {
   const saved = ensureConfig();
 
-  console.log(`
-  AgentGazer — Setup
-  ───────────────────────────────────────
+  console.log(ASCII_LOGO);
+  console.log(`  ───────────────────────────────────────
 
   Token:    ${saved.token}
   Config:   ${getConfigDir()}/config.json
@@ -290,10 +349,12 @@ async function cmdOnboard(): Promise<void> {
 
   try {
     console.log("  Configure provider API keys (the proxy will inject these for you).");
-    console.log(`  Available providers: ${KNOWN_PROVIDERS.join(", ")}\n`);
+    const providerList = KNOWN_PROVIDERS.map(p => PROVIDER_DISPLAY_NAMES[p] || p).join(", ");
+    console.log(`  Available: ${providerList}\n`);
 
     for (const provider of KNOWN_PROVIDERS) {
-      const key = await ask(rl, `  API key for ${provider} (press Enter to skip): `);
+      const displayName = PROVIDER_DISPLAY_NAMES[provider] || provider;
+      const key = await askSecret(`  API key for ${displayName} (Enter to skip): `);
       if (!key) continue;
 
       // Store API key in secret store

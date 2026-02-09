@@ -8,7 +8,7 @@ export type ProviderName =
   | "moonshot"
   | "zhipu"
   | "minimax"
-  | "yi"
+  | "baichuan"
   | "unknown";
 
 interface ProviderPattern {
@@ -16,6 +16,20 @@ interface ProviderPattern {
   hostPatterns: RegExp[];
   pathPatterns?: RegExp[];
 }
+
+/** Mapping of provider names to their popular model names for display. */
+export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  openai: "OpenAI (GPT-4)",
+  anthropic: "Anthropic (Claude)",
+  google: "Google (Gemini)",
+  mistral: "Mistral",
+  cohere: "Cohere (Command)",
+  deepseek: "DeepSeek",
+  moonshot: "Moonshot (Kimi)",
+  zhipu: "Zhipu (GLM-4)",
+  minimax: "MiniMax (abab)",
+  baichuan: "Baichuan",
+};
 
 /** All known provider names (excludes "unknown"). Single source of truth. */
 export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
@@ -28,7 +42,7 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "moonshot",
   "zhipu",
   "minimax",
-  "yi",
+  "baichuan",
 ];
 
 /**
@@ -45,6 +59,7 @@ export const SELECTABLE_PROVIDER_NAMES: ProviderName[] = [
   "moonshot",
   "zhipu",
   "minimax",
+  "baichuan",
 ];
 
 const PROVIDER_PATTERNS: ProviderPattern[] = [
@@ -87,8 +102,8 @@ const PROVIDER_PATTERNS: ProviderPattern[] = [
     hostPatterns: [/^api\.minimax\.io$/, /^api\.minimax\.chat$/],
   },
   {
-    name: "yi",
-    hostPatterns: [/^api\.01\.ai$/, /^api\.lingyiwanwu\.com$/],
+    name: "baichuan",
+    hostPatterns: [/^api\.baichuan-ai\.com$/],
   },
 ];
 
@@ -160,7 +175,7 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
     moonshot: "https://api.moonshot.ai/v1",
     zhipu: "https://api.z.ai/api/paas/v4",
     minimax: "https://api.minimax.io/v1",
-    yi: "https://api.01.ai/v1",
+    baichuan: "https://api.baichuan-ai.com/v1",
   };
   return urls[provider] ?? null;
 }
@@ -181,7 +196,7 @@ export function getProviderRootUrl(provider: ProviderName): string | null {
     moonshot: "https://api.moonshot.ai",
     zhipu: "https://api.z.ai",
     minimax: "https://api.minimax.io",
-    yi: "https://api.01.ai",
+    baichuan: "https://api.baichuan-ai.com",
   };
   return urls[provider] ?? null;
 }
@@ -211,7 +226,7 @@ export function getProviderChatEndpoint(provider: ProviderName): string | null {
     moonshot: "https://api.moonshot.ai/v1/chat/completions",
     zhipu: "https://api.z.ai/api/paas/v4/chat/completions",
     minimax: "https://api.minimax.io/v1/text/chatcompletion_v2",
-    yi: "https://api.01.ai/v1/chat/completions",
+    baichuan: "https://api.baichuan-ai.com/v1/chat/completions",
   };
   return endpoints[provider] ?? null;
 }
@@ -234,7 +249,7 @@ export function getProviderAuthHeader(
     case "moonshot":
     case "zhipu":
     case "minimax":
-    case "yi":
+    case "baichuan":
       return { name: "authorization", value: `Bearer ${apiKey}` };
     case "anthropic":
       return { name: "x-api-key", value: apiKey };
@@ -282,7 +297,7 @@ export function rewriteProviderPath(provider: ProviderName, path: string): strin
       }
       break;
     // Zhipu base URL already includes /api/paas, so /v4/chat/completions works directly
-    // Yi and Moonshot use standard OpenAI-compatible paths
+    // Moonshot and Baichuan use standard OpenAI-compatible paths
   }
   return path;
 }

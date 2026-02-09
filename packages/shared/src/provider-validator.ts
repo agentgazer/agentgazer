@@ -33,8 +33,8 @@ export async function validateProviderKey(
       return validateZhipu(apiKey);
     case "minimax":
       return validateMinimax(apiKey);
-    case "yi":
-      return validateYi(apiKey);
+    case "baichuan":
+      return validateBaichuan(apiKey);
     default:
       return { valid: false, error: `Validation not supported for provider: ${provider}` };
   }
@@ -299,19 +299,11 @@ async function validateMinimax(apiKey: string): Promise<ValidationResult> {
   }
 }
 
-async function validateYi(apiKey: string): Promise<ValidationResult> {
-  // Try international endpoint first (01.ai), fallback to China (lingyiwanwu.com)
+async function validateBaichuan(apiKey: string): Promise<ValidationResult> {
   try {
-    let res = await fetch("https://api.01.ai/v1/models", {
+    const res = await fetch("https://api.baichuan-ai.com/v1/models", {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
-
-    // If international fails with 401, try China endpoint
-    if (res.status === 401) {
-      res = await fetch("https://api.lingyiwanwu.com/v1/models", {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-    }
 
     if (res.status === 401) {
       return { valid: false, error: "Invalid API key" };

@@ -202,20 +202,20 @@ describe("getModelPricing", () => {
     });
   });
 
-  // Yi
-  it("returns pricing for yi-lightning", () => {
-    const pricing = getModelPricing("yi-lightning");
+  // Baichuan
+  it("returns pricing for Baichuan4-Air", () => {
+    const pricing = getModelPricing("Baichuan4-Air");
     expect(pricing).toEqual({
-      inputPerMToken: 0.14,
-      outputPerMToken: 0.14,
+      inputPerMToken: 0.49,
+      outputPerMToken: 0.99,
     });
   });
 
-  it("returns pricing for yi-large", () => {
-    const pricing = getModelPricing("yi-large");
+  it("returns pricing for Baichuan4", () => {
+    const pricing = getModelPricing("Baichuan4");
     expect(pricing).toEqual({
-      inputPerMToken: 2.78,
-      outputPerMToken: 2.78,
+      inputPerMToken: 2.00,
+      outputPerMToken: 4.00,
     });
   });
 
@@ -387,11 +387,11 @@ describe("listSupportedModels", () => {
     expect(models).toContain("MiniMax-M2.1");
   });
 
-  it("includes known Yi models", () => {
+  it("includes known Baichuan models", () => {
     const models = listSupportedModels();
-    expect(models).toContain("yi-lightning");
-    expect(models).toContain("yi-large");
-    expect(models).toContain("yi-medium");
+    expect(models).toContain("Baichuan4-Air");
+    expect(models).toContain("Baichuan4-Turbo");
+    expect(models).toContain("Baichuan4");
   });
 
   it("returns strings only", () => {

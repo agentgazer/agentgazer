@@ -132,7 +132,7 @@ const PARSERS: Record<string, ResponseParser> = {
   moonshot: parseOpenAI,
   zhipu: parseOpenAI,
   minimax: parseOpenAI,
-  yi: parseOpenAI,
+  baichuan: parseOpenAI,
 };
 
 export function parseProviderResponse(

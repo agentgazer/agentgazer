@@ -62,10 +62,10 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "MiniMax-M2": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
   "M2-her": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
 
-  // Yi (01.AI)
-  "yi-lightning": { inputPerMToken: 0.14, outputPerMToken: 0.14 },
-  "yi-large": { inputPerMToken: 2.78, outputPerMToken: 2.78 },
-  "yi-medium": { inputPerMToken: 0.35, outputPerMToken: 0.35 },
+  // Baichuan
+  "Baichuan4-Air": { inputPerMToken: 0.49, outputPerMToken: 0.99 },
+  "Baichuan4-Turbo": { inputPerMToken: 1.00, outputPerMToken: 2.00 },
+  "Baichuan4": { inputPerMToken: 2.00, outputPerMToken: 4.00 },
 };
 
 export function getModelPricing(model: string): ModelPricing | null {
@@ -108,7 +108,7 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
   zhipu: ["glm-4.7", "glm-4.7-flash", "glm-4.5", "glm-4.5-flash", "glm-4", "glm-4-air", "glm-4-flash"],
   minimax: ["MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2", "M2-her"],
-  yi: ["yi-lightning", "yi-large", "yi-medium"],
+  baichuan: ["Baichuan4-Air", "Baichuan4-Turbo", "Baichuan4"],
 };
 
 export function getProviderModels(provider: string): ProviderModel[] {

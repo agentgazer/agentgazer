@@ -1,4 +1,5 @@
 import inquirer from "inquirer";
+import { PROVIDER_DISPLAY_NAMES } from "@agentgazer/shared";
 
 export async function confirm(message: string, defaultValue: boolean = false): Promise<boolean> {
   const { confirmed } = await inquirer.prompt([
@@ -13,12 +14,16 @@ export async function confirm(message: string, defaultValue: boolean = false): P
 }
 
 export async function selectProvider(providers: string[]): Promise<string> {
+  const choices = providers.map(p => ({
+    name: PROVIDER_DISPLAY_NAMES[p] || p,
+    value: p,
+  }));
   const { provider } = await inquirer.prompt([
     {
       type: "list",
       name: "provider",
       message: "Select provider:",
-      choices: providers,
+      choices,
     },
   ]);
   return provider;

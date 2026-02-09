@@ -154,11 +154,11 @@ describe("detectProvider", () => {
     });
   });
 
-  describe("Yi", () => {
-    it("detects Yi by host", () => {
+  describe("Baichuan", () => {
+    it("detects Baichuan by host", () => {
       expect(
-        detectProvider("https://api.lingyiwanwu.com/v1/models")
-      ).toBe("yi");
+        detectProvider("https://api.baichuan-ai.com/v1/models")
+      ).toBe("baichuan");
     });
   });
 
@@ -255,8 +255,8 @@ describe("getProviderBaseUrl", () => {
     expect(getProviderBaseUrl("minimax")).toBe("https://api.minimax.io/v1");
   });
 
-  it("returns base URL with version for yi", () => {
-    expect(getProviderBaseUrl("yi")).toBe("https://api.01.ai/v1");
+  it("returns base URL with version for baichuan", () => {
+    expect(getProviderBaseUrl("baichuan")).toBe("https://api.baichuan-ai.com/v1");
   });
 
   it("returns null for unknown provider", () => {
@@ -319,9 +319,9 @@ describe("getProviderChatEndpoint", () => {
     );
   });
 
-  it("returns complete chat endpoint for yi", () => {
-    expect(getProviderChatEndpoint("yi")).toBe(
-      "https://api.01.ai/v1/chat/completions"
+  it("returns complete chat endpoint for baichuan", () => {
+    expect(getProviderChatEndpoint("baichuan")).toBe(
+      "https://api.baichuan-ai.com/v1/chat/completions"
     );
   });
 
@@ -381,9 +381,9 @@ describe("getProviderAuthHeader", () => {
     expect(result).toEqual({ name: "authorization", value: "Bearer sk-mm-test" });
   });
 
-  it("returns Bearer Authorization for yi", () => {
-    const result = getProviderAuthHeader("yi", "sk-yi-test");
-    expect(result).toEqual({ name: "authorization", value: "Bearer sk-yi-test" });
+  it("returns Bearer Authorization for baichuan", () => {
+    const result = getProviderAuthHeader("baichuan", "sk-bc-test");
+    expect(result).toEqual({ name: "authorization", value: "Bearer sk-bc-test" });
   });
 
   it("returns null for unknown provider", () => {
