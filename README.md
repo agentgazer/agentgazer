@@ -356,6 +356,20 @@ To reset the auth token:
 agentgazer --reset-token
 ```
 
+## API Key Security
+
+Provider API keys are **never stored as plaintext**. AgentGazer uses OS-level secure storage:
+
+| Platform | Storage Backend |
+|----------|----------------|
+| **macOS** | Keychain (via `security` CLI) |
+| **Linux (desktop)** | libsecret / GNOME Keyring |
+| **Linux (headless)** | AES-256-GCM encrypted file |
+
+Keys are encrypted at rest and only decrypted in memory when needed for API calls. The encryption key for headless systems is derived from machine-specific identifiers.
+
+If you previously stored keys in plaintext config, AgentGazer automatically migrates them to secure storage on startup.
+
 ## Uninstall
 
 ```bash

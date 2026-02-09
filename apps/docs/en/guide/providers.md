@@ -1,8 +1,16 @@
 # Provider Key Management
 
-## Encrypted Storage
+## OS-Level Secure Storage
 
-Provider API keys are **never stored in plaintext** in the configuration file. AgentGazer uses an **AES-256-GCM** encrypted keystore to protect your API keys.
+Provider API keys are **never stored in plaintext**. AgentGazer uses OS-level secure storage backends:
+
+| Platform | Storage Backend | Security |
+|----------|----------------|----------|
+| **macOS** | Keychain | Hardware-backed encryption via Secure Enclave |
+| **Linux (desktop)** | libsecret / GNOME Keyring | Session-locked encryption |
+| **Linux (headless)** | AES-256-GCM encrypted file | Machine-specific key derivation |
+
+Keys are encrypted at rest and only decrypted in memory when needed for API calls.
 
 ## Storage and Management
 

@@ -1,8 +1,16 @@
 # Provider 金鑰管理
 
-## 加密儲存
+## 作業系統層級安全儲存
 
-Provider 的 API Key **不會以明文形式**儲存在設定檔中。AgentGazer 使用 **AES-256-GCM** 加密金鑰庫來保護你的 API Key。
+Provider 的 API Key **不會以明文形式**儲存。AgentGazer 使用作業系統層級的安全儲存後端：
+
+| 平台 | 儲存後端 | 安全性 |
+|------|----------|--------|
+| **macOS** | Keychain | 透過 Secure Enclave 硬體加密 |
+| **Linux（桌面）** | libsecret / GNOME Keyring | 工作階段鎖定加密 |
+| **Linux（無 GUI）** | AES-256-GCM 加密檔案 | 基於機器特徵的金鑰衍生 |
+
+金鑰在靜態時加密，僅在需要進行 API 呼叫時才在記憶體中解密。
 
 ## 儲存與管理
 
