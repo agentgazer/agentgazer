@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:8080"
-      - "4000:4000"
+      - "18800:18800"
+      - "18900:18900"
     volumes:
       - agentgazer-data:/root/.agentgazer
     # environment:
