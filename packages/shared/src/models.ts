@@ -5,15 +5,33 @@
  */
 export const SELECTABLE_MODELS: Record<string, string[]> = {
   openai: [
+    // GPT-5.2
     "gpt-5.2-pro",
     "gpt-5.2",
     "gpt-5.2-codex",
+    // GPT-5.1
+    "gpt-5.1",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-mini",
+    "gpt-5.1-codex-max",
+    // GPT-5
+    "gpt-5-pro",
     "gpt-5",
     "gpt-5-mini",
+    "gpt-5-nano",
+    "gpt-5-codex",
+    // GPT-4
+    "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
     "gpt-4o",
     "gpt-4o-mini",
-    "o1",
+    // o-series
+    "o3",
     "o3-mini",
+    "o4-mini",
+    "o1",
+    "o1-pro",
   ],
   anthropic: [
     "claude-opus-4-5-20251101",
