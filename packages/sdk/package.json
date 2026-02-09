@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/sdk",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "AgentGazer SDK for monitoring AI agent activity",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
@@ -45,7 +45,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentgazer/shared": "^0.3.3"
+    "@agentgazer/shared": "^0.3.4"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
