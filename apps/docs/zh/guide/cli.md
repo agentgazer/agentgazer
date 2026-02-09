@@ -36,6 +36,10 @@
 | `agent <name> stat` | 顯示 Agent 統計數據 | `--port`、`--range` |
 | `agent <name> model` | 列出模型覆蓋設定 | `--port` |
 | `agent <name> model-override <model>` | 設定模型覆蓋 | `--port` |
+| `agent <name> alerts` | 列出此 Agent 的所有告警 | `--port` |
+| `agent <name> alert add <type>` | 新增告警規則 | 見下方 |
+| `agent <name> alert delete <id>` | 刪除告警規則 | `--port`、`--yes` |
+| `agent <name> alert reset <id>` | 重設告警為正常狀態 | `--port` |
 
 ### Provider 指令
 
@@ -125,6 +129,49 @@ agentgazer agent my-bot model-override gpt-4o-mini
 agentgazer agent my-bot delete
 agentgazer agent my-bot delete --yes  # 跳過確認
 ```
+
+### 告警管理（CLI）
+
+從命令列管理告警規則。
+
+```bash
+# 列出 Agent 的所有告警
+agentgazer agent my-bot alerts
+
+# 新增錯誤率告警，使用 Telegram 通知
+agentgazer agent my-bot alert add error-rate --threshold 10 --telegram
+
+# 新增 Agent 離線告警，啟用重複通知
+agentgazer agent my-bot alert add agent-down --timeout 5 --repeat --interval 30 --telegram
+
+# 新增預算告警，使用 Webhook
+agentgazer agent my-bot alert add budget --limit 20 --period daily --webhook https://example.com/alert
+
+# 刪除告警
+agentgazer agent my-bot alert delete abc123
+
+# 重設告警狀態為正常
+agentgazer agent my-bot alert reset abc123
+```
+
+**告警類型：**
+
+| 類型 | 說明 | 主要選項 |
+|------|------|----------|
+| `agent-down` | 未收到心跳 | `--timeout <分鐘>` |
+| `error-rate` | 錯誤率超過閾值 | `--threshold <百分比>`、`--window <分鐘>` |
+| `budget` | 花費超過限制 | `--limit <美元>`、`--period <daily\|weekly\|monthly>` |
+
+**通用選項：**
+
+| 選項 | 說明 |
+|------|------|
+| `--repeat` | 啟用重複通知（預設） |
+| `--no-repeat` | 僅通知一次 |
+| `--interval <分鐘>` | 重複通知間隔 |
+| `--recovery-notify` | 條件恢復時通知 |
+| `--webhook <url>` | 發送到 Webhook URL |
+| `--telegram` | 發送到已設定的 Telegram |
 
 ### Provider 管理
 

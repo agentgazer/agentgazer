@@ -36,6 +36,10 @@
 | `agent <name> stat` | Show Agent statistics | `--port`, `--range` |
 | `agent <name> model` | List model overrides | `--port` |
 | `agent <name> model-override <model>` | Set model override | `--port` |
+| `agent <name> alerts` | List all alerts for this Agent | `--port` |
+| `agent <name> alert add <type>` | Add an alert rule | See below |
+| `agent <name> alert delete <id>` | Delete an alert rule | `--port`, `--yes` |
+| `agent <name> alert reset <id>` | Reset alert to normal state | `--port` |
 
 ### Provider Commands
 
@@ -125,6 +129,49 @@ agentgazer agent my-bot model-override gpt-4o-mini
 agentgazer agent my-bot delete
 agentgazer agent my-bot delete --yes  # Skip confirmation
 ```
+
+### Alert Management (CLI)
+
+Manage alert rules from the command line.
+
+```bash
+# List all alerts for an agent
+agentgazer agent my-bot alerts
+
+# Add an error rate alert with Telegram notification
+agentgazer agent my-bot alert add error-rate --threshold 10 --telegram
+
+# Add an agent down alert with repeat notifications
+agentgazer agent my-bot alert add agent-down --timeout 5 --repeat --interval 30 --telegram
+
+# Add a budget alert with webhook
+agentgazer agent my-bot alert add budget --limit 20 --period daily --webhook https://example.com/alert
+
+# Delete an alert
+agentgazer agent my-bot alert delete abc123
+
+# Reset alert state to normal
+agentgazer agent my-bot alert reset abc123
+```
+
+**Alert Types:**
+
+| Type | Description | Key Options |
+|------|-------------|-------------|
+| `agent-down` | No heartbeat received | `--timeout <minutes>` |
+| `error-rate` | Error rate exceeds threshold | `--threshold <percent>`, `--window <minutes>` |
+| `budget` | Spending exceeds limit | `--limit <usd>`, `--period <daily\|weekly\|monthly>` |
+
+**Common Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--repeat` | Enable repeated notifications (default) |
+| `--no-repeat` | One-time notification only |
+| `--interval <min>` | Minutes between repeat notifications |
+| `--recovery-notify` | Notify when condition recovers |
+| `--webhook <url>` | Send to webhook URL |
+| `--telegram` | Send to configured Telegram |
 
 ### Provider Management
 
