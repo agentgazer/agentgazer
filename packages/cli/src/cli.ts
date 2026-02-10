@@ -740,10 +740,18 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
 
   console.log(`  New version available: ${latestVersion}`);
 
-  // Detect installation method
+  // Detect installation method by following symlinks
   const execPath = process.argv[1];
-  const isHomebrew = execPath.includes("/homebrew/") || execPath.includes("/Cellar/");
-  const isGlobalNpm = execPath.includes("/lib/node_modules/") || execPath.includes("/npm/");
+  let realPath = execPath;
+  try {
+    realPath = fs.realpathSync(execPath);
+  } catch {
+    // Keep execPath if realpathSync fails
+  }
+
+  // Check the resolved path - /Cellar/ means Homebrew formula, /node_modules/ means npm
+  const isHomebrew = realPath.includes("/Cellar/");
+  const isGlobalNpm = realPath.includes("/node_modules/");
 
   if (isHomebrew) {
     console.log("\n  Detected: Homebrew installation");
@@ -1043,38 +1051,38 @@ function removeLogFiles(): void {
 function detectInstallMethod(): "homebrew" | "npm" | "unknown" {
   const execPath = process.argv[1] || "";
 
-  // Check if installed via Homebrew
+  // Resolve symlinks to get the true installation path
+  let realPath = execPath;
   try {
-    const brewPrefix = execSync("brew --prefix 2>/dev/null", { encoding: "utf-8" }).trim();
-    if (execPath.includes(brewPrefix) || execPath.includes("/Cellar/")) {
-      return "homebrew";
-    }
-    // Also check if brew knows about agentgazer
-    try {
-      execSync("brew list agentgazer 2>/dev/null", { encoding: "utf-8" });
-      return "homebrew";
-    } catch {
-      // Not installed via brew
-    }
+    realPath = fs.realpathSync(execPath);
   } catch {
-    // Homebrew not installed
+    // Keep execPath if realpathSync fails
   }
 
-  // Check if installed via npm
+  // Check if installed via Homebrew - /Cellar/ is definitive
+  if (realPath.includes("/Cellar/")) {
+    return "homebrew";
+  }
+
+  // Check if installed via npm - /node_modules/ is definitive
+  if (realPath.includes("/node_modules/")) {
+    return "npm";
+  }
+
+  // Fallback: check if brew knows about agentgazer
   try {
-    const npmGlobalRoot = execSync("npm root -g", { encoding: "utf-8" }).trim();
-    if (execPath.includes(npmGlobalRoot) || execPath.includes("node_modules/@agentgazer/cli")) {
-      return "npm";
-    }
-    // Check if npm knows about the package
-    try {
-      execSync("npm list -g @agentgazer/cli 2>/dev/null", { encoding: "utf-8" });
-      return "npm";
-    } catch {
-      // Not in npm global list
-    }
+    execSync("brew list agentgazer 2>/dev/null", { encoding: "utf-8" });
+    return "homebrew";
   } catch {
-    // npm not available
+    // Not installed via brew
+  }
+
+  // Fallback: check if npm knows about the package
+  try {
+    execSync("npm list -g @agentgazer/cli 2>/dev/null", { encoding: "utf-8" });
+    return "npm";
+  } catch {
+    // Not in npm global list
   }
 
   return "unknown";

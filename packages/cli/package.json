@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/cli",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "type": "module",
   "description": "AgentGazer — From Observability to Control. Monitor, govern, and protect your AI agents.",
   "license": "Apache-2.0",
