@@ -36,10 +36,10 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "gpt-5.2-codex": { inputPerMToken: 3.00, outputPerMToken: 12.00 },
 
   // Anthropic
-  "claude-opus-4-5-20251101": { inputPerMToken: 15.00, outputPerMToken: 75.00 },
+  "claude-opus-4-5-20251101": { inputPerMToken: 5.00, outputPerMToken: 25.00 },
   "claude-sonnet-4-5-20250929": { inputPerMToken: 3.00, outputPerMToken: 15.00 },
   "claude-sonnet-4-20250514": { inputPerMToken: 3.00, outputPerMToken: 15.00 },
-  "claude-haiku-4-5-20251001": { inputPerMToken: 0.80, outputPerMToken: 4.00 },
+  "claude-haiku-4-5-20251001": { inputPerMToken: 1.00, outputPerMToken: 5.00 },
 
   // Google
   "gemini-3-pro-preview": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
