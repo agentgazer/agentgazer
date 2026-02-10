@@ -7,6 +7,12 @@ export interface ParsedResponse {
   tokensTotal: number | null;
   statusCode: number;
   errorMessage: string | null;
+  /** Anthropic: cache_creation_input_tokens */
+  cacheCreationTokens?: number | null;
+  /** Anthropic: cache_read_input_tokens */
+  cacheReadTokens?: number | null;
+  /** OpenAI: cached input tokens (from prompt_tokens_details.cached_tokens) */
+  cachedInputTokens?: number | null;
 }
 
 type ResponseParser = (body: unknown, statusCode: number) => ParsedResponse;
@@ -33,6 +39,9 @@ function parseOpenAI(body: unknown, statusCode: number): ParsedResponse {
       prompt_tokens?: number;
       completion_tokens?: number;
       total_tokens?: number;
+      prompt_tokens_details?: {
+        cached_tokens?: number;
+      };
     };
   };
   return {
@@ -42,6 +51,7 @@ function parseOpenAI(body: unknown, statusCode: number): ParsedResponse {
     tokensTotal: data.usage?.total_tokens ?? null,
     statusCode,
     errorMessage: null,
+    cachedInputTokens: data.usage?.prompt_tokens_details?.cached_tokens ?? null,
   };
 }
 
@@ -60,30 +70,27 @@ function parseAnthropic(body: unknown, statusCode: number): ParsedResponse {
     };
   };
 
-  // Include cache tokens in total input count
-  // Note: cache_creation is charged at 1.25x, cache_read at 0.1x
-  // For now we count all as regular input tokens for simplicity
-  let tokensIn = data.usage?.input_tokens ?? null;
+  // Keep input tokens separate from cache tokens for accurate cost calculation
+  // Cache tokens have different rates: cache_creation = 1.25x, cache_read = 0.1x
+  const tokensIn = data.usage?.input_tokens ?? null;
+  const tokensOut = data.usage?.output_tokens ?? null;
   const cacheCreationTokens = data.usage?.cache_creation_input_tokens ?? null;
   const cacheReadTokens = data.usage?.cache_read_input_tokens ?? null;
 
-  if (tokensIn != null) {
-    if (cacheCreationTokens != null) {
-      tokensIn += cacheCreationTokens;
-    }
-    if (cacheReadTokens != null) {
-      tokensIn += cacheReadTokens;
-    }
-  }
+  // Total includes all input tokens for display purposes
+  let totalIn = tokensIn ?? 0;
+  if (cacheCreationTokens != null) totalIn += cacheCreationTokens;
+  if (cacheReadTokens != null) totalIn += cacheReadTokens;
 
-  const tokensOut = data.usage?.output_tokens ?? null;
   return {
     model: data.model ?? null,
     tokensIn,
     tokensOut,
-    tokensTotal: tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null,
+    tokensTotal: tokensOut != null ? totalIn + tokensOut : null,
     statusCode,
     errorMessage: null,
+    cacheCreationTokens,
+    cacheReadTokens,
   };
 }
 

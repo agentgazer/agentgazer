@@ -20,6 +20,7 @@ describe("parseProviderResponse", () => {
         tokensTotal: 150,
         statusCode: 200,
         errorMessage: null,
+        cachedInputTokens: null,
       });
     });
 
@@ -33,6 +34,7 @@ describe("parseProviderResponse", () => {
         tokensTotal: null,
         statusCode: 200,
         errorMessage: null,
+        cachedInputTokens: null,
       });
     });
 
@@ -78,6 +80,7 @@ describe("parseProviderResponse", () => {
         tokensTotal: null,
         statusCode: 200,
         errorMessage: null,
+        cachedInputTokens: null,
       });
     });
 
@@ -90,6 +93,7 @@ describe("parseProviderResponse", () => {
         tokensTotal: null,
         statusCode: 200,
         errorMessage: null,
+        cachedInputTokens: null,
       });
     });
   });
@@ -111,6 +115,8 @@ describe("parseProviderResponse", () => {
         tokensTotal: 400,
         statusCode: 200,
         errorMessage: null,
+        cacheCreationTokens: null,
+        cacheReadTokens: null,
       });
     });
 
@@ -126,7 +132,7 @@ describe("parseProviderResponse", () => {
       expect(result!.tokensTotal).toBe(1500);
     });
 
-    it("returns null tokensTotal when input_tokens is missing", () => {
+    it("calculates tokensTotal even when input_tokens is missing (defaults to 0)", () => {
       const body = {
         model: "claude-sonnet-4-20250514",
         usage: {
@@ -135,7 +141,7 @@ describe("parseProviderResponse", () => {
       };
       const result = parseProviderResponse("anthropic", body, 200);
       expect(result!.tokensIn).toBeNull();
-      expect(result!.tokensTotal).toBeNull();
+      expect(result!.tokensTotal).toBe(150); // 0 (default) + 150 output
     });
 
     it("returns null tokensTotal when output_tokens is missing", () => {
@@ -253,6 +259,7 @@ describe("parseProviderResponse", () => {
         tokensTotal: 700,
         statusCode: 200,
         errorMessage: null,
+        cachedInputTokens: null,
       });
     });
 

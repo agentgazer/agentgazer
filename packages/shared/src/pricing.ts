@@ -113,20 +113,73 @@ export function getModelPricing(model: string): ModelPricing | null {
   return null;
 }
 
+/**
+ * Cache token rate multipliers (relative to base input rate)
+ * - Anthropic: cache_creation = 1.25x, cache_read = 0.1x
+ * - OpenAI: cached_input = 0.5x (for supported models)
+ */
+export const CACHE_RATE_MULTIPLIERS = {
+  anthropic: {
+    cacheCreation: 1.25,  // cache_creation_input_tokens
+    cacheRead: 0.10,      // cache_read_input_tokens
+  },
+  openai: {
+    cachedInput: 0.50,    // cached input tokens
+  },
+} as const;
+
+export interface CacheTokens {
+  /** Anthropic: cache_creation_input_tokens */
+  cacheCreation?: number;
+  /** Anthropic: cache_read_input_tokens */
+  cacheRead?: number;
+  /** OpenAI: cached input tokens */
+  cachedInput?: number;
+}
+
 export function calculateCost(
   model: string,
   tokensIn: number,
-  tokensOut: number
+  tokensOut: number,
+  cacheTokens?: CacheTokens,
+  provider?: string
 ): number | null {
   if (tokensIn < 0 || tokensOut < 0) return null;
 
   const pricing = getModelPricing(model);
   if (!pricing) return null;
 
-  const inputCost = (tokensIn / 1_000_000) * pricing.inputPerMToken;
-  const outputCost = (tokensOut / 1_000_000) * pricing.outputPerMToken;
+  const inputRate = pricing.inputPerMToken;
+  const outputRate = pricing.outputPerMToken;
+
+  // Base input/output cost
+  const inputCost = (tokensIn / 1_000_000) * inputRate;
+  const outputCost = (tokensOut / 1_000_000) * outputRate;
+
+  // Cache token costs (if provided)
+  let cacheCost = 0;
+  if (cacheTokens) {
+    const isAnthropic = provider === "anthropic" || model.startsWith("claude");
+    const isOpenAI = provider === "openai" || model.startsWith("gpt") || model.startsWith("o1") || model.startsWith("o3") || model.startsWith("o4");
+
+    if (isAnthropic) {
+      const rates = CACHE_RATE_MULTIPLIERS.anthropic;
+      if (cacheTokens.cacheCreation && cacheTokens.cacheCreation > 0) {
+        cacheCost += (cacheTokens.cacheCreation / 1_000_000) * inputRate * rates.cacheCreation;
+      }
+      if (cacheTokens.cacheRead && cacheTokens.cacheRead > 0) {
+        cacheCost += (cacheTokens.cacheRead / 1_000_000) * inputRate * rates.cacheRead;
+      }
+    } else if (isOpenAI) {
+      const rates = CACHE_RATE_MULTIPLIERS.openai;
+      if (cacheTokens.cachedInput && cacheTokens.cachedInput > 0) {
+        cacheCost += (cacheTokens.cachedInput / 1_000_000) * inputRate * rates.cachedInput;
+      }
+    }
+  }
+
   // Round to 10 decimal places to mitigate floating-point arithmetic drift
-  return Math.round((inputCost + outputCost) * 1e10) / 1e10;
+  return Math.round((inputCost + outputCost + cacheCost) * 1e10) / 1e10;
 }
 
 export function listSupportedModels(): string[] {

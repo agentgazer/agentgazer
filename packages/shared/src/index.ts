@@ -13,8 +13,10 @@ export {
   listSupportedModels,
   getProviderModels,
   normalizeModelName,
+  CACHE_RATE_MULTIPLIERS,
   type ModelPricing,
   type ProviderModel,
+  type CacheTokens,
 } from "./pricing.js";
 
 export {
