@@ -89,8 +89,28 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "Baichuan4": { inputPerMToken: 2.00, outputPerMToken: 4.00 },
 };
 
+/**
+ * Normalize model name by stripping date version suffix.
+ * e.g. "gpt-4o-2024-08-06" -> "gpt-4o"
+ *      "o1-2024-12-17" -> "o1"
+ *      "gpt-4o-mini-2024-07-18" -> "gpt-4o-mini"
+ */
+export function normalizeModelName(model: string): string {
+  // Strip date suffix like -2024-08-06 or -2025-01-31
+  return model.replace(/-\d{4}-\d{2}-\d{2}$/, "");
+}
+
 export function getModelPricing(model: string): ModelPricing | null {
-  return PRICING_TABLE[model] ?? PRICING_TABLE[model.toLowerCase()] ?? null;
+  // Try exact match first
+  if (PRICING_TABLE[model]) return PRICING_TABLE[model];
+  if (PRICING_TABLE[model.toLowerCase()]) return PRICING_TABLE[model.toLowerCase()];
+
+  // Try with normalized name (strip date suffix)
+  const normalized = normalizeModelName(model);
+  if (PRICING_TABLE[normalized]) return PRICING_TABLE[normalized];
+  if (PRICING_TABLE[normalized.toLowerCase()]) return PRICING_TABLE[normalized.toLowerCase()];
+
+  return null;
 }
 
 export function calculateCost(

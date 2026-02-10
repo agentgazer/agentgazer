@@ -12,6 +12,7 @@ export {
   calculateCost,
   listSupportedModels,
   getProviderModels,
+  normalizeModelName,
   type ModelPricing,
   type ProviderModel,
 } from "./pricing.js";
