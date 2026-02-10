@@ -725,3 +725,365 @@ describe("Integration: Proxy -> Local Server", () => {
     await buffer.shutdown();
   });
 });
+
+// =========================================================================
+// Test 4: Advanced Alert Evaluator features
+// =========================================================================
+
+describe("Integration: Advanced Alert Evaluator", () => {
+  let server: http.Server;
+  let db: ReturnType<typeof createServer>["db"];
+  let base: string;
+  const token = `integ-alert-adv-${randomUUID().slice(0, 8)}`;
+  const dbPath = path.join(os.tmpdir(), `agentgazer-integ-alert-adv-${randomUUID()}.db`);
+
+  beforeAll(async () => {
+    const { app, db: database } = createServer({ token, dbPath });
+    db = database;
+    server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, resolve));
+    const port = (server.address() as { port: number }).port;
+    base = `http://localhost:${port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) =>
+      server.close((err) => (err ? reject(err) : resolve())),
+    );
+    db.close();
+    cleanupDb(dbPath);
+  });
+
+  it("repeat_enabled re-sends alert after interval", async () => {
+    const agentId = `alert-repeat-${randomUUID().slice(0, 8)}`;
+
+    // Create agent with stale heartbeat
+    await jsonRequest(base, "POST", "/api/events", {
+      token,
+      body: {
+        agent_id: agentId,
+        event_type: "heartbeat",
+        source: "sdk",
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    // Make activity stale
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const staleTimestamp = tenMinutesAgo.toISOString().replace("T", " ").slice(0, 19);
+    db.prepare("UPDATE agents SET updated_at = ? WHERE agent_id = ?").run(staleTimestamp, agentId);
+
+    // Create rule with repeat_enabled and 1 minute interval
+    const alertRes = await jsonRequest(base, "POST", "/api/alerts", {
+      token,
+      body: {
+        agent_id: agentId,
+        rule_type: "agent_down",
+        config: { duration_minutes: 1 },
+        webhook_url: "https://hooks.example.com/noop",
+        repeat_enabled: true,
+        repeat_interval_minutes: 1, // Very short for testing
+      },
+    });
+    expect(alertRes.status).toBe(201);
+    const ruleId = alertRes.body.id;
+
+    // Run evaluator twice with short interval
+    const evaluator = startEvaluator({ db, interval: 100 });
+    await new Promise((r) => setTimeout(r, 400));
+    evaluator.stop();
+
+    // Check alert history - should have at least one entry
+    const historyRes = await jsonRequest(base, "GET", "/api/alert-history", { token });
+    expect(historyRes.status).toBe(200);
+
+    const entries = historyRes.body.history.filter((h: any) => h.alert_rule_id === ruleId);
+    expect(entries.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("recovery_notify sends message when alert recovers", async () => {
+    const agentId = `alert-recovery-${randomUUID().slice(0, 8)}`;
+
+    // Create agent with stale heartbeat
+    await jsonRequest(base, "POST", "/api/events", {
+      token,
+      body: {
+        agent_id: agentId,
+        event_type: "heartbeat",
+        source: "sdk",
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    // Make activity stale
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const staleTimestamp = tenMinutesAgo.toISOString().replace("T", " ").slice(0, 19);
+    db.prepare("UPDATE agents SET updated_at = ? WHERE agent_id = ?").run(staleTimestamp, agentId);
+
+    // Create rule with recovery_notify
+    const alertRes = await jsonRequest(base, "POST", "/api/alerts", {
+      token,
+      body: {
+        agent_id: agentId,
+        rule_type: "agent_down",
+        config: { duration_minutes: 1 },
+        webhook_url: "https://hooks.example.com/noop",
+        recovery_notify: true,
+      },
+    });
+    expect(alertRes.status).toBe(201);
+    const ruleId = alertRes.body.id;
+
+    // Run evaluator to trigger alert
+    let evaluator = startEvaluator({ db, interval: 100 });
+    await new Promise((r) => setTimeout(r, 300));
+    evaluator.stop();
+
+    // Update activity to be recent (simulating recovery)
+    const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+    db.prepare("UPDATE agents SET updated_at = ? WHERE agent_id = ?").run(now, agentId);
+
+    // Run evaluator again to detect recovery
+    evaluator = startEvaluator({ db, interval: 100 });
+    await new Promise((r) => setTimeout(r, 300));
+    evaluator.stop();
+
+    // Check alert history for recovery entry
+    const historyRes = await jsonRequest(base, "GET", "/api/alert-history", { token });
+    expect(historyRes.status).toBe(200);
+
+    // Should have both alert and recovery entries
+    const alertEntry = historyRes.body.history.find(
+      (h: any) => h.alert_rule_id === ruleId && h.rule_type === "agent_down",
+    );
+    const recoveryEntry = historyRes.body.history.find(
+      (h: any) => h.alert_rule_id === ruleId && h.rule_type === "agent_down_recovery",
+    );
+
+    expect(alertEntry).toBeTruthy();
+    expect(recoveryEntry).toBeTruthy();
+  });
+
+  it("state transitions from normal to alerting to normal", async () => {
+    const agentId = `alert-state-${randomUUID().slice(0, 8)}`;
+
+    // Create agent with stale heartbeat
+    await jsonRequest(base, "POST", "/api/events", {
+      token,
+      body: {
+        agent_id: agentId,
+        event_type: "heartbeat",
+        source: "sdk",
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    // Make activity stale
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const staleTimestamp = tenMinutesAgo.toISOString().replace("T", " ").slice(0, 19);
+    db.prepare("UPDATE agents SET updated_at = ? WHERE agent_id = ?").run(staleTimestamp, agentId);
+
+    // Create rule
+    const alertRes = await jsonRequest(base, "POST", "/api/alerts", {
+      token,
+      body: {
+        agent_id: agentId,
+        rule_type: "agent_down",
+        config: { duration_minutes: 1 },
+        webhook_url: "https://hooks.example.com/noop",
+        repeat_enabled: true,
+      },
+    });
+    expect(alertRes.status).toBe(201);
+    const ruleId = alertRes.body.id;
+
+    // Check initial state is normal
+    let rule = db.prepare("SELECT state FROM alert_rules WHERE id = ?").get(ruleId) as { state: string };
+    expect(rule.state).toBe("normal");
+
+    // Run evaluator to trigger alert
+    let evaluator = startEvaluator({ db, interval: 100 });
+    await new Promise((r) => setTimeout(r, 300));
+    evaluator.stop();
+
+    // Check state is now alerting (repeat_enabled)
+    rule = db.prepare("SELECT state FROM alert_rules WHERE id = ?").get(ruleId) as { state: string };
+    expect(rule.state).toBe("alerting");
+
+    // Make activity recent (recovery)
+    const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+    db.prepare("UPDATE agents SET updated_at = ? WHERE agent_id = ?").run(now, agentId);
+
+    // Run evaluator to detect recovery
+    evaluator = startEvaluator({ db, interval: 100 });
+    await new Promise((r) => setTimeout(r, 300));
+    evaluator.stop();
+
+    // Check state is back to normal
+    rule = db.prepare("SELECT state FROM alert_rules WHERE id = ?").get(ruleId) as { state: string };
+    expect(rule.state).toBe("normal");
+  });
+
+  it("budget alert supports weekly period", async () => {
+    const agentId = `alert-budget-weekly-${randomUUID().slice(0, 8)}`;
+
+    // Create agent with events that have cost
+    await jsonRequest(base, "POST", "/api/events", {
+      token,
+      body: {
+        events: [
+          {
+            agent_id: agentId,
+            event_type: "llm_call",
+            provider: "openai",
+            model: "gpt-4o",
+            tokens_in: 1000,
+            tokens_out: 500,
+            cost_usd: 15.0, // Over $10 threshold
+            source: "sdk",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+
+    // Create budget rule with weekly period
+    const alertRes = await jsonRequest(base, "POST", "/api/alerts", {
+      token,
+      body: {
+        agent_id: agentId,
+        rule_type: "budget",
+        config: { threshold: 10 },
+        webhook_url: "https://hooks.example.com/noop",
+        budget_period: "weekly",
+      },
+    });
+    expect(alertRes.status).toBe(201);
+    const ruleId = alertRes.body.id;
+
+    // Run evaluator
+    const evaluator = startEvaluator({ db, interval: 100 });
+    await new Promise((r) => setTimeout(r, 300));
+    evaluator.stop();
+
+    // Check alert history
+    const historyRes = await jsonRequest(base, "GET", "/api/alert-history", { token });
+    expect(historyRes.status).toBe(200);
+
+    const entry = historyRes.body.history.find(
+      (h: any) => h.alert_rule_id === ruleId && h.agent_id === agentId,
+    );
+    expect(entry).toBeTruthy();
+    expect(entry.message).toContain("weekly");
+  });
+
+  it("budget alert supports monthly period", async () => {
+    const agentId = `alert-budget-monthly-${randomUUID().slice(0, 8)}`;
+
+    // Create agent with events that have cost
+    await jsonRequest(base, "POST", "/api/events", {
+      token,
+      body: {
+        events: [
+          {
+            agent_id: agentId,
+            event_type: "llm_call",
+            provider: "openai",
+            model: "gpt-4o",
+            tokens_in: 1000,
+            tokens_out: 500,
+            cost_usd: 25.0, // Over $20 threshold
+            source: "sdk",
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+
+    // Create budget rule with monthly period
+    const alertRes = await jsonRequest(base, "POST", "/api/alerts", {
+      token,
+      body: {
+        agent_id: agentId,
+        rule_type: "budget",
+        config: { threshold: 20 },
+        webhook_url: "https://hooks.example.com/noop",
+        budget_period: "monthly",
+      },
+    });
+    expect(alertRes.status).toBe(201);
+    const ruleId = alertRes.body.id;
+
+    // Run evaluator
+    const evaluator = startEvaluator({ db, interval: 100 });
+    await new Promise((r) => setTimeout(r, 300));
+    evaluator.stop();
+
+    // Check alert history
+    const historyRes = await jsonRequest(base, "GET", "/api/alert-history", { token });
+    expect(historyRes.status).toBe(200);
+
+    const entry = historyRes.body.history.find(
+      (h: any) => h.alert_rule_id === ruleId && h.agent_id === agentId,
+    );
+    expect(entry).toBeTruthy();
+    expect(entry.message).toContain("monthly");
+  });
+
+  it("kill_switch alert type fires on event", async () => {
+    const { fireKillSwitchAlert } = await import("../alerts/evaluator.js");
+
+    const agentId = `alert-killswitch-${randomUUID().slice(0, 8)}`;
+
+    // Create the agent first
+    await jsonRequest(base, "POST", "/api/events", {
+      token,
+      body: {
+        agent_id: agentId,
+        event_type: "heartbeat",
+        source: "sdk",
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    // Create kill_switch rule
+    const alertRes = await jsonRequest(base, "POST", "/api/alerts", {
+      token,
+      body: {
+        agent_id: agentId,
+        rule_type: "kill_switch",
+        config: {},
+        webhook_url: "https://hooks.example.com/noop",
+      },
+    });
+    expect(alertRes.status).toBe(201);
+    const ruleId = alertRes.body.id;
+
+    // Directly fire kill switch alert
+    await fireKillSwitchAlert(db, {
+      agent_id: agentId,
+      score: 85,
+      window_size: 10,
+      threshold: 70,
+      details: {
+        similarPrompts: 5,
+        similarResponses: 3,
+        repeatedToolCalls: 2,
+      },
+    });
+
+    // Wait for async webhook
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Check alert history
+    const historyRes = await jsonRequest(base, "GET", "/api/alert-history", { token });
+    expect(historyRes.status).toBe(200);
+
+    const entry = historyRes.body.history.find(
+      (h: any) => h.alert_rule_id === ruleId && h.rule_type === "kill_switch",
+    );
+    expect(entry).toBeTruthy();
+    expect(entry.message).toContain("Kill switch");
+    expect(entry.message).toContain("85");
+  });
+});
