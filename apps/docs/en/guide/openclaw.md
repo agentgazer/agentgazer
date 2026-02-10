@@ -1,6 +1,6 @@
 # OpenClaw Integration
 
-> Monitor your OpenClaw personal AI assistant with AgentGazer — one-click setup, full observability
+> Monitor your OpenClaw personal AI assistant with AgentGazer — one-click setup, full control
 
 ## Overview
 

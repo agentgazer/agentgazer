@@ -11,7 +11,7 @@ Building AI agents is hard. Debugging them is harder.
 
 ## The Solution
 
-AgentGazer is a **local-first** observability platform for AI agents.
+AgentGazer is a **local-first** governance platform for AI agents.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh

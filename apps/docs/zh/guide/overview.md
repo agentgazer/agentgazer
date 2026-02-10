@@ -11,7 +11,7 @@
 
 ## 解決方案
 
-AgentGazer 是一個**本地優先**的 AI Agent 可觀測性平台。
+AgentGazer 是一個**本地優先**的 AI Agent 治理平台。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh

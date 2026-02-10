@@ -1,6 +1,6 @@
 # AgentGazer 操作指南
 
-> 本地優先的 AI Agent 可觀測性平台 — 完整安裝、設定與使用手冊
+> 本地優先的 AI Agent 治理平台 — 完整安裝、設定與使用手冊
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## 1. 平台概覽
 
-AgentGazer 是一個**本地優先**的 AI Agent 可觀測性平台。只需一條指令 `npx agentgazer` 即可啟動一切：Express 伺服器、LLM 代理、React 儀表板，全部資料儲存於本機 SQLite，無需任何雲端依賴。
+AgentGazer 是一個**本地優先**的 AI Agent 治理平台。只需一條指令 `npx agentgazer` 即可啟動一切：Express 伺服器、LLM 代理、React 儀表板，全部資料儲存於本機 SQLite，無需任何雲端依賴。
 
 ### 核心功能
 
@@ -1112,4 +1112,4 @@ agentgazer start
 
 ---
 
-> AgentGazer — 本地優先的 AI Agent 可觀測性平台。一條指令，全面掌握。
+> AgentGazer — 從可觀測到可控制。監控、治理、保護你的 AI Agents。

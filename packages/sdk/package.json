@@ -1,7 +1,7 @@
 {
   "name": "@agentgazer/sdk",
   "version": "0.3.6",
-  "description": "AgentGazer SDK for monitoring AI agent activity",
+  "description": "AgentGazer SDK for monitoring and governing AI agent activity",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

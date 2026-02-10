@@ -23,6 +23,6 @@ features:
     details: Force agents to use cheaper models without changing code. gpt-4 → gpt-4o-mini, save 90% cost instantly.
   - title: ⏱️ Rate Limiting
     details: Per-provider request limits with sliding window. Prevent agents from exceeding API quotas.
-  - title: 📊 Local-First Observability
+  - title: 📊 Local-First Monitoring
     details: Track LLM calls, costs, tokens, and latency. SQLite storage, no cloud dependency. Your data stays on your machine.
 ---

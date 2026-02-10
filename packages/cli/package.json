@@ -2,7 +2,7 @@
   "name": "@agentgazer/cli",
   "version": "0.3.6",
   "type": "module",
-  "description": "AgentGazer — AI Agent observability. One command to monitor your agents locally.",
+  "description": "AgentGazer — From Observability to Control. Monitor, govern, and protect your AI agents.",
   "license": "Apache-2.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

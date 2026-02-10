@@ -1,6 +1,6 @@
 # OpenClaw 整合指南
 
-> 使用 AgentGazer 監控你的 OpenClaw 個人 AI 助手 — 一鍵設定，完整可觀測性
+> 使用 AgentGazer 監控你的 OpenClaw 個人 AI 助手 — 一鍵設定，完整掌控
 
 ## 概述
 

@@ -1,6 +1,6 @@
 # agentgazer
 
-AI Agent observability. One command to monitor your agents locally.
+From Observability to Control. Monitor, govern, and protect your AI agents.
 
 ## Install
 

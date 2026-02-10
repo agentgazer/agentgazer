@@ -1,6 +1,6 @@
 # AgentGazer Operation Guide
 
-> Local-first AI Agent observability platform — Complete installation, configuration, and usage manual
+> Local-first AI Agent governance platform — Complete installation, configuration, and usage manual
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## 1. Platform Overview
 
-AgentGazer is a **local-first** AI Agent observability platform. With a single command `npx agentgazer`, you can launch everything: an Express server, an LLM proxy, and a React dashboard — all data stored locally in SQLite with zero cloud dependencies.
+AgentGazer is a **local-first** AI Agent governance platform. With a single command `npx agentgazer`, you can launch everything: an Express server, an LLM proxy, and a React dashboard — all data stored locally in SQLite with zero cloud dependencies.
 
 ### Core Features
 
@@ -1112,4 +1112,4 @@ agentgazer start
 
 ---
 
-> AgentGazer — Local-first AI Agent observability platform. One command, full visibility.
+> AgentGazer — From Observability to Control. Monitor, govern, and protect your AI agents.
