@@ -774,13 +774,57 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
       process.exit(1);
     }
   } else {
-    // Unknown installation method
-    console.log("\n  Could not detect installation method.");
-    console.log("  Please update manually:\n");
-    console.log("    npm:      npm install -g @agentgazer/cli@latest");
-    console.log("    Homebrew: brew upgrade agentgazer/tap/agentgazer");
-    console.log("    Docker:   docker pull ghcr.io/agentgazer/agentgazer:latest");
-    process.exit(0);
+    // Check if there's a path mismatch (binary in one place, npm installs to another)
+    let npmGlobalRoot = "";
+    try {
+      npmGlobalRoot = execSync("npm root -g", { encoding: "utf-8" }).trim();
+    } catch {
+      // Ignore
+    }
+
+    // Resolve the binary path (follow symlinks)
+    let realBinPath = "";
+    try {
+      realBinPath = fs.realpathSync(execPath);
+    } catch {
+      realBinPath = execPath;
+    }
+
+    const binInNpmRoot = realBinPath.includes(npmGlobalRoot) || realBinPath.includes("/node_modules/@agentgazer/cli");
+
+    if (npmGlobalRoot && !binInNpmRoot) {
+      // Path mismatch detected - old binary not in current npm global location
+      console.log("\n  Detected: Stale installation (binary location differs from npm global path)");
+      console.log(`  Current binary: ${execPath}`);
+      console.log(`  npm global root: ${npmGlobalRoot}`);
+      console.log("\n  Cleaning up and reinstalling...\n");
+
+      try {
+        // Remove the old binary/symlink
+        const binDir = path.dirname(execPath);
+        const binName = path.basename(execPath);
+        execSync(`rm -f "${path.join(binDir, binName)}"`, { stdio: "inherit" });
+
+        // Install fresh
+        execSync("npm install -g @agentgazer/cli@latest", { stdio: "inherit" });
+
+        console.log("\n  ✓ Update complete!");
+        console.log("  Note: You may need to open a new terminal or run 'hash -r' to refresh the command path.");
+      } catch (err) {
+        console.error("\n  Update failed. Try manually:");
+        console.error(`    sudo rm ${execPath}`);
+        console.error("    npm install -g @agentgazer/cli@latest");
+        process.exit(1);
+      }
+    } else {
+      // Unknown installation method
+      console.log("\n  Could not detect installation method.");
+      console.log("  Please update manually:\n");
+      console.log("    npm:      npm install -g @agentgazer/cli@latest");
+      console.log("    Homebrew: brew upgrade agentgazer/tap/agentgazer");
+      console.log("    Docker:   docker pull ghcr.io/agentgazer/agentgazer:latest");
+      process.exit(0);
+    }
   }
 
   console.log("\n  Your settings in ~/.agentgazer/ have been preserved.");
