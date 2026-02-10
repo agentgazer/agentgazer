@@ -1040,16 +1040,104 @@ function removeLogFiles(): void {
   }
 }
 
-function showBinaryRemovalCommands(): void {
-  console.log(`
-  To remove the agentgazer binary:
+function detectInstallMethod(): "homebrew" | "npm" | "unknown" {
+  const execPath = process.argv[1] || "";
 
-    npm uninstall -g @agentgazer/cli
+  // Check if installed via Homebrew
+  try {
+    const brewPrefix = execSync("brew --prefix 2>/dev/null", { encoding: "utf-8" }).trim();
+    if (execPath.includes(brewPrefix) || execPath.includes("/Cellar/")) {
+      return "homebrew";
+    }
+    // Also check if brew knows about agentgazer
+    try {
+      execSync("brew list agentgazer 2>/dev/null", { encoding: "utf-8" });
+      return "homebrew";
+    } catch {
+      // Not installed via brew
+    }
+  } catch {
+    // Homebrew not installed
+  }
 
-  Or if installed via Homebrew:
+  // Check if installed via npm
+  try {
+    const npmGlobalRoot = execSync("npm root -g", { encoding: "utf-8" }).trim();
+    if (execPath.includes(npmGlobalRoot) || execPath.includes("node_modules/@agentgazer/cli")) {
+      return "npm";
+    }
+    // Check if npm knows about the package
+    try {
+      execSync("npm list -g @agentgazer/cli 2>/dev/null", { encoding: "utf-8" });
+      return "npm";
+    } catch {
+      // Not in npm global list
+    }
+  } catch {
+    // npm not available
+  }
 
-    brew uninstall agentgazer
-`);
+  return "unknown";
+}
+
+async function uninstallBinary(): Promise<boolean> {
+  const method = detectInstallMethod();
+
+  console.log(`  Detecting installation method...`);
+
+  if (method === "homebrew") {
+    console.log(`  Found: Homebrew installation`);
+    console.log(`  Running: brew uninstall agentgazer\n`);
+    try {
+      execSync("brew uninstall agentgazer", { stdio: "inherit" });
+      console.log(`\n  ✓ Uninstalled via Homebrew`);
+      return true;
+    } catch (err) {
+      console.error(`  ✗ Homebrew uninstall failed:`, err instanceof Error ? err.message : err);
+      return false;
+    }
+  }
+
+  if (method === "npm") {
+    console.log(`  Found: npm global installation`);
+    console.log(`  Running: npm uninstall -g @agentgazer/cli\n`);
+    try {
+      execSync("npm uninstall -g @agentgazer/cli", { stdio: "inherit" });
+      console.log(`\n  ✓ Uninstalled via npm`);
+
+      // Also check for stale binary like in update command
+      const execPath = process.argv[1] || "";
+      let realBinPath = "";
+      try {
+        realBinPath = fs.realpathSync(execPath);
+      } catch {
+        realBinPath = execPath;
+      }
+
+      // If there's a stale symlink or binary, remove it
+      if (fs.existsSync(execPath) && !realBinPath.includes("node_modules")) {
+        console.log(`  Cleaning up stale binary at ${execPath}...`);
+        try {
+          fs.unlinkSync(execPath);
+          console.log(`  ✓ Removed stale binary`);
+        } catch {
+          console.log(`  Note: Could not remove ${execPath} - you may need to delete it manually`);
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.error(`  ✗ npm uninstall failed:`, err instanceof Error ? err.message : err);
+      return false;
+    }
+  }
+
+  // Unknown installation method
+  console.log(`  Could not detect installation method.`);
+  console.log(`\n  Please try one of these commands manually:\n`);
+  console.log(`    npm uninstall -g @agentgazer/cli`);
+  console.log(`    brew uninstall agentgazer\n`);
+  return false;
 }
 
 async function cmdUninstall(flags: Record<string, string>): Promise<void> {
@@ -1059,7 +1147,7 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
   // Handle flags for scripting
   if ("all" in flags) {
     if (!skipPrompt) {
-      const confirmed = await confirmPrompt("\n  This will remove ALL AgentGazer data. Continue? [y/N] ");
+      const confirmed = await confirmPrompt("\n  This will remove ALL AgentGazer data and the binary. Continue? [y/N] ");
       if (!confirmed) {
         console.log("  Cancelled.");
         return;
@@ -1070,7 +1158,9 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
     removeConfig();
     removeAgentData();
     removeLogFiles();
-    showBinaryRemovalCommands();
+    console.log("");
+    await uninstallBinary();
+    console.log("\n  AgentGazer has been completely removed.");
     return;
   }
 
@@ -1131,8 +1221,8 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
 
   What would you like to remove?
 
-    1. Complete uninstall (everything)
-    2. Binary only (show npm/brew command)
+    1. Complete uninstall (everything + binary)
+    2. Binary only (auto-detects npm/homebrew)
     3. Config only (~/.agentgazer/config.json)
     4. Provider keys only (from secret store)
     5. Agent data only (~/.agentgazer/data.db)
@@ -1148,7 +1238,7 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
   switch (choice) {
     case "1": {
       // Complete uninstall
-      const confirmed = await confirmPrompt("  This will remove ALL AgentGazer data. Continue? [y/N] ");
+      const confirmed = await confirmPrompt("  This will remove ALL AgentGazer data and the binary. Continue? [y/N] ");
       if (!confirmed) {
         console.log("  Cancelled.");
         return;
@@ -1158,14 +1248,22 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
       removeConfig();
       removeAgentData();
       removeLogFiles();
-      showBinaryRemovalCommands();
+      console.log("");
+      await uninstallBinary();
+      console.log("\n  AgentGazer has been completely removed.");
       break;
     }
 
-    case "2":
+    case "2": {
       // Binary only
-      showBinaryRemovalCommands();
+      const confirmed = await confirmPrompt("  Remove agentgazer binary? [y/N] ");
+      if (!confirmed) {
+        console.log("  Cancelled.");
+        return;
+      }
+      await uninstallBinary();
       break;
+    }
 
     case "3": {
       // Config only
