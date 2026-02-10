@@ -55,9 +55,27 @@ function parseAnthropic(body: unknown, statusCode: number): ParsedResponse {
     usage?: {
       input_tokens?: number;
       output_tokens?: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
     };
   };
-  const tokensIn = data.usage?.input_tokens ?? null;
+
+  // Include cache tokens in total input count
+  // Note: cache_creation is charged at 1.25x, cache_read at 0.1x
+  // For now we count all as regular input tokens for simplicity
+  let tokensIn = data.usage?.input_tokens ?? null;
+  const cacheCreationTokens = data.usage?.cache_creation_input_tokens ?? null;
+  const cacheReadTokens = data.usage?.cache_read_input_tokens ?? null;
+
+  if (tokensIn != null) {
+    if (cacheCreationTokens != null) {
+      tokensIn += cacheCreationTokens;
+    }
+    if (cacheReadTokens != null) {
+      tokensIn += cacheReadTokens;
+    }
+  }
+
   const tokensOut = data.usage?.output_tokens ?? null;
   return {
     model: data.model ?? null,

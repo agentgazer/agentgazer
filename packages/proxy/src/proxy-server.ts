@@ -366,13 +366,21 @@ function parseAnthropicSSE(
   let model: string | null = null;
   let tokensIn: number | null = null;
   let tokensOut: number | null = null;
+  let cacheCreationTokens: number | null = null;
+  let cacheReadTokens: number | null = null;
 
   for (const line of dataLines) {
     try {
       const data = JSON.parse(line);
       if (data.type === "message_start" && data.message) {
         model = data.message.model ?? null;
-        tokensIn = data.message.usage?.input_tokens ?? null;
+        const usage = data.message.usage;
+        if (usage) {
+          tokensIn = usage.input_tokens ?? null;
+          // Anthropic prompt caching: include cache tokens in input count
+          cacheCreationTokens = usage.cache_creation_input_tokens ?? null;
+          cacheReadTokens = usage.cache_read_input_tokens ?? null;
+        }
       }
       if (data.type === "message_delta" && data.usage) {
         tokensOut = data.usage.output_tokens ?? null;
@@ -382,12 +390,25 @@ function parseAnthropicSSE(
     }
   }
 
+  // Total input includes regular + cache tokens
+  // Note: cache_creation is charged at 1.25x, cache_read at 0.1x
+  // For now we count all as regular input tokens for simplicity
+  let totalInputTokens = tokensIn;
+  if (totalInputTokens != null) {
+    if (cacheCreationTokens != null) {
+      totalInputTokens += cacheCreationTokens;
+    }
+    if (cacheReadTokens != null) {
+      totalInputTokens += cacheReadTokens;
+    }
+  }
+
   const tokensTotal =
-    tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null;
+    totalInputTokens != null && tokensOut != null ? totalInputTokens + tokensOut : null;
 
   return {
     model,
-    tokensIn,
+    tokensIn: totalInputTokens,
     tokensOut,
     tokensTotal,
     statusCode,
