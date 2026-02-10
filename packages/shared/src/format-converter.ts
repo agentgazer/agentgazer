@@ -116,7 +116,9 @@ export interface AnthropicContentPart {
   name?: string;
   input?: Record<string, unknown>;
   tool_use_id?: string;
-  content?: string;
+  // tool_result content can be string or array of content blocks
+  content?: string | Array<{ type: "text"; text: string } | { type: "image"; source: { type: "base64"; media_type: string; data: string } }>;
+  is_error?: boolean;
 }
 
 export interface AnthropicMessage {
@@ -372,9 +374,23 @@ export function anthropicToOpenaiRequest(request: AnthropicRequest): OpenAIReque
 
         // Add tool results as separate tool messages
         for (const tr of toolResults) {
+          // Handle content that can be string or array of content blocks
+          let toolContent: string;
+          if (typeof tr.content === "string") {
+            toolContent = tr.content;
+          } else if (Array.isArray(tr.content)) {
+            // Extract text from content blocks
+            toolContent = tr.content
+              .filter((block): block is { type: "text"; text: string } => block.type === "text")
+              .map(block => block.text)
+              .join("\n");
+          } else {
+            toolContent = "";
+          }
+
           messages.push({
             role: "tool",
-            content: tr.content ?? "",
+            content: toolContent,
             tool_call_id: tr.tool_use_id!,
           });
         }

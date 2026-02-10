@@ -1777,11 +1777,15 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         responseHeaders[key] = value;
       });
 
-      // Debug log error responses
+      // Log error responses (INFO level for cross-provider, DEBUG for others)
       if (providerResponse.status >= 400) {
         try {
           const errorBody = responseBodyBuffer.toString("utf-8").slice(0, 2000);
-          log.debug(`[PROXY] Error response body: ${errorBody}${responseBodyBuffer.length > 2000 ? "... (truncated)" : ""}`);
+          if (crossProviderOverride) {
+            log.info(`[PROXY] Cross-provider error (${providerResponse.status}): ${errorBody}${responseBodyBuffer.length > 2000 ? "... (truncated)" : ""}`);
+          } else {
+            log.debug(`[PROXY] Error response body: ${errorBody}${responseBodyBuffer.length > 2000 ? "... (truncated)" : ""}`);
+          }
         } catch {
           log.debug(`[PROXY] Error response body: (binary, ${responseBodyBuffer.length} bytes)`);
         }
