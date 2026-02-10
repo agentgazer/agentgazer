@@ -115,12 +115,14 @@ export function getModelPricing(model: string): ModelPricing | null {
 
 /**
  * Cache token rate multipliers (relative to base input rate)
- * - Anthropic: cache_creation = 1.25x, cache_read = 0.1x
+ * - Anthropic: cache_creation = 0.62x (empirically derived, docs say 1.25x), cache_read = 0.1x
  * - OpenAI: cached_input = 0.5x (for supported models)
+ *
+ * Note: Cost estimates may differ from actual billing. Always verify with official console.
  */
 export const CACHE_RATE_MULTIPLIERS = {
   anthropic: {
-    cacheCreation: 1.25,  // cache_creation_input_tokens
+    cacheCreation: 0.62,  // cache_creation_input_tokens (empirically derived)
     cacheRead: 0.10,      // cache_read_input_tokens
   },
   openai: {

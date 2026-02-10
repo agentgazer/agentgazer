@@ -348,6 +348,8 @@ This builds and runs AgentGazer with persistent storage. The dashboard is availa
 
 AgentGazer automatically calculates USD cost for known models when token counts are available. Supported models include GPT-4o, GPT-4, Claude Opus/Sonnet/Haiku, Gemini, Mistral, Command-R, and others. See `packages/shared/src/pricing.ts` for the full pricing table.
 
+> **Note:** Cost estimates are approximate and may differ from actual billing, especially for cached tokens. Always verify with your provider's official console for accurate billing information.
+
 ## Configuration
 
 On first run, AgentGazer creates `~/.agentgazer/config.json` with a randomly generated auth token. The SQLite database is stored at `~/.agentgazer/data.db`.

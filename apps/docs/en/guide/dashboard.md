@@ -269,6 +269,10 @@ The cost page provides aggregated spend across Providers and Models:
 - Cost breakdown by Provider
 - Cost breakdown by Model
 
+::: warning Cost Estimate Disclaimer
+Cost estimates are approximate and may differ from actual billing, especially for requests with cached tokens. Always verify with your provider's official console for accurate billing information.
+:::
+
 ## Settings
 
 The Settings page allows you to configure server settings and default notification channels.
