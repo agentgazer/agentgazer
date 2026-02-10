@@ -1194,7 +1194,10 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     let costUsd: number | null = null;
     if (effectiveModel && parsed.tokensIn != null && parsed.tokensOut != null) {
-      costUsd = calculateCost(effectiveModel, parsed.tokensIn, parsed.tokensOut);
+      costUsd = calculateCost(effectiveModel, parsed.tokensIn, parsed.tokensOut, {
+        cacheCreation: parsed.cacheCreationTokens ?? undefined,
+        cacheRead: parsed.cacheReadTokens ?? undefined,
+      }, provider);
     }
 
     // Record response for loop detection
@@ -1255,7 +1258,10 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     // Calculate cost if we have the necessary token data
     let costUsd: number | null = null;
     if (effectiveModel && parsed.tokensIn != null && parsed.tokensOut != null) {
-      costUsd = calculateCost(effectiveModel, parsed.tokensIn, parsed.tokensOut);
+      costUsd = calculateCost(effectiveModel, parsed.tokensIn, parsed.tokensOut, {
+        cacheCreation: parsed.cacheCreationTokens ?? undefined,
+        cacheRead: parsed.cacheReadTokens ?? undefined,
+      }, provider);
     }
 
     // Record response for loop detection

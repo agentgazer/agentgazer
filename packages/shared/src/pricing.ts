@@ -152,31 +152,44 @@ export function calculateCost(
   const inputRate = pricing.inputPerMToken;
   const outputRate = pricing.outputPerMToken;
 
-  // Base input/output cost
-  const inputCost = (tokensIn / 1_000_000) * inputRate;
-  const outputCost = (tokensOut / 1_000_000) * outputRate;
+  const isAnthropic = provider === "anthropic" || model.startsWith("claude");
+  const isOpenAI = provider === "openai" || model.startsWith("gpt") || model.startsWith("o1") || model.startsWith("o3") || model.startsWith("o4");
 
-  // Cache token costs (if provided)
+  // For Anthropic: tokensIn from API includes cache tokens, so we need to:
+  // 1. Subtract cache tokens to get uncached input
+  // 2. Charge uncached at full rate, cache_creation at 1.25x, cache_read at 0.1x
+  let uncachedIn = tokensIn;
   let cacheCost = 0;
-  if (cacheTokens) {
-    const isAnthropic = provider === "anthropic" || model.startsWith("claude");
-    const isOpenAI = provider === "openai" || model.startsWith("gpt") || model.startsWith("o1") || model.startsWith("o3") || model.startsWith("o4");
 
-    if (isAnthropic) {
-      const rates = CACHE_RATE_MULTIPLIERS.anthropic;
-      if (cacheTokens.cacheCreation && cacheTokens.cacheCreation > 0) {
-        cacheCost += (cacheTokens.cacheCreation / 1_000_000) * inputRate * rates.cacheCreation;
-      }
-      if (cacheTokens.cacheRead && cacheTokens.cacheRead > 0) {
-        cacheCost += (cacheTokens.cacheRead / 1_000_000) * inputRate * rates.cacheRead;
-      }
-    } else if (isOpenAI) {
-      const rates = CACHE_RATE_MULTIPLIERS.openai;
-      if (cacheTokens.cachedInput && cacheTokens.cachedInput > 0) {
-        cacheCost += (cacheTokens.cachedInput / 1_000_000) * inputRate * rates.cachedInput;
-      }
+  if (cacheTokens && isAnthropic) {
+    const rates = CACHE_RATE_MULTIPLIERS.anthropic;
+    const cacheCreation = cacheTokens.cacheCreation ?? 0;
+    const cacheRead = cacheTokens.cacheRead ?? 0;
+
+    // Subtract cache tokens from input to get uncached count
+    uncachedIn = Math.max(0, tokensIn - cacheCreation - cacheRead);
+
+    // Add cache-specific costs
+    if (cacheCreation > 0) {
+      cacheCost += (cacheCreation / 1_000_000) * inputRate * rates.cacheCreation;
+    }
+    if (cacheRead > 0) {
+      cacheCost += (cacheRead / 1_000_000) * inputRate * rates.cacheRead;
+    }
+  } else if (cacheTokens && isOpenAI) {
+    const rates = CACHE_RATE_MULTIPLIERS.openai;
+    const cachedInput = cacheTokens.cachedInput ?? 0;
+
+    // For OpenAI: subtract cached tokens, charge at 0.5x rate
+    uncachedIn = Math.max(0, tokensIn - cachedInput);
+    if (cachedInput > 0) {
+      cacheCost += (cachedInput / 1_000_000) * inputRate * rates.cachedInput;
     }
   }
+
+  // Base input/output cost (using uncached input count)
+  const inputCost = (uncachedIn / 1_000_000) * inputRate;
+  const outputCost = (tokensOut / 1_000_000) * outputRate;
 
   // Round to 10 decimal places to mitigate floating-point arithmetic drift
   return Math.round((inputCost + outputCost + cacheCost) * 1e10) / 1e10;
