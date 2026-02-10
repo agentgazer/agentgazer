@@ -414,6 +414,8 @@ function parseAnthropicSSE(
     tokensTotal,
     statusCode,
     errorMessage: null,
+    cacheCreationTokens,
+    cacheReadTokens,
   };
 }
 
