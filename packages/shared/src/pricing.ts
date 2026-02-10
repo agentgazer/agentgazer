@@ -42,11 +42,11 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "claude-haiku-4-5-20251001": { inputPerMToken: 1.00, outputPerMToken: 5.00 },
 
   // Google
-  "gemini-3-pro-preview": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
-  "gemini-3-flash-preview": { inputPerMToken: 0.20, outputPerMToken: 0.80 },
-  "gemini-2.5-pro": { inputPerMToken: 1.25, outputPerMToken: 5.00 },
-  "gemini-2.5-flash": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
-  "gemini-2.5-flash-lite": { inputPerMToken: 0.075, outputPerMToken: 0.30 },
+  "gemini-3-pro-preview": { inputPerMToken: 2.00, outputPerMToken: 12.00 },
+  "gemini-3-flash-preview": { inputPerMToken: 0.50, outputPerMToken: 3.00 },
+  "gemini-2.5-pro": { inputPerMToken: 1.25, outputPerMToken: 10.00 },
+  "gemini-2.5-flash": { inputPerMToken: 0.30, outputPerMToken: 2.50 },
+  "gemini-2.5-flash-lite": { inputPerMToken: 0.10, outputPerMToken: 0.40 },
 
   // Mistral
   "mistral-large-latest": { inputPerMToken: 2.00, outputPerMToken: 6.00 },
