@@ -8,6 +8,11 @@ interface ProviderInfo {
   target_provider: string | null;
 }
 
+interface ProviderStatus {
+  name: string;
+  configured: boolean;
+}
+
 interface ModelSettingsProps {
   agentId: string;
 }
@@ -40,6 +45,7 @@ function parseModelValue(value: string | null, defaultProvider: string): { provi
 export default function ModelSettings({ agentId }: ModelSettingsProps) {
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [selectableModels, setSelectableModels] = useState<Record<string, string[]>>({});
+  const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,12 +55,20 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [providersRes, modelsRes] = await Promise.all([
+        const [providersRes, modelsRes, providerStatusRes] = await Promise.all([
           api.get<{ providers: ProviderInfo[] }>(`/api/agents/${encodeURIComponent(agentId)}/providers`),
           api.get<Record<string, string[]>>("/api/models"),
+          api.get<{ providers: ProviderStatus[] }>("/api/providers"),
         ]);
         setProviders(providersRes.providers);
         setSelectableModels(modelsRes);
+        // Build set of providers that have API keys configured
+        const configured = new Set(
+          providerStatusRes.providers
+            .filter((p) => p.configured)
+            .map((p) => p.name)
+        );
+        setConfiguredProviders(configured);
         setPendingChanges({});
         setError(null);
       } catch (err) {
@@ -173,12 +187,14 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
     );
   }
 
-  // Get sorted list of all providers that have models
-  const allProviders = Object.keys(selectableModels).sort((a, b) => {
-    const nameA = PROVIDER_DISPLAY_NAMES[a] ?? a;
-    const nameB = PROVIDER_DISPLAY_NAMES[b] ?? b;
-    return nameA.localeCompare(nameB);
-  });
+  // Get sorted list of providers that have models AND have API keys configured
+  const allProviders = Object.keys(selectableModels)
+    .filter((p) => configuredProviders.has(p))
+    .sort((a, b) => {
+      const nameA = PROVIDER_DISPLAY_NAMES[a] ?? a;
+      const nameB = PROVIDER_DISPLAY_NAMES[b] ?? b;
+      return nameA.localeCompare(nameB);
+    });
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
