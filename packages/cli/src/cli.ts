@@ -47,10 +47,21 @@ const BOLD = "\x1b[1m";
 const GRAY = "\x1b[90m";
 const RESET = "\x1b[0m";
 
+// Read version from package.json
+const pkgPath = path.resolve(__dirname, "../package.json");
+const CLI_VERSION = (() => {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
+    return pkg.version;
+  } catch {
+    return "unknown";
+  }
+})();
+
 const ASCII_LOGO = `
 ${BLUE}       .-===-.${RESET}
 ${BLUE}      / /   \\ \\${RESET}
-${BLUE}     | |     | |${RESET}    ${BOLD}AgentGazer${RESET}
+${BLUE}     | |     | |${RESET}    ${BOLD}AgentGazer${RESET} ${GRAY}v${CLI_VERSION}${RESET}
 ${BLUE}      \\ \\   / /${RESET}     ${GRAY}From Observability to Control${RESET}
 ${BLUE}       '-===-'${RESET}
 `;
@@ -483,7 +494,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
     console.log(`
   ╔════════════════════════════════════════════════════╗
-  ║          AgentGazer started (daemon)               ║
+  ║          AgentGazer v${CLI_VERSION.padEnd(7)} (daemon)              ║
   ╠════════════════════════════════════════════════════╣
   ║                                                    ║
   ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}                ║
@@ -620,10 +631,10 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     secretStore: store, // For hot-reloading provider keys
   });
 
-  const modeLabel = verbose ? "running (verbose)" : "running";
+  const modeLabel = verbose ? "(verbose)" : "";
   console.log(`
   ╔════════════════════════════════════════════════════╗
-  ║              AgentGazer ${modeLabel.padEnd(21)}   ║
+  ║          AgentGazer v${CLI_VERSION.padEnd(7)} running ${modeLabel.padEnd(9)}    ║
   ╠════════════════════════════════════════════════════╣
   ║                                                    ║
   ║  Dashboard:  http://localhost:${String(serverPort).padEnd(5)}                ║
@@ -701,17 +712,11 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function cmdVersion(): Promise<void> {
-  const pkgPath = path.resolve(__dirname, "../package.json");
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
-  console.log(`agentgazer ${pkg.version}`);
+  console.log(`agentgazer ${CLI_VERSION}`);
 }
 
 async function cmdUpdate(flags: Record<string, string>): Promise<void> {
-  const pkgPath = path.resolve(__dirname, "../package.json");
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
-  const currentVersion = pkg.version;
-
-  console.log(`\n  Current version: ${currentVersion}`);
+  console.log(`\n  Current version: ${CLI_VERSION}`);
   console.log("  Checking for updates...\n");
 
   // Check latest version from npm
@@ -728,8 +733,8 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
     process.exit(1);
   }
 
-  if (currentVersion === latestVersion) {
-    console.log(`  ✓ Already up to date (${currentVersion})`);
+  if (CLI_VERSION === latestVersion) {
+    console.log(`  ✓ Already up to date (${CLI_VERSION})`);
     return;
   }
 
