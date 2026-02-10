@@ -12,6 +12,7 @@ import { createServer } from "../server.js";
 
 const TEST_TOKEN = "test-token-123";
 const tmpDbPath = path.join(os.tmpdir(), `agentgazer-test-${randomUUID()}.sqlite`);
+const tmpConfigPath = path.join(os.tmpdir(), `agentgazer-test-config-${randomUUID()}.json`);
 
 let server: http.Server;
 let base: string;
@@ -67,7 +68,10 @@ async function request(
 // ---------------------------------------------------------------------------
 
 beforeAll(async () => {
-  const result = createServer({ token: TEST_TOKEN, dbPath: tmpDbPath });
+  // Create a test config file
+  fs.writeFileSync(tmpConfigPath, JSON.stringify({ token: TEST_TOKEN }, null, 2));
+
+  const result = createServer({ token: TEST_TOKEN, dbPath: tmpDbPath, configPath: tmpConfigPath });
   db = result.db;
 
   server = http.createServer(result.app);
@@ -82,9 +86,10 @@ afterAll(async () => {
   });
   db.close();
 
-  // Clean up temp database files
+  // Clean up temp files
   try {
     fs.unlinkSync(tmpDbPath);
+    fs.unlinkSync(tmpConfigPath);
   } catch {
     /* ignore */
   }
@@ -803,5 +808,125 @@ describe("Model override rules API", () => {
     expect(res.body.openai).toBeDefined();
     expect(res.body.anthropic).toBeDefined();
     expect(Array.isArray(res.body.openai)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Overview endpoint tests
+// ---------------------------------------------------------------------------
+
+describe("Overview endpoint GET /api/overview", () => {
+  it("returns dashboard data with stats and trends", async () => {
+    const res = await request("GET", "/api/overview");
+    expect(res.status).toBe(200);
+
+    // Check required fields exist
+    expect(res.body.today_requests).toBeDefined();
+    expect(res.body.today_cost).toBeDefined();
+    expect(res.body.top_agents).toBeInstanceOf(Array);
+    expect(res.body.top_models).toBeInstanceOf(Array);
+    expect(res.body.cost_trend).toBeInstanceOf(Array);
+    expect(res.body.requests_trend).toBeInstanceOf(Array);
+    expect(res.body.uptime_seconds).toBeGreaterThanOrEqual(0);
+    expect(res.body.server_status).toBe("running");
+  });
+
+  it("returns top agents with cost and percentage", async () => {
+    // Create some events for an agent
+    const agentId = `overview-agent-${randomUUID()}`;
+    await request("POST", "/api/events", {
+      body: makeEvent({ agent_id: agentId, provider: "openai", cost_usd: 0.05 }),
+    });
+
+    const res = await request("GET", "/api/overview");
+    expect(res.status).toBe(200);
+
+    // Top agents should have the expected structure
+    if (res.body.top_agents.length > 0) {
+      const agent = res.body.top_agents[0];
+      expect(agent).toHaveProperty("agent_id");
+      expect(agent).toHaveProperty("cost");
+      expect(agent).toHaveProperty("percentage");
+    }
+  });
+
+  it("returns agents list with activity info", async () => {
+    const res = await request("GET", "/api/overview");
+    expect(res.status).toBe(200);
+    expect(res.body.agents).toBeInstanceOf(Array);
+
+    if (res.body.agents.length > 0) {
+      const agent = res.body.agents[0];
+      expect(agent).toHaveProperty("agent_id");
+      expect(agent).toHaveProperty("status");
+      expect(agent).toHaveProperty("primary_provider");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Settings endpoint tests
+// ---------------------------------------------------------------------------
+
+describe("Settings endpoint /api/settings", () => {
+  it("GET returns settings without token", async () => {
+    const res = await request("GET", "/api/settings");
+    expect(res.status).toBe(200);
+    // Should not contain token
+    expect(res.body.token).toBeUndefined();
+    // Should not contain providers
+    expect(res.body.providers).toBeUndefined();
+  });
+
+  it("PUT updates settings and returns updated values", async () => {
+    const updates = {
+      server: { autoOpen: false },
+      data: { retentionDays: 30 },
+    };
+
+    const res = await request("PUT", "/api/settings", { body: updates });
+    expect(res.status).toBe(200);
+    expect(res.body.server?.autoOpen).toBe(false);
+    expect(res.body.data?.retentionDays).toBe(30);
+  });
+
+  it("PUT does not expose token in response", async () => {
+    const res = await request("PUT", "/api/settings", {
+      body: { server: { port: 8080 } },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Health endpoint tests
+// ---------------------------------------------------------------------------
+
+describe("Health endpoint GET /api/health", () => {
+  it("returns status ok without auth", async () => {
+    const res = await request("GET", "/api/health", { token: null });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+    expect(res.body.version).toBeDefined();
+    expect(res.body.uptime_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it("returns status ok with auth", async () => {
+    const res = await request("GET", "/api/health");
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("ok");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Providers endpoint tests
+// ---------------------------------------------------------------------------
+
+describe("Providers endpoint /api/providers", () => {
+  it("GET returns list of configured providers", async () => {
+    const res = await request("GET", "/api/providers");
+    expect(res.status).toBe(200);
+    expect(res.body.providers).toBeInstanceOf(Array);
   });
 });
