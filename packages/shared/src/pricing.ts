@@ -69,19 +69,22 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "kimi-k2-thinking": { inputPerMToken: 0.60, outputPerMToken: 2.50 },
 
   // Zhipu (GLM) / Z.ai
-  "glm-4.7": { inputPerMToken: 0.28, outputPerMToken: 1.11 },
+  "glm-4.7": { inputPerMToken: 0.60, outputPerMToken: 2.20 },
+  "glm-4.7-flashx": { inputPerMToken: 0.07, outputPerMToken: 0.40 },
   "glm-4.7-flash": { inputPerMToken: 0, outputPerMToken: 0 },
-  "glm-4.5": { inputPerMToken: 0.20, outputPerMToken: 0.80 },
+  "glm-4.6": { inputPerMToken: 0.60, outputPerMToken: 2.20 },
+  "glm-4.5": { inputPerMToken: 0.60, outputPerMToken: 2.20 },
+  "glm-4.5-x": { inputPerMToken: 2.20, outputPerMToken: 8.90 },
+  "glm-4.5-air": { inputPerMToken: 0.20, outputPerMToken: 1.10 },
+  "glm-4.5-airx": { inputPerMToken: 1.10, outputPerMToken: 4.50 },
   "glm-4.5-flash": { inputPerMToken: 0, outputPerMToken: 0 },
-  "glm-4": { inputPerMToken: 0.14, outputPerMToken: 0.42 },
-  "glm-4-air": { inputPerMToken: 0.11, outputPerMToken: 0.28 },
-  "glm-4-flash": { inputPerMToken: 0, outputPerMToken: 0 },
 
   // MiniMax
-  "MiniMax-M2.1": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
-  "MiniMax-M2.1-lightning": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
-  "MiniMax-M2": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
-  "M2-her": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
+  "minimax-01": { inputPerMToken: 0.20, outputPerMToken: 1.10 },
+  "minimax-m1": { inputPerMToken: 0.40, outputPerMToken: 2.20 },
+  "minimax-m2": { inputPerMToken: 0.255, outputPerMToken: 1.00 },
+  "minimax-m2.1": { inputPerMToken: 0.27, outputPerMToken: 0.95 },
+  "minimax-m2-her": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
 
   // Baichuan
   "Baichuan4-Air": { inputPerMToken: 0.49, outputPerMToken: 0.99 },
@@ -221,8 +224,8 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   cohere: ["command-r-plus", "command-r"],
   deepseek: ["deepseek-chat", "deepseek-reasoner"],
   moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
-  zhipu: ["glm-4.7", "glm-4.7-flash", "glm-4.5", "glm-4.5-flash", "glm-4", "glm-4-air", "glm-4-flash"],
-  minimax: ["MiniMax-M2.1", "MiniMax-M2.1-lightning", "MiniMax-M2", "M2-her"],
+  zhipu: ["glm-4.7", "glm-4.7-flashx", "glm-4.7-flash", "glm-4.6", "glm-4.5", "glm-4.5-x", "glm-4.5-air", "glm-4.5-airx", "glm-4.5-flash"],
+  minimax: ["minimax-01", "minimax-m1", "minimax-m2", "minimax-m2.1", "minimax-m2-her"],
   baichuan: ["Baichuan4-Air", "Baichuan4-Turbo", "Baichuan4"],
 };
 
