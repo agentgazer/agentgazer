@@ -1447,4 +1447,475 @@ describe("Proxy Server Integration", () => {
     // No authorization header should be injected for non-provider hostname
     expect(providerServer.receivedRequests[0].headers["authorization"]).toBeUndefined();
   });
+
+  // -----------------------------------------------------------------------
+  // Cross-Provider Override Tests
+  // -----------------------------------------------------------------------
+
+  // Helper: Create a test database with proper schema matching the production DB
+  function createTestDb(agentId: string): ReturnType<typeof import("better-sqlite3").default> {
+    const Database = require("better-sqlite3");
+    const db = new Database(":memory:");
+    db.exec(`
+      CREATE TABLE agents (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL UNIQUE,
+        name TEXT,
+        active INTEGER NOT NULL DEFAULT 1,
+        deactivated_by TEXT,
+        budget_limit REAL,
+        allowed_hours_start INTEGER,
+        allowed_hours_end INTEGER,
+        kill_switch_enabled INTEGER NOT NULL DEFAULT 0,
+        kill_switch_window_size INTEGER NOT NULL DEFAULT 20,
+        kill_switch_threshold REAL NOT NULL DEFAULT 10.0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE TABLE agent_model_rules (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        model_override TEXT,
+        target_provider TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(agent_id, provider)
+      );
+      CREATE TABLE agent_rate_limits (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        max_requests INTEGER NOT NULL,
+        window_seconds INTEGER NOT NULL
+      );
+      CREATE TABLE provider_settings (
+        provider TEXT PRIMARY KEY,
+        active INTEGER DEFAULT 1,
+        rate_limit_max_requests INTEGER,
+        rate_limit_window_seconds INTEGER
+      );
+    `);
+    db.prepare("INSERT INTO agents (id, agent_id, name) VALUES (?, ?, ?)").run(`id-${agentId}`, agentId, "Test Agent");
+    return db;
+  }
+
+  describe("Cross-Provider Override", () => {
+    it("converts OpenAI request to Anthropic format when override is configured", async () => {
+      // Create mock Anthropic server that expects Anthropic-format requests
+      const anthropicServer = await new Promise<{
+        server: http.Server;
+        port: number;
+        receivedRequests: Array<{ headers: http.IncomingHttpHeaders; body: string }>;
+      }>((resolve) => {
+        const receivedRequests: Array<{ headers: http.IncomingHttpHeaders; body: string }> = [];
+        const server = http.createServer((req, res) => {
+          const chunks: Buffer[] = [];
+          req.on("data", (chunk: Buffer) => chunks.push(chunk));
+          req.on("end", () => {
+            receivedRequests.push({
+              headers: req.headers,
+              body: Buffer.concat(chunks).toString("utf-8"),
+            });
+            // Return Anthropic-format response
+            const response = {
+              id: "msg_cross_provider",
+              type: "message",
+              role: "assistant",
+              content: [{ type: "text", text: "Hello from Anthropic!" }],
+              model: "claude-sonnet-4-20250514",
+              stop_reason: "end_turn",
+              usage: { input_tokens: 50, output_tokens: 20 },
+            };
+            const payload = JSON.stringify(response);
+            res.writeHead(200, {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(payload).toString(),
+            });
+            res.end(payload);
+          });
+        });
+        server.listen(0, "127.0.0.1", () => {
+          const addr = server.address() as { port: number };
+          resolve({ server, port: addr.port, receivedRequests });
+        });
+      });
+
+      ingestServer = await createMockIngestServer();
+
+      // Mock fetch to redirect Anthropic API calls to our mock server
+      const originalFetch = global.fetch;
+      vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        if (url.includes("api.anthropic.com")) {
+          const redirectUrl = url.replace(/https:\/\/api\.anthropic\.com/, `http://127.0.0.1:${anthropicServer.port}`);
+          return originalFetch(redirectUrl, init);
+        }
+        return originalFetch(input, init);
+      });
+
+      // Create mock DB with model override rule - use unique agent ID to avoid cache issues
+      const agentId = `test-agent-openai-to-anthropic-${Date.now()}`;
+      const db = createTestDb(agentId);
+      db.prepare("INSERT INTO agent_model_rules (id, agent_id, provider, model_override, target_provider) VALUES (?, ?, ?, ?, ?)").run(
+        "rule-1", agentId, "openai", "claude-sonnet-4-20250514", "anthropic"
+      );
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 1,
+        providerKeys: {
+          openai: "sk-openai-key",
+          anthropic: "sk-ant-key",
+        },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      // Send OpenAI-format request to OpenAI endpoint
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You are helpful." },
+            { role: "user", content: "Hello" },
+          ],
+          max_tokens: 100,
+        }),
+      });
+
+      // Response should be converted back to OpenAI format
+      expect(res.status).toBe(200);
+      const responseBody = JSON.parse(res.body);
+      expect(responseBody.object).toBe("chat.completion");
+      expect(responseBody.choices[0].message.content).toBe("Hello from Anthropic!");
+      expect(responseBody.usage.prompt_tokens).toBe(50);
+      expect(responseBody.usage.completion_tokens).toBe(20);
+
+      // Verify the request was converted to Anthropic format
+      expect(anthropicServer.receivedRequests).toHaveLength(1);
+      const sentRequest = JSON.parse(anthropicServer.receivedRequests[0].body);
+      expect(sentRequest.model).toBe("claude-sonnet-4-20250514");
+      expect(sentRequest.system).toBe("You are helpful."); // System extracted to top-level
+      expect(sentRequest.messages).toHaveLength(1);
+      expect(sentRequest.messages[0].role).toBe("user");
+      expect(sentRequest.max_tokens).toBe(100);
+
+      // Verify Anthropic auth header was used
+      expect(anthropicServer.receivedRequests[0].headers["x-api-key"]).toBe("sk-ant-key");
+
+      vi.restoreAllMocks();
+      await closeServer(anthropicServer.server);
+      db.close();
+    });
+
+    it("converts Anthropic request to OpenAI format when override is configured", async () => {
+      providerServer = await createMockProviderServer();
+      ingestServer = await createMockIngestServer();
+
+      // Mock fetch to redirect OpenAI API calls to our mock server
+      const originalFetch = global.fetch;
+      vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        if (url.includes("api.openai.com")) {
+          const redirectUrl = url.replace(/https:\/\/api\.openai\.com/, providerServer!.url);
+          return originalFetch(redirectUrl, init);
+        }
+        return originalFetch(input, init);
+      });
+
+      // Create mock DB with unique agent ID
+      const agentId = `test-agent-anthropic-to-openai-${Date.now()}`;
+      const db = createTestDb(agentId);
+      db.prepare("INSERT INTO agent_model_rules (id, agent_id, provider, model_override, target_provider) VALUES (?, ?, ?, ?, ?)").run(
+        "rule-1", agentId, "anthropic", "gpt-4o", "openai"
+      );
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 1,
+        providerKeys: {
+          openai: "sk-openai-key",
+          anthropic: "sk-ant-key",
+        },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      // Send Anthropic-format request to Anthropic endpoint
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/anthropic/v1/messages`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          system: "You are helpful.",
+          messages: [{ role: "user", content: "Hello" }],
+          max_tokens: 100,
+        }),
+      });
+
+      // Response should be converted back to Anthropic format
+      expect(res.status).toBe(200);
+      const responseBody = JSON.parse(res.body);
+      expect(responseBody.type).toBe("message");
+      expect(responseBody.content[0].type).toBe("text");
+
+      // Verify the request was converted to OpenAI format
+      expect(providerServer.receivedRequests).toHaveLength(1);
+      const sentRequest = JSON.parse(providerServer.receivedRequests[0].body);
+      expect(sentRequest.model).toBe("gpt-4o");
+      expect(sentRequest.messages).toHaveLength(2);
+      expect(sentRequest.messages[0].role).toBe("system");
+      expect(sentRequest.messages[0].content).toBe("You are helpful.");
+      expect(sentRequest.messages[1].role).toBe("user");
+
+      // Verify OpenAI auth header was used
+      expect(providerServer.receivedRequests[0].headers["authorization"]).toBe("Bearer sk-openai-key");
+
+      vi.restoreAllMocks();
+      db.close();
+    });
+
+    it("triggers cross-provider override even when request body has no model field", async () => {
+      // This tests the fix for Google → Anthropic override where Google requests
+      // don't have model in the body (model is in URL path)
+
+      // Create mock Anthropic server
+      const anthropicServer = await new Promise<{
+        server: http.Server;
+        port: number;
+        receivedRequests: Array<{ body: string }>;
+      }>((resolve) => {
+        const receivedRequests: Array<{ body: string }> = [];
+        const server = http.createServer((req, res) => {
+          const chunks: Buffer[] = [];
+          req.on("data", (chunk: Buffer) => chunks.push(chunk));
+          req.on("end", () => {
+            receivedRequests.push({
+              body: Buffer.concat(chunks).toString("utf-8"),
+            });
+            const response = {
+              id: "msg_123",
+              type: "message",
+              role: "assistant",
+              content: [{ type: "text", text: "Hello!" }],
+              model: "claude-sonnet-4-20250514",
+              stop_reason: "end_turn",
+              usage: { input_tokens: 10, output_tokens: 5 },
+            };
+            const payload = JSON.stringify(response);
+            res.writeHead(200, {
+              "Content-Type": "application/json",
+              "Content-Length": Buffer.byteLength(payload).toString(),
+            });
+            res.end(payload);
+          });
+        });
+        server.listen(0, "127.0.0.1", () => {
+          const addr = server.address() as { port: number };
+          resolve({ server, port: addr.port, receivedRequests });
+        });
+      });
+
+      ingestServer = await createMockIngestServer();
+
+      // Mock fetch
+      const originalFetch = global.fetch;
+      vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        if (url.includes("api.anthropic.com")) {
+          const redirectUrl = url.replace(/https:\/\/api\.anthropic\.com/, `http://127.0.0.1:${anthropicServer.port}`);
+          return originalFetch(redirectUrl, init);
+        }
+        return originalFetch(input, init);
+      });
+
+      // Create mock DB with unique agent ID
+      const agentId = `test-agent-google-no-model-${Date.now()}`;
+      const db = createTestDb(agentId);
+      db.prepare("INSERT INTO agent_model_rules (id, agent_id, provider, model_override, target_provider) VALUES (?, ?, ?, ?, ?)").run(
+        "rule-1", agentId, "google", "claude-sonnet-4-20250514", "anthropic"
+      );
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 1,
+        providerKeys: {
+          google: "google-api-key",
+          anthropic: "sk-ant-key",
+        },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      // Send request to Google endpoint WITHOUT model in body
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/google/v1/chat/completions`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          // No model field! This is the key test case
+          messages: [{ role: "user", content: "Hello" }],
+          max_tokens: 100,
+        }),
+      });
+
+      // Should have been redirected to Anthropic
+      expect(res.status).toBe(200);
+      expect(anthropicServer.receivedRequests).toHaveLength(1);
+
+      // Verify the override model was applied
+      const sentRequest = JSON.parse(anthropicServer.receivedRequests[0].body);
+      expect(sentRequest.model).toBe("claude-sonnet-4-20250514");
+
+      vi.restoreAllMocks();
+      await closeServer(anthropicServer.server);
+      db.close();
+    });
+
+    it("does not apply cross-provider override when no rule exists", async () => {
+      providerServer = await createMockProviderServer();
+      ingestServer = await createMockIngestServer();
+
+      // Mock fetch
+      const originalFetch = global.fetch;
+      vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        if (url.includes("api.openai.com")) {
+          const redirectUrl = url.replace(/https:\/\/api\.openai\.com/, providerServer!.url);
+          return originalFetch(redirectUrl, init);
+        }
+        return originalFetch(input, init);
+      });
+
+      // Create mock DB with unique agent ID but NO model rules
+      const agentId = `test-agent-no-rules-${Date.now()}`;
+      const db = createTestDb(agentId);
+      // No model rules inserted
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 1,
+        providerKeys: {
+          openai: "sk-openai-key",
+        },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      // Send request - should go directly to OpenAI without conversion
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Hello" }],
+        }),
+      });
+
+      expect(res.status).toBe(200);
+
+      // Request should have been forwarded as-is (OpenAI format)
+      expect(providerServer.receivedRequests).toHaveLength(1);
+      const sentRequest = JSON.parse(providerServer.receivedRequests[0].body);
+      expect(sentRequest.model).toBe("gpt-4o");
+      expect(sentRequest.messages[0].role).toBe("user");
+
+      vi.restoreAllMocks();
+      db.close();
+    });
+
+    it("returns error when cross-provider override target has no API key", async () => {
+      ingestServer = await createMockIngestServer();
+
+      // Create mock DB with unique agent ID
+      const agentId = `test-agent-no-key-${Date.now()}`;
+      const db = createTestDb(agentId);
+      db.prepare("INSERT INTO agent_model_rules (id, agent_id, provider, model_override, target_provider) VALUES (?, ?, ?, ?, ?)").run(
+        "rule-1", agentId, "openai", "claude-sonnet-4-20250514", "anthropic"
+      );
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 1,
+        providerKeys: {
+          openai: "sk-openai-key",
+          // No anthropic key!
+        },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Hello" }],
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = JSON.parse(res.body);
+      expect(body.error).toContain("no API key for anthropic");
+
+      db.close();
+    });
+  });
 });
