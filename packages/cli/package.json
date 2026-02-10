@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/cli",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "type": "module",
   "description": "AgentGazer — AI Agent observability. One command to monitor your agents locally.",
   "license": "Apache-2.0",
@@ -49,9 +49,9 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentgazer/proxy": "^0.3.5",
-    "@agentgazer/server": "^0.3.5",
-    "@agentgazer/shared": "^0.3.5",
+    "@agentgazer/proxy": "^0.3.6",
+    "@agentgazer/server": "^0.3.6",
+    "@agentgazer/shared": "^0.3.6",
     "ink": "^4.4.1",
     "ink-table": "^3.0.0",
     "inquirer": "^12.3.2",
