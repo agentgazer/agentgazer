@@ -104,6 +104,13 @@ function runMigrations(db: Database.Database): void {
   if (!colNames.includes("deactivated_by")) {
     db.exec("ALTER TABLE agents ADD COLUMN deactivated_by TEXT");
   }
+
+  // Migration: Add target_provider column to agent_model_rules table
+  const modelRuleCols = db.prepare("PRAGMA table_info(agent_model_rules)").all() as { name: string }[];
+  const modelRuleColNames = modelRuleCols.map((c) => c.name);
+  if (!modelRuleColNames.includes("target_provider")) {
+    db.exec("ALTER TABLE agent_model_rules ADD COLUMN target_provider TEXT");
+  }
 }
 
 const SCHEMA = `
@@ -187,6 +194,7 @@ const SCHEMA = `
     agent_id TEXT NOT NULL,
     provider TEXT NOT NULL,
     model_override TEXT,
+    target_provider TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(agent_id, provider)
@@ -627,6 +635,7 @@ export interface ModelRuleRow {
   agent_id: string;
   provider: string;
   model_override: string | null;
+  target_provider: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -655,17 +664,19 @@ export function upsertModelRule(
   agentId: string,
   provider: string,
   modelOverride: string | null,
+  targetProvider: string | null = null,
 ): ModelRuleRow {
   const now = new Date().toISOString();
   const id = randomUUID();
 
   db.prepare(`
-    INSERT INTO agent_model_rules (id, agent_id, provider, model_override, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO agent_model_rules (id, agent_id, provider, model_override, target_provider, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(agent_id, provider) DO UPDATE SET
       model_override = excluded.model_override,
+      target_provider = excluded.target_provider,
       updated_at = excluded.updated_at
-  `).run(id, agentId, provider, modelOverride, now, now);
+  `).run(id, agentId, provider, modelOverride, targetProvider, now, now);
 
   return getModelRule(db, agentId, provider)!;
 }
@@ -693,6 +704,29 @@ export function getAgentProviders(
   `).all(agentId) as { provider: string }[];
 
   return rows.map(r => r.provider);
+}
+
+// Get the most commonly used model for each provider by an agent
+export function getAgentDefaultModels(
+  db: Database.Database,
+  agentId: string,
+): Record<string, string> {
+  const rows = db.prepare(`
+    SELECT provider, model, COUNT(*) as cnt
+    FROM agent_events
+    WHERE agent_id = ? AND provider IS NOT NULL AND model IS NOT NULL
+    GROUP BY provider, model
+    ORDER BY provider, cnt DESC
+  `).all(agentId) as { provider: string; model: string; cnt: number }[];
+
+  // For each provider, take the most used model (first in the sorted list)
+  const result: Record<string, string> = {};
+  for (const row of rows) {
+    if (!(row.provider in result)) {
+      result[row.provider] = row.model;
+    }
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------------

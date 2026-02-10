@@ -8,9 +8,29 @@ import {
   calculateCost,
   createLogger,
   KNOWN_PROVIDER_NAMES,
+  openaiToAnthropic,
+  anthropicToOpenaiRequest,
+  anthropicToOpenai,
+  openaiToAnthropicResponse,
+  anthropicSseToOpenaiChunks,
+  openaiChunkToAnthropicSse,
+  createStreamingConverterState,
+  createOpenAIToAnthropicStreamState,
+  finalizeOpenAIToAnthropicStream,
+  isOpenAIToAnthropicStreamFinalized,
+  formatOpenAISSELine,
+  formatOpenAISSEDone,
   type AgentEvent,
   type ParsedResponse,
   type ProviderName,
+  type OpenAIRequest,
+  type OpenAIResponse,
+  type OpenAIStreamChunk,
+  type AnthropicRequest,
+  type AnthropicResponse,
+  type AnthropicSSEEvent,
+  type StreamingConverterState,
+  type OpenAIToAnthropicStreamState,
 } from "@agentgazer/shared";
 import {
   getAgentPolicy,
@@ -33,9 +53,14 @@ import type Database from "better-sqlite3";
 // Model Override Cache
 // ---------------------------------------------------------------------------
 
+interface ModelOverrideResult {
+  model: string | null;
+  targetProvider: string | null;
+}
+
 interface ModelOverrideCache {
   [key: string]: {
-    model_override: string | null;
+    result: ModelOverrideResult;
     expiresAt: number;
   };
 }
@@ -47,27 +72,31 @@ function getModelOverride(
   db: Database.Database | undefined,
   agentId: string,
   provider: string,
-): string | null {
-  if (!db) return null;
+): ModelOverrideResult {
+  const noOverride: ModelOverrideResult = { model: null, targetProvider: null };
+  if (!db) return noOverride;
 
   const cacheKey = `${agentId}:${provider}`;
   const cached = modelOverrideCache[cacheKey];
 
   if (cached && cached.expiresAt > Date.now()) {
-    return cached.model_override;
+    return cached.result;
   }
 
   // Fetch from DB
   const rule = getModelRule(db, agentId, provider);
-  const modelOverride = rule?.model_override ?? null;
+  const result: ModelOverrideResult = {
+    model: rule?.model_override ?? null,
+    targetProvider: rule?.target_provider ?? null,
+  };
 
   // Cache the result
   modelOverrideCache[cacheKey] = {
-    model_override: modelOverride,
+    result,
     expiresAt: Date.now() + MODEL_OVERRIDE_CACHE_TTL_MS,
   };
 
-  return modelOverride;
+  return result;
 }
 
 const log = createLogger("proxy");
@@ -164,7 +193,13 @@ function normalizeRequestBody(
   const changes: string[] = [];
 
   // Fields that only OpenAI supports (top-level)
-  const openaiOnlyFields = ["store", "metadata", "parallel_tool_calls", "stream_options"];
+  const openaiOnlyFields = ["store", "metadata", "parallel_tool_calls"];
+
+  // Providers that support stream_options for usage tracking
+  const streamOptionsProviders = new Set(["openai", "deepseek", "moonshot", "zhipu", "minimax", "yi", "baichuan"]);
+
+  // Providers that don't support stream_options at all
+  const noStreamOptionsProviders = new Set(["anthropic", "google", "mistral", "cohere"]);
 
   // max_completion_tokens -> max_tokens conversion for non-OpenAI providers
   if (provider !== "openai" && "max_completion_tokens" in result) {
@@ -223,6 +258,29 @@ function normalizeRequestBody(
     }
   }
 
+  // Handle stream_options for usage tracking
+  if (result.stream === true) {
+    if (streamOptionsProviders.has(provider)) {
+      // Add stream_options.include_usage for providers that support it
+      const existingStreamOptions = result.stream_options as Record<string, unknown> | undefined;
+      if (!existingStreamOptions?.include_usage) {
+        result.stream_options = {
+          ...existingStreamOptions,
+          include_usage: true,
+        };
+        changes.push("+stream_options.include_usage");
+        modified = true;
+      }
+    } else if (noStreamOptionsProviders.has(provider)) {
+      // Remove stream_options for providers that don't support it
+      if ("stream_options" in result) {
+        delete result.stream_options;
+        changes.push("-stream_options");
+        modified = true;
+      }
+    }
+  }
+
   // Provider-specific handling
   switch (provider) {
     case "mistral":
@@ -239,7 +297,7 @@ function normalizeRequestBody(
     case "cohere":
       // Cohere uses different field names and doesn't support some OpenAI fields
       // See: https://docs.cohere.com/reference/chat
-      const cohereUnsupported = ["top_logprobs", "n", "user", "stream_options"];
+      const cohereUnsupported = ["top_logprobs", "n", "user"];
       for (const field of cohereUnsupported) {
         if (field in result) {
           delete result[field];
@@ -1234,23 +1292,68 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     // Model override and request normalization
     let requestedModel: string | null = null;
     let modifiedRequestBody = requestBody;
+    let crossProviderOverride: { targetProvider: ProviderName; originalProvider: ProviderName } | null = null;
+    let effectiveProvider = provider; // May change if cross-provider override
+    let isStreaming = false;
+
     try {
       let bodyJson = JSON.parse(requestBody.toString("utf-8"));
       let bodyModified = false;
+      isStreaming = bodyJson.stream === true;
 
       // Extract and optionally override model
       if (bodyJson.model) {
         requestedModel = bodyJson.model;
-        const modelOverride = getModelOverride(db, effectiveAgentId, provider);
-        if (modelOverride) {
-          log.info(`[PROXY] Model override: ${requestedModel} → ${modelOverride}`);
-          bodyJson.model = modelOverride;
+        const override = getModelOverride(db, effectiveAgentId, provider);
+
+        if (override.model) {
+          log.info(`[PROXY] Model override: ${requestedModel} → ${override.model}`);
+          bodyJson.model = override.model;
           bodyModified = true;
+        }
+
+        // Handle cross-provider override
+        if (override.targetProvider && override.targetProvider !== provider && KNOWN_PROVIDER_NAMES.includes(override.targetProvider as ProviderName)) {
+          const targetProv = override.targetProvider as ProviderName;
+          log.info(`[PROXY] Cross-provider override: ${provider} → ${targetProv}`);
+
+          // Check if we have an API key for the target provider
+          if (!providerKeys[targetProv]) {
+            log.error(`[PROXY] No API key configured for target provider: ${targetProv}`);
+            sendJson(res, 400, { error: `Cross-provider override failed: no API key for ${targetProv}` });
+            return;
+          }
+
+          crossProviderOverride = { targetProvider: targetProv, originalProvider: provider };
+          effectiveProvider = targetProv;
+
+          // Transform request format if needed
+          if (provider !== "anthropic" && targetProv === "anthropic") {
+            // OpenAI-compatible → Anthropic
+            const anthropicRequest = openaiToAnthropic(bodyJson as OpenAIRequest);
+            bodyJson = anthropicRequest;
+            bodyModified = true;
+            log.info(`[PROXY] Transformed request: OpenAI → Anthropic`);
+          } else if (provider === "anthropic" && targetProv !== "anthropic") {
+            // Anthropic → OpenAI-compatible
+            const openaiRequest = anthropicToOpenaiRequest(bodyJson as AnthropicRequest);
+            bodyJson = openaiRequest;
+            bodyModified = true;
+            log.info(`[PROXY] Transformed request: Anthropic → OpenAI`);
+          }
+          // Other cases (OpenAI-compatible → OpenAI-compatible) don't need transformation
+
+          // Update target URL for cross-provider
+          const newEndpoint = getProviderChatEndpoint(targetProv);
+          if (newEndpoint) {
+            targetUrl = newEndpoint;
+            log.info(`[PROXY] Redirecting to: ${targetUrl}`);
+          }
         }
       }
 
       // Normalize request body for provider compatibility
-      const normalized = normalizeRequestBody(provider, bodyJson, log);
+      const normalized = normalizeRequestBody(effectiveProvider, bodyJson, log);
       if (normalized.modified) {
         bodyJson = normalized.body;
         bodyModified = true;
@@ -1308,22 +1411,43 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
-    // Inject API key
-    const providerKey = providerKeys[provider];
+    // For cross-provider override, remove ALL auth-related headers from the original request
+    // This prevents the original provider's API key from being forwarded to the target provider
+    if (crossProviderOverride) {
+      const authHeaders = ["authorization", "x-api-key", "api-key", "x-goog-api-key"];
+      for (const key of Object.keys(forwardHeaders)) {
+        if (authHeaders.includes(key.toLowerCase())) {
+          delete forwardHeaders[key];
+          log.info(`[PROXY] Removed ${key} header for cross-provider override`);
+        }
+      }
+    }
+
+    // Inject API key (use effective provider for cross-provider override)
+    const providerKey = providerKeys[effectiveProvider];
+    if (crossProviderOverride) {
+      // Debug: show available provider keys for troubleshooting
+      const availableProviders = Object.keys(providerKeys);
+      log.info(`[PROXY] Cross-provider: looking for "${effectiveProvider}" key, available: [${availableProviders.join(", ")}]`);
+      // Show key lengths for debugging
+      const keyLengths = availableProviders.map(p => `${p}:${providerKeys[p]?.length ?? 0}`).join(", ");
+      log.info(`[PROXY] Key lengths: ${keyLengths}`);
+    }
     if (providerKey) {
-      const authHeader = getProviderAuthHeader(provider, providerKey, useNativeApi);
+      const authHeader = getProviderAuthHeader(effectiveProvider, providerKey, useNativeApi && !crossProviderOverride);
       if (authHeader) {
         const existingAuthKey = Object.keys(forwardHeaders).find(k => k.toLowerCase() === authHeader.name.toLowerCase());
         if (existingAuthKey) delete forwardHeaders[existingAuthKey];
         forwardHeaders[authHeader.name] = authHeader.value;
-        log.info(`[PROXY] Injected ${authHeader.name} header for ${provider}${useNativeApi ? " (native API)" : ""}`);
+        const maskedKey = providerKey.length > 12 ? `${providerKey.slice(0, 8)}...${providerKey.slice(-4)}` : "****";
+        log.info(`[PROXY] Injected ${authHeader.name}=${maskedKey} (len=${providerKey.length}) for ${effectiveProvider}${crossProviderOverride ? " (cross-provider)" : ""}${useNativeApi ? " (native API)" : ""}`);
       }
     } else {
-      log.warn(`[PROXY] No API key configured for provider: ${provider}`);
+      log.warn(`[PROXY] No API key configured for provider: ${effectiveProvider}`);
     }
 
     // Add provider-specific required headers
-    if (provider === "anthropic") {
+    if (effectiveProvider === "anthropic") {
       // Anthropic requires anthropic-version header
       if (!forwardHeaders["anthropic-version"]) {
         forwardHeaders["anthropic-version"] = "2023-06-01";
@@ -1373,30 +1497,195 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const isSSE = contentType.includes("text/event-stream");
 
     if (isSSE && providerResponse.body) {
-      // Streaming response
+      // Determine stream conversion direction BEFORE setting headers
+      // Case 1: OpenAI-compatible client → Anthropic target (convert Anthropic SSE → OpenAI SSE)
+      const needsAnthropicToOpenai = crossProviderOverride && effectiveProvider === "anthropic" && crossProviderOverride.originalProvider !== "anthropic";
+      // Case 2: Anthropic client → OpenAI-compatible target (convert OpenAI SSE → Anthropic SSE)
+      const needsOpenaiToAnthropic = crossProviderOverride && crossProviderOverride.originalProvider === "anthropic" && effectiveProvider !== "anthropic";
+
+      // Streaming response - build headers carefully
       const responseHeaders: Record<string, string> = {};
+
+      // Headers to skip when forwarding SSE response
+      const skipHeaders = new Set([
+        "content-encoding",      // fetch() auto-decompresses, so this would be wrong
+        "content-length",        // SSE is streamed, no fixed length
+        "transfer-encoding",     // Let Node.js handle this
+        "connection",            // Let Node.js handle this
+      ]);
+
+      // Headers to skip when doing cross-provider override (provider-specific headers)
+      const providerSpecificHeaders = new Set([
+        "x-request-id",
+        "openai-processing-ms",
+        "openai-organization",
+        "openai-version",
+        "x-ratelimit-limit-requests",
+        "x-ratelimit-limit-tokens",
+        "x-ratelimit-remaining-requests",
+        "x-ratelimit-remaining-tokens",
+        "x-ratelimit-reset-requests",
+        "x-ratelimit-reset-tokens",
+      ]);
+
       providerResponse.headers.forEach((value, key) => {
+        const lowerKey = key.toLowerCase();
+        if (skipHeaders.has(lowerKey)) return;
+        if (crossProviderOverride && providerSpecificHeaders.has(lowerKey)) return;
         responseHeaders[key] = value;
       });
+
+      // Ensure correct headers for SSE
+      responseHeaders["Content-Type"] = "text/event-stream; charset=utf-8";
+      responseHeaders["Cache-Control"] = "no-cache";
+      responseHeaders["Connection"] = "keep-alive";
+      responseHeaders["X-Accel-Buffering"] = "no"; // Disable nginx buffering if behind nginx
+
       res.writeHead(providerResponse.status, responseHeaders);
+      res.flushHeaders(); // Ensure headers are sent immediately
 
       const chunks: Buffer[] = [];
       let accumulatedSize = 0;
       const reader = providerResponse.body.getReader();
+
+      let streamState: StreamingConverterState | null = null;
+      let reverseStreamState: OpenAIToAnthropicStreamState | null = null;
+      let lineBuffer = "";
+
+      if (needsAnthropicToOpenai) {
+        streamState = createStreamingConverterState();
+        log.info(`[PROXY] Converting Anthropic SSE stream → OpenAI format`);
+      } else if (needsOpenaiToAnthropic) {
+        reverseStreamState = createOpenAIToAnthropicStreamState();
+        log.info(`[PROXY] Converting OpenAI SSE stream → Anthropic format`);
+      }
 
       try {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           const buf = Buffer.from(value);
-          res.write(buf);
-          accumulatedSize += buf.length;
-          if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
-            chunks.push(buf);
+
+          if (needsAnthropicToOpenai && streamState) {
+            // Transform Anthropic SSE to OpenAI SSE
+            lineBuffer += buf.toString("utf-8");
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() ?? ""; // Keep incomplete line for next chunk
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim();
+                if (data && data !== "[DONE]") {
+                  try {
+                    const event = JSON.parse(data) as AnthropicSSEEvent;
+                    const openaiChunks = anthropicSseToOpenaiChunks(event, streamState, requestedModel ?? undefined);
+                    for (const chunk of openaiChunks) {
+                      const sseData = formatOpenAISSELine(chunk);
+                      res.write(sseData);
+                      accumulatedSize += sseData.length;
+                    }
+                  } catch (e) {
+                    log.debug(`[PROXY] Failed to parse Anthropic SSE event: ${data}`);
+                  }
+                }
+              }
+            }
+
+            // Store original for metrics
+            if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
+              chunks.push(buf);
+            }
+          } else if (needsOpenaiToAnthropic && reverseStreamState) {
+            // Transform OpenAI SSE to Anthropic SSE
+            lineBuffer += buf.toString("utf-8");
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() ?? ""; // Keep incomplete line for next chunk
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim();
+                if (data && data !== "[DONE]") {
+                  try {
+                    const chunk = JSON.parse(data) as OpenAIStreamChunk;
+                    const anthropicLines = openaiChunkToAnthropicSse(chunk, reverseStreamState, requestedModel ?? undefined);
+                    for (const sseLine of anthropicLines) {
+                      log.info(`[PROXY] Anthropic SSE: ${sseLine.slice(0, 150).replace(/\n/g, "\\n")}`);
+                      res.write(sseLine);
+                      accumulatedSize += sseLine.length;
+                    }
+                  } catch (e) {
+                    log.debug(`[PROXY] Failed to parse OpenAI SSE chunk: ${data}`);
+                  }
+                }
+              }
+            }
+
+            // Store original for metrics
+            if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
+              chunks.push(buf);
+            }
+          } else {
+            // No conversion needed, pass through
+            res.write(buf);
+            accumulatedSize += buf.length;
+            if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
+              chunks.push(buf);
+            }
+          }
+        }
+
+        // Handle any remaining data in lineBuffer for OpenAI → Anthropic conversion
+        if (needsOpenaiToAnthropic && reverseStreamState && lineBuffer.trim()) {
+          if (lineBuffer.startsWith("data: ")) {
+            const data = lineBuffer.slice(6).trim();
+            if (data && data !== "[DONE]") {
+              try {
+                const chunk = JSON.parse(data) as OpenAIStreamChunk;
+                const anthropicLines = openaiChunkToAnthropicSse(chunk, reverseStreamState, requestedModel ?? undefined);
+                for (const sseLine of anthropicLines) {
+                  log.info(`[PROXY] Anthropic SSE (final): ${sseLine.slice(0, 150).replace(/\n/g, "\\n")}`);
+                  res.write(sseLine);
+                }
+              } catch (e) {
+                log.debug(`[PROXY] Failed to parse final OpenAI SSE chunk: ${data}`);
+              }
+            }
+          }
+        }
+
+        // Send done markers for converted streams
+        if (needsAnthropicToOpenai) {
+          res.write(formatOpenAISSEDone());
+        }
+
+        // For OpenAI → Anthropic conversion, ensure proper stream finalization
+        // This handles cases where the OpenAI stream ended without a finish_reason chunk
+        if (needsOpenaiToAnthropic && reverseStreamState) {
+          if (!isOpenAIToAnthropicStreamFinalized(reverseStreamState)) {
+            log.info(`[PROXY] OpenAI stream ended without proper finalization, sending closing events`);
+            const finalLines = finalizeOpenAIToAnthropicStream(reverseStreamState);
+            for (const sseLine of finalLines) {
+              log.info(`[PROXY] Anthropic SSE (finalize): ${sseLine.slice(0, 150).replace(/\n/g, "\\n")}`);
+              res.write(sseLine);
+            }
           }
         }
       } catch (error) {
         log.error("Stream read error", { err: error instanceof Error ? error.message : String(error) });
+
+        // Even on error, try to finalize the Anthropic stream
+        if (needsOpenaiToAnthropic && reverseStreamState && reverseStreamState.sentMessageStart) {
+          try {
+            if (!isOpenAIToAnthropicStreamFinalized(reverseStreamState)) {
+              const finalLines = finalizeOpenAIToAnthropicStream(reverseStreamState);
+              for (const sseLine of finalLines) {
+                res.write(sseLine);
+              }
+            }
+          } catch {
+            // Ignore errors during error recovery
+          }
+        }
       } finally {
         res.end();
       }
@@ -1405,7 +1694,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       const fullBody = Buffer.concat(chunks);
 
       try {
-        extractStreamingMetrics(provider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel);
+        // Use effective provider for metrics extraction
+        extractStreamingMetrics(effectiveProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel);
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
@@ -1422,9 +1712,47 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       const latencyMs = Date.now() - requestStart;
 
+      // Transform response if cross-provider override
+      let finalResponseBody = responseBodyBuffer;
+      let responseConverted = false;
+
+      if (crossProviderOverride && providerResponse.status < 400) {
+        // Case 1: OpenAI-compatible client → Anthropic target
+        // Need to convert Anthropic response → OpenAI format
+        if (effectiveProvider === "anthropic" && crossProviderOverride.originalProvider !== "anthropic") {
+          try {
+            const anthropicResponse = JSON.parse(responseBodyBuffer.toString("utf-8")) as AnthropicResponse;
+            const openaiResponse = anthropicToOpenai(anthropicResponse, requestedModel ?? undefined);
+            finalResponseBody = Buffer.from(JSON.stringify(openaiResponse), "utf-8");
+            responseConverted = true;
+            log.info(`[PROXY] Converted Anthropic response → OpenAI format`);
+          } catch (e) {
+            log.error(`[PROXY] Failed to convert Anthropic response: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+        // Case 2: Anthropic client → OpenAI-compatible target
+        // Need to convert OpenAI response → Anthropic format
+        else if (crossProviderOverride.originalProvider === "anthropic" && effectiveProvider !== "anthropic") {
+          try {
+            const openaiResponse = JSON.parse(responseBodyBuffer.toString("utf-8")) as OpenAIResponse;
+            const anthropicResponse = openaiToAnthropicResponse(openaiResponse, requestedModel ?? undefined);
+            finalResponseBody = Buffer.from(JSON.stringify(anthropicResponse), "utf-8");
+            responseConverted = true;
+            log.info(`[PROXY] Converted OpenAI response → Anthropic format`);
+          } catch (e) {
+            log.error(`[PROXY] Failed to convert OpenAI response: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+      }
+
       const responseHeaders: Record<string, string> = {};
       providerResponse.headers.forEach((value, key) => {
         if (key.toLowerCase() === "transfer-encoding") return;
+        // Update content-length if we transformed the body
+        if (key.toLowerCase() === "content-length" && responseConverted) {
+          responseHeaders[key] = String(finalResponseBody.length);
+          return;
+        }
         responseHeaders[key] = value;
       });
 
@@ -1439,10 +1767,11 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
 
       res.writeHead(providerResponse.status, responseHeaders);
-      res.end(responseBodyBuffer);
+      res.end(finalResponseBody);
 
       try {
-        extractAndQueueMetrics(provider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel);
+        // Use effective provider for metrics, but pass original response for parsing
+        extractAndQueueMetrics(effectiveProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel);
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }

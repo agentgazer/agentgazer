@@ -6,6 +6,7 @@ import {
   upsertModelRule,
   deleteModelRule,
   getAgentProviders,
+  getAgentDefaultModels,
   getAgentByAgentId,
   getProviderModels,
 } from "../db.js";
@@ -32,7 +33,10 @@ router.get("/api/agents/:agentId/model-rules", (req, res) => {
 router.put("/api/agents/:agentId/model-rules/:provider", (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const { agentId, provider } = req.params;
-  const { model_override } = req.body as { model_override?: string | null };
+  const { model_override, target_provider } = req.body as {
+    model_override?: string | null;
+    target_provider?: string | null;
+  };
 
   const agent = getAgentByAgentId(db, agentId);
   if (!agent) {
@@ -40,7 +44,13 @@ router.put("/api/agents/:agentId/model-rules/:provider", (req, res) => {
     return;
   }
 
-  const rule = upsertModelRule(db, agentId, provider, model_override ?? null);
+  const rule = upsertModelRule(
+    db,
+    agentId,
+    provider,
+    model_override ?? null,
+    target_provider ?? null,
+  );
   res.json(rule);
 });
 
@@ -77,12 +87,18 @@ router.get("/api/agents/:agentId/providers", (req, res) => {
 
   const providers = getAgentProviders(db, agentId);
   const rules = getModelRulesForAgent(db, agentId);
+  const defaultModels = getAgentDefaultModels(db, agentId);
 
   // Map provider to its override if exists
-  const providerDetails = providers.map(p => ({
-    provider: p,
-    model_override: rules.find(r => r.provider === p)?.model_override ?? null,
-  }));
+  const providerDetails = providers.map(p => {
+    const rule = rules.find(r => r.provider === p);
+    return {
+      provider: p,
+      default_model: defaultModels[p] ?? null,
+      model_override: rule?.model_override ?? null,
+      target_provider: rule?.target_provider ?? null,
+    };
+  });
 
   res.json({ providers: providerDetails });
 });

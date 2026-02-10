@@ -68,3 +68,28 @@ export {
   extractAndNormalizePrompt,
   type ChatMessage,
 } from "./normalize.js";
+
+export {
+  openaiToAnthropic,
+  anthropicToOpenaiRequest,
+  anthropicToOpenai,
+  openaiToAnthropicResponse,
+  anthropicSseToOpenaiChunks,
+  openaiChunkToAnthropicSse,
+  parseAnthropicSSELine,
+  formatOpenAISSELine,
+  formatOpenAISSEDone,
+  formatAnthropicSSELine,
+  createStreamingConverterState,
+  createOpenAIToAnthropicStreamState,
+  finalizeOpenAIToAnthropicStream,
+  isOpenAIToAnthropicStreamFinalized,
+  type OpenAIRequest,
+  type OpenAIResponse,
+  type OpenAIStreamChunk,
+  type AnthropicRequest,
+  type AnthropicResponse,
+  type AnthropicSSEEvent,
+  type StreamingConverterState,
+  type OpenAIToAnthropicStreamState,
+} from "./format-converter.js";

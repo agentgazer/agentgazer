@@ -3,11 +3,38 @@ import { api } from "../lib/api";
 
 interface ProviderInfo {
   provider: string;
+  default_model: string | null;
   model_override: string | null;
+  target_provider: string | null;
 }
 
 interface ModelSettingsProps {
   agentId: string;
+}
+
+// Provider display names for grouping
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  google: "Google",
+  mistral: "Mistral",
+  cohere: "Cohere",
+  deepseek: "DeepSeek",
+  moonshot: "Moonshot",
+  zhipu: "Zhipu",
+  minimax: "MiniMax",
+  baichuan: "Baichuan",
+};
+
+// Parse "provider:model" format or plain model name
+function parseModelValue(value: string | null, defaultProvider: string): { provider: string; model: string } | null {
+  if (!value) return null;
+  if (value.includes(":")) {
+    const [provider, ...modelParts] = value.split(":");
+    return { provider, model: modelParts.join(":") };
+  }
+  // Plain model name - use default provider
+  return { provider: defaultProvider, model: value };
 }
 
 export default function ModelSettings({ agentId }: ModelSettingsProps) {
@@ -16,7 +43,7 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Track pending (unsaved) changes per provider
+  // Track pending (unsaved) changes per provider: { provider: "targetProvider:model" | null }
   const [pendingChanges, setPendingChanges] = useState<Record<string, string | null>>({});
 
   useEffect(() => {
@@ -40,36 +67,51 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
     fetchData();
   }, [agentId]);
 
-  function handleDropdownChange(provider: string, model: string | null) {
+  function handleDropdownChange(originalProvider: string, value: string | null) {
     setPendingChanges((prev) => ({
       ...prev,
-      [provider]: model,
+      [originalProvider]: value,
     }));
   }
 
-  async function handleApply(provider: string) {
-    const model = pendingChanges[provider];
-    if (model === undefined) return;
+  async function handleApply(originalProvider: string) {
+    const value = pendingChanges[originalProvider];
+    if (value === undefined) return;
 
-    setSaving(provider);
+    setSaving(originalProvider);
     try {
-      if (model) {
-        await api.put(`/api/agents/${encodeURIComponent(agentId)}/model-rules/${encodeURIComponent(provider)}`, {
-          model_override: model,
-        });
+      if (value) {
+        const parsed = parseModelValue(value, originalProvider);
+        if (parsed) {
+          const targetProvider = parsed.provider !== originalProvider ? parsed.provider : null;
+          await api.put(`/api/agents/${encodeURIComponent(agentId)}/model-rules/${encodeURIComponent(originalProvider)}`, {
+            model_override: parsed.model,
+            target_provider: targetProvider,
+          });
+          // Update saved state
+          setProviders((prev) =>
+            prev.map((p) =>
+              p.provider === originalProvider
+                ? { ...p, model_override: parsed.model, target_provider: targetProvider }
+                : p
+            )
+          );
+        }
       } else {
-        await api.del(`/api/agents/${encodeURIComponent(agentId)}/model-rules/${encodeURIComponent(provider)}`);
+        await api.del(`/api/agents/${encodeURIComponent(agentId)}/model-rules/${encodeURIComponent(originalProvider)}`);
+        // Update saved state
+        setProviders((prev) =>
+          prev.map((p) =>
+            p.provider === originalProvider
+              ? { ...p, model_override: null, target_provider: null }
+              : p
+          )
+        );
       }
-      // Update saved state
-      setProviders((prev) =>
-        prev.map((p) =>
-          p.provider === provider ? { ...p, model_override: model } : p
-        )
-      );
       // Clear pending change for this provider
       setPendingChanges((prev) => {
         const next = { ...prev };
-        delete next[provider];
+        delete next[originalProvider];
         return next;
       });
       setError(null);
@@ -87,6 +129,28 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
       delete next[provider];
       return next;
     });
+  }
+
+  // Get the current display value for a provider
+  function getDisplayValue(p: ProviderInfo): string {
+    if (p.provider in pendingChanges) {
+      return pendingChanges[p.provider] ?? "";
+    }
+    if (p.model_override) {
+      if (p.target_provider && p.target_provider !== p.provider) {
+        return `${p.target_provider}:${p.model_override}`;
+      }
+      return p.model_override;
+    }
+    return "";
+  }
+
+  // Check if cross-provider override is active
+  function isCrossProvider(p: ProviderInfo): boolean {
+    const value = getDisplayValue(p);
+    if (!value) return false;
+    const parsed = parseModelValue(value, p.provider);
+    return parsed ? parsed.provider !== p.provider : false;
   }
 
   if (loading) {
@@ -109,11 +173,18 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
     );
   }
 
+  // Get sorted list of all providers that have models
+  const allProviders = Object.keys(selectableModels).sort((a, b) => {
+    const nameA = PROVIDER_DISPLAY_NAMES[a] ?? a;
+    const nameB = PROVIDER_DISPLAY_NAMES[b] ?? b;
+    return nameA.localeCompare(nameB);
+  });
+
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
       <h2 className="text-sm font-semibold text-gray-300">Model Settings</h2>
       <p className="mt-1 text-xs text-gray-500">
-        Override the model for requests to each provider. The agent's original model request will be replaced.
+        Override the model for requests. Select models from any provider - cross-provider routing is supported.
       </p>
 
       {error && (
@@ -124,10 +195,10 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
 
       <div className="mt-4 space-y-4">
         {providers.map((p) => {
-          const models = selectableModels[p.provider] ?? [];
           const isSaving = saving === p.provider;
           const hasPendingChange = p.provider in pendingChanges;
-          const displayValue = hasPendingChange ? pendingChanges[p.provider] : p.model_override;
+          const displayValue = getDisplayValue(p);
+          const crossProvider = isCrossProvider(p);
 
           return (
             <div
@@ -137,11 +208,20 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-medium capitalize text-white">
-                    {p.provider}
+                    {PROVIDER_DISPLAY_NAMES[p.provider] ?? p.provider}
                   </span>
-                  {p.model_override && !hasPendingChange && (
-                    <span className="ml-2 rounded bg-indigo-900 px-2 py-0.5 text-xs text-indigo-200">
-                      Override active
+                  {p.default_model && (
+                    <span className="ml-2 text-xs text-gray-400">
+                      (from agent default: {p.default_model})
+                    </span>
+                  )}
+                  {displayValue && !hasPendingChange && (
+                    <span className={`ml-2 rounded px-2 py-0.5 text-xs ${
+                      crossProvider
+                        ? "bg-purple-900 text-purple-200"
+                        : "bg-indigo-900 text-indigo-200"
+                    }`}>
+                      {crossProvider ? "Cross-provider override" : "Override active"}
                     </span>
                   )}
                   {hasPendingChange && (
@@ -157,16 +237,31 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
                 <div className="mt-1 flex gap-2">
                   <select
                     className="block flex-1 rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
-                    value={displayValue ?? ""}
+                    value={displayValue}
                     onChange={(e) => handleDropdownChange(p.provider, e.target.value || null)}
                     disabled={isSaving}
                   >
                     <option value="">None (use agent default)</option>
-                    {models.map((model) => (
-                      <option key={model} value={model}>
-                        {model}
-                      </option>
-                    ))}
+                    {allProviders.map((providerKey) => {
+                      const models = selectableModels[providerKey] ?? [];
+                      if (models.length === 0) return null;
+                      const providerName = PROVIDER_DISPLAY_NAMES[providerKey] ?? providerKey;
+                      const isSameProvider = providerKey === p.provider;
+
+                      return (
+                        <optgroup key={providerKey} label={providerName}>
+                          {models.map((model) => {
+                            // Use plain model name for same provider, "provider:model" for cross-provider
+                            const optionValue = isSameProvider ? model : `${providerKey}:${model}`;
+                            return (
+                              <option key={optionValue} value={optionValue}>
+                                {model}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      );
+                    })}
                   </select>
                   {hasPendingChange && (
                     <>
@@ -189,6 +284,11 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
                     </>
                   )}
                 </div>
+                {crossProvider && !hasPendingChange && (
+                  <p className="mt-1 text-xs text-purple-400">
+                    Requests will be transformed and routed to {PROVIDER_DISPLAY_NAMES[p.target_provider ?? ""] ?? p.target_provider}
+                  </p>
+                )}
               </div>
             </div>
           );
