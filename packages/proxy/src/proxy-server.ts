@@ -1,4 +1,5 @@
 import * as http from "node:http";
+import { StringDecoder } from "node:string_decoder";
 import {
   getProviderChatEndpoint,
   getProviderRootUrl,
@@ -449,6 +450,82 @@ function parseGoogleSSE(
   };
 }
 
+/**
+ * Parse Google's streaming response format (JSON array chunks, not standard SSE).
+ * Google Gemini API returns streaming data as: [{"candidates":...}, {"candidates":...}]
+ * Each chunk may or may not have usageMetadata - typically only the last chunk has it.
+ */
+function parseGoogleStreamingResponse(
+  rawText: string,
+  statusCode: number
+): ParsedResponse {
+  let model: string | null = null;
+  let tokensIn: number | null = null;
+  let tokensOut: number | null = null;
+  let tokensTotal: number | null = null;
+
+  // Try to extract JSON objects from the response
+  // Google streaming format: [{"candidates":...},\n{"candidates":...}]
+  // We need to handle the array brackets and commas between objects
+
+  // First, try parsing as a complete JSON array
+  try {
+    const cleanedText = rawText.trim();
+    if (cleanedText.startsWith("[")) {
+      const data = JSON.parse(cleanedText);
+      if (Array.isArray(data)) {
+        for (const chunk of data) {
+          if (chunk.modelVersion) model = chunk.modelVersion;
+          if (chunk.usageMetadata) {
+            tokensIn = chunk.usageMetadata.promptTokenCount ?? null;
+            tokensOut = chunk.usageMetadata.candidatesTokenCount ?? null;
+            tokensTotal = chunk.usageMetadata.totalTokenCount ?? null;
+          }
+        }
+      }
+    }
+  } catch {
+    // Not a valid JSON array, try line-by-line parsing
+  }
+
+  // If we didn't find data, try extracting individual JSON objects
+  if (tokensIn === null && tokensOut === null) {
+    // Remove array brackets and split by object boundaries
+    const cleanedText = rawText
+      .replace(/^\s*\[\s*/, "")  // Remove leading [
+      .replace(/\s*\]\s*$/, "")  // Remove trailing ]
+      .replace(/^\s*,\s*/gm, "") // Remove leading commas on each line
+      .trim();
+
+    // Try to find and parse JSON objects
+    const objectMatches = cleanedText.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g);
+    if (objectMatches) {
+      for (const objStr of objectMatches) {
+        try {
+          const data = JSON.parse(objStr);
+          if (data.modelVersion) model = data.modelVersion;
+          if (data.usageMetadata) {
+            tokensIn = data.usageMetadata.promptTokenCount ?? null;
+            tokensOut = data.usageMetadata.candidatesTokenCount ?? null;
+            tokensTotal = data.usageMetadata.totalTokenCount ?? null;
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+  }
+
+  return {
+    model,
+    tokensIn,
+    tokensOut,
+    tokensTotal,
+    statusCode,
+    errorMessage: null,
+  };
+}
+
 function parseCohereSSE(
   dataLines: string[],
   statusCode: number
@@ -500,6 +577,18 @@ function parseSSEResponse(
     }
   }
 
+  // Google Gemini API uses a different streaming format (JSON array, not SSE)
+  // Handle it specially even if no "data: " lines found
+  if (provider === "google") {
+    if (dataLines.length > 0) {
+      // Google with SSE format (when ?alt=sse is used)
+      return parseGoogleSSE(dataLines, statusCode);
+    } else {
+      // Google's default JSON array streaming format
+      return parseGoogleStreamingResponse(sseText, statusCode);
+    }
+  }
+
   if (dataLines.length === 0) return null;
 
   switch (provider) {
@@ -513,8 +602,6 @@ function parseSSEResponse(
       return parseOpenAISSE(dataLines, statusCode);
     case "anthropic":
       return parseAnthropicSSE(dataLines, statusCode);
-    case "google":
-      return parseGoogleSSE(dataLines, statusCode);
     case "cohere":
       return parseCohereSSE(dataLines, statusCode);
     default:
@@ -1101,9 +1188,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
+    // Use requestedModel as fallback when provider doesn't return model in response
+    // (Google Gemini API typically doesn't include model in streaming response)
+    const effectiveModel = parsed.model ?? requestedModel;
+
     let costUsd: number | null = null;
-    if (parsed.model && parsed.tokensIn != null && parsed.tokensOut != null) {
-      costUsd = calculateCost(parsed.model, parsed.tokensIn, parsed.tokensOut);
+    if (effectiveModel && parsed.tokensIn != null && parsed.tokensOut != null) {
+      costUsd = calculateCost(effectiveModel, parsed.tokensIn, parsed.tokensOut);
     }
 
     // Record response for loop detection
@@ -1113,7 +1204,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       agent_id: effectiveAgentId,
       event_type: "llm_call",
       provider,
-      model: parsed.model,
+      model: effectiveModel,
       requested_model: requestedModel,
       tokens_in: parsed.tokensIn,
       tokens_out: parsed.tokensOut,
@@ -1157,10 +1248,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
+    // Use requestedModel as fallback when provider doesn't return model in response
+    // (Google Gemini API typically doesn't include model in response)
+    const effectiveModel = parsed.model ?? requestedModel;
+
     // Calculate cost if we have the necessary token data
     let costUsd: number | null = null;
-    if (parsed.model && parsed.tokensIn != null && parsed.tokensOut != null) {
-      costUsd = calculateCost(parsed.model, parsed.tokensIn, parsed.tokensOut);
+    if (effectiveModel && parsed.tokensIn != null && parsed.tokensOut != null) {
+      costUsd = calculateCost(effectiveModel, parsed.tokensIn, parsed.tokensOut);
     }
 
     // Record response for loop detection
@@ -1170,7 +1265,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       agent_id: effectiveAgentId,
       event_type: "llm_call",
       provider,
-      model: parsed.model,
+      model: effectiveModel,
       requested_model: requestedModel,
       tokens_in: parsed.tokensIn,
       tokens_out: parsed.tokensOut,
@@ -1322,54 +1417,69 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       let bodyModified = false;
       isStreaming = bodyJson.stream === true;
 
-      // Extract and optionally override model
+      // Extract model from request body if present
       if (bodyJson.model) {
         requestedModel = bodyJson.model;
-        const override = getModelOverride(db, effectiveAgentId, provider);
+      }
 
-        if (override.model) {
+      // Always check for model override rules (even if request has no model)
+      // This handles providers like Google where model is in URL, not body
+      const override = getModelOverride(db, effectiveAgentId, provider);
+
+      // Apply model override if configured
+      if (override.model) {
+        if (requestedModel) {
           log.info(`[PROXY] Model override: ${requestedModel} → ${override.model}`);
-          bodyJson.model = override.model;
-          bodyModified = true;
+        } else {
+          log.info(`[PROXY] Model override (no model in request): → ${override.model}`);
+        }
+        bodyJson.model = override.model;
+        bodyModified = true;
+      }
+
+      // Handle cross-provider override
+      if (override.targetProvider && override.targetProvider !== provider && KNOWN_PROVIDER_NAMES.includes(override.targetProvider as ProviderName)) {
+        const targetProv = override.targetProvider as ProviderName;
+        log.info(`[PROXY] Cross-provider override: ${provider} → ${targetProv}`);
+
+        // Check if we have an API key for the target provider
+        if (!providerKeys[targetProv]) {
+          log.error(`[PROXY] No API key configured for target provider: ${targetProv}`);
+          sendJson(res, 400, { error: `Cross-provider override failed: no API key for ${targetProv}` });
+          return;
         }
 
-        // Handle cross-provider override
-        if (override.targetProvider && override.targetProvider !== provider && KNOWN_PROVIDER_NAMES.includes(override.targetProvider as ProviderName)) {
-          const targetProv = override.targetProvider as ProviderName;
-          log.info(`[PROXY] Cross-provider override: ${provider} → ${targetProv}`);
+        crossProviderOverride = { targetProvider: targetProv, originalProvider: provider };
+        effectiveProvider = targetProv;
 
-          // Check if we have an API key for the target provider
-          if (!providerKeys[targetProv]) {
-            log.error(`[PROXY] No API key configured for target provider: ${targetProv}`);
-            sendJson(res, 400, { error: `Cross-provider override failed: no API key for ${targetProv}` });
-            return;
+        // Transform request format if needed
+        if (provider !== "anthropic" && targetProv === "anthropic") {
+          // OpenAI-compatible or Google → Anthropic
+          // For Google, we need to ensure the request has required fields
+          if (provider === "google") {
+            // Google native format → need to convert to OpenAI first, then to Anthropic
+            // For now, assume the request is already in a compatible format or
+            // the client is using OpenAI-compatible format through the Google endpoint
+            log.info(`[PROXY] Converting Google request → Anthropic`);
           }
+          const anthropicRequest = openaiToAnthropic(bodyJson as OpenAIRequest);
+          bodyJson = anthropicRequest;
+          bodyModified = true;
+          log.info(`[PROXY] Transformed request: ${provider} → Anthropic`);
+        } else if (provider === "anthropic" && targetProv !== "anthropic") {
+          // Anthropic → OpenAI-compatible
+          const openaiRequest = anthropicToOpenaiRequest(bodyJson as AnthropicRequest);
+          bodyJson = openaiRequest;
+          bodyModified = true;
+          log.info(`[PROXY] Transformed request: Anthropic → OpenAI`);
+        }
+        // Other cases (OpenAI-compatible → OpenAI-compatible) don't need transformation
 
-          crossProviderOverride = { targetProvider: targetProv, originalProvider: provider };
-          effectiveProvider = targetProv;
-
-          // Transform request format if needed
-          if (provider !== "anthropic" && targetProv === "anthropic") {
-            // OpenAI-compatible → Anthropic
-            const anthropicRequest = openaiToAnthropic(bodyJson as OpenAIRequest);
-            bodyJson = anthropicRequest;
-            bodyModified = true;
-            log.info(`[PROXY] Transformed request: OpenAI → Anthropic`);
-          } else if (provider === "anthropic" && targetProv !== "anthropic") {
-            // Anthropic → OpenAI-compatible
-            const openaiRequest = anthropicToOpenaiRequest(bodyJson as AnthropicRequest);
-            bodyJson = openaiRequest;
-            bodyModified = true;
-            log.info(`[PROXY] Transformed request: Anthropic → OpenAI`);
-          }
-          // Other cases (OpenAI-compatible → OpenAI-compatible) don't need transformation
-
-          // Update target URL for cross-provider
-          const newEndpoint = getProviderChatEndpoint(targetProv);
-          if (newEndpoint) {
-            targetUrl = newEndpoint;
-            log.info(`[PROXY] Redirecting to: ${targetUrl}`);
-          }
+        // Update target URL for cross-provider
+        const newEndpoint = getProviderChatEndpoint(targetProv);
+        if (newEndpoint) {
+          targetUrl = newEndpoint;
+          log.info(`[PROXY] Redirecting to: ${targetUrl}`);
         }
       }
 
@@ -1572,6 +1682,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       let streamState: StreamingConverterState | null = null;
       let reverseStreamState: OpenAIToAnthropicStreamState | null = null;
       let lineBuffer = "";
+      // Use StringDecoder to handle multi-byte UTF-8 characters split across chunks
+      const utf8Decoder = new StringDecoder("utf8");
 
       if (needsAnthropicToOpenai) {
         streamState = createStreamingConverterState();
@@ -1589,7 +1701,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
           if (needsAnthropicToOpenai && streamState) {
             // Transform Anthropic SSE to OpenAI SSE
-            lineBuffer += buf.toString("utf-8");
+            // Use StringDecoder to properly handle multi-byte UTF-8 characters
+            lineBuffer += utf8Decoder.write(buf);
             const lines = lineBuffer.split("\n");
             lineBuffer = lines.pop() ?? ""; // Keep incomplete line for next chunk
 
@@ -1618,7 +1731,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
             }
           } else if (needsOpenaiToAnthropic && reverseStreamState) {
             // Transform OpenAI SSE to Anthropic SSE
-            lineBuffer += buf.toString("utf-8");
+            // Use StringDecoder to properly handle multi-byte UTF-8 characters
+            lineBuffer += utf8Decoder.write(buf);
             const lines = lineBuffer.split("\n");
             lineBuffer = lines.pop() ?? ""; // Keep incomplete line for next chunk
 
