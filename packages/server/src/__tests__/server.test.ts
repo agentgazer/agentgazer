@@ -930,3 +930,68 @@ describe("Providers endpoint /api/providers", () => {
     expect(res.body.providers).toBeInstanceOf(Array);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Rate limits endpoint tests
+// ---------------------------------------------------------------------------
+
+describe("Rate limits endpoint /api/agents/:agentId/rate-limits", () => {
+  it("GET returns empty rate limits for new agent", async () => {
+    const agentId = `rate-limit-agent-${randomUUID()}`;
+    const res = await request("GET", `/api/agents/${agentId}/rate-limits`);
+    expect(res.status).toBe(200);
+    expect(res.body.rate_limits).toEqual([]);
+  });
+
+  it("PUT creates a rate limit", async () => {
+    const agentId = `rate-limit-agent-${randomUUID()}`;
+    const res = await request("PUT", `/api/agents/${agentId}/rate-limits/openai`, {
+      body: { max_requests: 100, window_seconds: 60 },
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.max_requests).toBe(100);
+    expect(res.body.window_seconds).toBe(60);
+  });
+
+  it("PUT validates max_requests is positive integer", async () => {
+    const agentId = `rate-limit-agent-${randomUUID()}`;
+    const res = await request("PUT", `/api/agents/${agentId}/rate-limits/openai`, {
+      body: { max_requests: -1, window_seconds: 60 },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("max_requests");
+  });
+
+  it("PUT validates window_seconds is positive integer", async () => {
+    const agentId = `rate-limit-agent-${randomUUID()}`;
+    const res = await request("PUT", `/api/agents/${agentId}/rate-limits/openai`, {
+      body: { max_requests: 100, window_seconds: 0 },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain("window_seconds");
+  });
+
+  it("DELETE removes a rate limit", async () => {
+    const agentId = `rate-limit-agent-${randomUUID()}`;
+    // Create first
+    await request("PUT", `/api/agents/${agentId}/rate-limits/openai`, {
+      body: { max_requests: 100, window_seconds: 60 },
+    });
+    // Delete
+    const res = await request("DELETE", `/api/agents/${agentId}/rate-limits/openai`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("DELETE returns 404 for non-existent rate limit", async () => {
+    const agentId = `rate-limit-agent-${randomUUID()}`;
+    const res = await request("DELETE", `/api/agents/${agentId}/rate-limits/openai`);
+    expect(res.status).toBe(404);
+  });
+
+  it("GET /api/rate-limits returns all rate limits", async () => {
+    const res = await request("GET", "/api/rate-limits");
+    expect(res.status).toBe(200);
+    expect(res.body.rate_limits).toBeInstanceOf(Array);
+  });
+});
