@@ -1453,7 +1453,8 @@ describe("Proxy Server Integration", () => {
   // -----------------------------------------------------------------------
 
   // Helper: Create a test database with proper schema matching the production DB
-  function createTestDb(agentId: string): ReturnType<typeof import("better-sqlite3").default> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function createTestDb(agentId: string): any {
     const Database = require("better-sqlite3");
     const db = new Database(":memory:");
     db.exec(`
@@ -1915,6 +1916,77 @@ describe("Proxy Server Integration", () => {
       const body = JSON.parse(res.body);
       expect(body.error).toContain("no API key for anthropic");
 
+      db.close();
+    });
+
+    it("same-provider override works (model change without cross-provider)", async () => {
+      ingestServer = await createMockIngestServer();
+
+      // Create mock DB with same-provider override (target_provider is NULL)
+      const agentId = `test-agent-same-provider-${Date.now()}`;
+      const db = createTestDb(agentId);
+      db.prepare("INSERT INTO agent_model_rules (id, agent_id, provider, model_override, target_provider) VALUES (?, ?, ?, ?, ?)").run(
+        "rule-1", agentId, "openai", "gpt-4o-mini", null  // same provider, different model
+      );
+
+      // Mock fetch - verify same-provider override by checking the response
+      const originalFetch = global.fetch;
+      vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        if (url.includes("api.openai.com")) {
+          // Echo back the model from the request body to verify override
+          let reqModel = "unknown";
+          if (init?.body) {
+            const bodyText = typeof init.body === "string" ? init.body : await new Response(init.body).text();
+            const parsed = JSON.parse(bodyText);
+            reqModel = parsed.model;
+          }
+          return new Response(JSON.stringify({
+            id: "chatcmpl-123",
+            object: "chat.completion",
+            model: reqModel,  // Echo the model we received
+            choices: [{ index: 0, message: { role: "assistant", content: "Hello!" }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return originalFetch(input, init);
+      });
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 1,
+        providerKeys: { openai: "sk-openai-key" },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",  // Original model
+          messages: [{ role: "user", content: "Hello" }],
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const response = JSON.parse(res.body);
+      // The mock echoes the model it received - should be the overridden model
+      expect(response.model).toBe("gpt-4o-mini");
+
+      vi.restoreAllMocks();
       db.close();
     });
   });
