@@ -735,7 +735,7 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
 
   if (CLI_VERSION === latestVersion) {
     console.log(`  ✓ Already up to date (${CLI_VERSION})`);
-    return;
+    process.exit(0);
   }
 
   console.log(`  New version available: ${latestVersion}`);
@@ -836,6 +836,7 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
   }
 
   console.log("\n  Your settings in ~/.agentgazer/ have been preserved.");
+  process.exit(0);
 }
 
 async function cmdDoctor(flags: Record<string, string>): Promise<void> {
