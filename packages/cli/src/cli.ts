@@ -1687,8 +1687,9 @@ async function main(): Promise<void> {
   }
 }
 
-// Commands that keep running (don't auto-exit)
-const LONG_RUNNING_COMMANDS = ["start", "overview"];
+// Commands that keep running indefinitely (don't auto-exit)
+// Note: "overview" is NOT here because it has a proper exit mechanism (Q/ESC)
+const LONG_RUNNING_COMMANDS = ["start"];
 
 main()
   .then(() => {
