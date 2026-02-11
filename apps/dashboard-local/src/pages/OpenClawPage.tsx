@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
 import {
   providerApi,
   openclawApi,
@@ -94,6 +93,8 @@ export default function OpenClawPage() {
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [oauthPolling, setOauthPolling] = useState(false);
+  // Add provider modal state
+  const [showAddProviderModal, setShowAddProviderModal] = useState(false);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -281,12 +282,13 @@ export default function OpenClawPage() {
                   : "No API key providers configured"}
               </span>
             </div>
-            <Link
-              to="/providers"
-              className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+            <button
+              onClick={() => setShowAddProviderModal(true)}
+              disabled={!isLoopback}
+              className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               Add Provider
-            </Link>
+            </button>
           </li>
 
           {/* OAuth Providers (OpenAI Codex) */}
@@ -547,6 +549,177 @@ export default function OpenClawPage() {
           </li>
           <li>Check the Agents page to see your OpenClaw agent appear</li>
         </ol>
+      </div>
+
+      {/* Add Provider Modal */}
+      {showAddProviderModal && (
+        <AddProviderModal
+          onClose={() => setShowAddProviderModal(false)}
+          onSuccess={() => {
+            setShowAddProviderModal(false);
+            loadData(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const PROVIDER_LABELS: Record<string, string> = {
+  openai: "OpenAI (GPT-4o, o1, o3)",
+  anthropic: "Anthropic (Claude Opus, Sonnet, Haiku)",
+  google: "Google (Gemini)",
+  mistral: "Mistral (Mistral Large, Codestral)",
+  cohere: "Cohere (Command R+)",
+  deepseek: "DeepSeek (V3, R1)",
+  moonshot: "Moonshot (Kimi K2.5)",
+  zhipu: "Zhipu / Z.ai (GLM-4.7)",
+  minimax: "MiniMax (M2)",
+};
+
+function AddProviderModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [selectedProvider, setSelectedProvider] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [validationResult, setValidationResult] = useState<{
+    validated: boolean;
+    error?: string;
+  } | null>(null);
+
+  const providers = [
+    "openai",
+    "anthropic",
+    "google",
+    "mistral",
+    "cohere",
+    "deepseek",
+    "moonshot",
+    "zhipu",
+    "minimax",
+  ];
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedProvider || !apiKey) return;
+
+    setLoading(true);
+    setError(null);
+    setValidationResult(null);
+
+    try {
+      const result = await providerApi.add(selectedProvider, apiKey);
+      setValidationResult({ validated: result.validated, error: result.error });
+
+      if (result.success) {
+        setTimeout(onSuccess, 1500);
+      }
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-medium text-white">Add Provider</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-white">
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300">
+              Provider
+            </label>
+            <select
+              value={selectedProvider}
+              onChange={(e) => setSelectedProvider(e.target.value)}
+              className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
+              required
+            >
+              <option value="">Select a provider...</option>
+              {providers.map((p) => (
+                <option key={p} value={p}>
+                  {PROVIDER_LABELS[p] || p.charAt(0).toUpperCase() + p.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300">
+              API Key
+            </label>
+            <input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="sk-..."
+              className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+              required
+            />
+          </div>
+
+          {error && (
+            <div className="rounded bg-red-900/20 p-2 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          {validationResult && (
+            <div
+              className={`rounded p-2 text-sm ${
+                validationResult.validated
+                  ? "bg-green-900/20 text-green-400"
+                  : "bg-yellow-900/20 text-yellow-400"
+              }`}
+            >
+              {validationResult.validated
+                ? "API key validated successfully! Provider saved."
+                : `Provider saved, but validation failed: ${validationResult.error}`}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md px-4 py-2 text-sm text-gray-400 hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !selectedProvider || !apiKey}
+              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {loading ? "Testing..." : "Test & Save"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
