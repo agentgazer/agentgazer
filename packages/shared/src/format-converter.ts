@@ -1119,25 +1119,37 @@ export function isOpenAIToAnthropicStreamFinalized(
 // Codex API Types (OpenAI Responses API format)
 // ---------------------------------------------------------------------------
 
-export interface CodexInputItem {
+// Responses API supports multiple input item types
+export interface CodexMessageItem {
   type: "message";
   role: "user" | "assistant" | "system";
   content: string | CodexContentPart[];
 }
 
+export interface CodexFunctionCallItem {
+  type: "function_call";
+  id?: string;           // Optional ID for the item itself
+  call_id: string;       // Required - links to function_call_output
+  name: string;          // Function name
+  arguments: string;     // JSON string of arguments
+  status?: "completed" | "in_progress" | "incomplete"; // Optional status
+}
+
+export interface CodexFunctionCallOutputItem {
+  type: "function_call_output";
+  call_id: string;       // Must match the function_call's call_id
+  output: string;        // Result as string (typically JSON or text)
+}
+
+export type CodexInputItem = CodexMessageItem | CodexFunctionCallItem | CodexFunctionCallOutputItem;
+
 export interface CodexContentPart {
-  type: "input_text" | "output_text" | "input_image" | "tool_use" | "tool_result";
+  // Codex API only supports these content types in message input:
+  // input_text, input_image, output_text, refusal, input_file, computer_screenshot, summary_text
+  type: "input_text" | "output_text" | "input_image" | "refusal" | "summary_text";
   text?: string;
   // For images
   image_url?: string;
-  // For tool_use
-  id?: string;
-  name?: string;
-  arguments?: string;
-  // For tool_result
-  tool_use_id?: string;
-  output?: string;
-  is_error?: boolean;
 }
 
 export interface CodexTool {
@@ -1266,10 +1278,14 @@ export type CodexSSEEvent =
 
 /**
  * Convert OpenAI chat completion request to Codex Responses API format.
+ * Uses proper Responses API input types including function_call and function_call_output.
  */
 export function openaiToCodex(request: OpenAIRequest): CodexRequest {
   const instructions: string[] = [];
   const input: CodexInputItem[] = [];
+
+  // Track pending tool calls that need results
+  const pendingToolCalls = new Map<string, { name: string; arguments: string }>();
 
   for (const msg of request.messages) {
     if (msg.role === "system") {
@@ -1296,35 +1312,46 @@ export function openaiToCodex(request: OpenAIRequest): CodexRequest {
     } else if (msg.role === "assistant") {
       // Convert assistant message
       if (msg.tool_calls && msg.tool_calls.length > 0) {
-        // Assistant with tool calls
-        const parts: CodexContentPart[] = [];
+        // First add any text content as a message
         if (typeof msg.content === "string" && msg.content) {
-          parts.push({ type: "output_text", text: msg.content });
+          input.push({ type: "message", role: "assistant", content: msg.content });
         }
+
+        // Add each tool call as a function_call item (Responses API format)
         for (const tc of msg.tool_calls) {
-          parts.push({
-            type: "tool_use",
-            id: tc.id,
+          const functionCallItem: CodexFunctionCallItem = {
+            type: "function_call",
+            call_id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+            status: "completed",
+          };
+          input.push(functionCallItem);
+
+          // Track for matching with tool results
+          pendingToolCalls.set(tc.id, {
             name: tc.function.name,
             arguments: tc.function.arguments,
           });
         }
-        input.push({ type: "message", role: "assistant", content: parts });
       } else {
         const content = typeof msg.content === "string" ? msg.content : "";
         input.push({ type: "message", role: "assistant", content });
       }
     } else if (msg.role === "tool") {
-      // Convert tool result
-      input.push({
-        type: "message",
-        role: "user",
-        content: [{
-          type: "tool_result",
-          tool_use_id: msg.tool_call_id!,
-          output: typeof msg.content === "string" ? msg.content : "",
-        }],
-      });
+      // Convert tool result to function_call_output (Responses API format)
+      const callId = msg.tool_call_id!;
+      const output = typeof msg.content === "string" ? msg.content : "";
+
+      const functionCallOutputItem: CodexFunctionCallOutputItem = {
+        type: "function_call_output",
+        call_id: callId,
+        output,
+      };
+      input.push(functionCallOutputItem);
+
+      // Remove from pending
+      pendingToolCalls.delete(callId);
     }
   }
 

@@ -107,4 +107,8 @@ export {
   type CodexRequest,
   type CodexSSEEvent,
   type CodexToOpenAIStreamState,
+  type CodexInputItem,
+  type CodexMessageItem,
+  type CodexFunctionCallItem,
+  type CodexFunctionCallOutputItem,
 } from "./format-converter.js";

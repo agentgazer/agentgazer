@@ -291,7 +291,8 @@ function normalizeRequestBody(
   }
 
   // Remove OpenAI-only fields for other providers
-  if (provider !== "openai") {
+  // Note: openai-oauth (Codex) uses a different format entirely and should skip normalization
+  if (provider !== "openai" && provider !== "openai-oauth") {
     for (const field of openaiOnlyFields) {
       if (field in result) {
         delete result[field];
@@ -1652,10 +1653,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
 
       // Normalize request body for provider compatibility
-      const normalized = normalizeRequestBody(effectiveProvider, bodyJson, log);
-      if (normalized.modified) {
-        bodyJson = normalized.body;
-        bodyModified = true;
+      // Skip for openai-oauth (Codex) since it uses a completely different format
+      if (effectiveProvider !== "openai-oauth") {
+        const normalized = normalizeRequestBody(effectiveProvider, bodyJson, log);
+        if (normalized.modified) {
+          bodyJson = normalized.body;
+          bodyModified = true;
+        }
       }
 
       if (bodyModified) {
@@ -1783,11 +1787,19 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         const tokenParts = authKey.split(".");
         if (tokenParts.length >= 2) {
           const payload = JSON.parse(Buffer.from(tokenParts[1], "base64").toString("utf-8"));
-          if (payload.chatgpt_account_id) {
-            forwardHeaders["chatgpt-account-id"] = payload.chatgpt_account_id;
-            log.info(`[PROXY] Added Codex headers (account: ${payload.chatgpt_account_id.slice(0, 8)}...)`);
+          // Try multiple possible claim names for the account ID
+          const accountId = payload.chatgpt_account_id
+            || payload.account_id
+            || payload["https://api.openai.com/auth"]?.account_id
+            || payload.org_id
+            || payload.organization_id;
+          if (accountId) {
+            forwardHeaders["chatgpt-account-id"] = accountId;
+            log.info(`[PROXY] Added Codex headers (account: ${String(accountId).slice(0, 8)}...)`);
           } else {
-            log.warn(`[PROXY] JWT token missing chatgpt_account_id claim`);
+            // Log available claims for debugging
+            const claimKeys = Object.keys(payload).slice(0, 10).join(", ");
+            log.warn(`[PROXY] JWT token missing account_id claim. Available: ${claimKeys}`);
           }
         }
       } catch (e) {
