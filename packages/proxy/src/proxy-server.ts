@@ -23,6 +23,12 @@ import {
   isOpenAIToAnthropicStreamFinalized,
   formatOpenAISSELine,
   formatOpenAISSEDone,
+  // Codex API converters
+  openaiToCodex,
+  codexSseToOpenaiChunks,
+  parseCodexSSELine,
+  createCodexToOpenAIStreamState,
+  finalizeCodexToOpenAIStream,
   type AgentEvent,
   type ParsedResponse,
   type ProviderName,
@@ -34,6 +40,8 @@ import {
   type AnthropicSSEEvent,
   type StreamingConverterState,
   type OpenAIToAnthropicStreamState,
+  type CodexSSEEvent,
+  type CodexToOpenAIStreamState,
 } from "@agentgazer/shared";
 import {
   getAgentPolicy,
@@ -1600,7 +1608,20 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         effectiveProvider = targetProv;
 
         // Transform request format if needed
-        if (provider !== "anthropic" && targetProv === "anthropic") {
+        if (targetProv === "openai-oauth") {
+          // Any provider → Codex API
+          // Convert to Codex format (Responses API)
+          let openaiRequest: OpenAIRequest;
+          if (provider === "anthropic") {
+            openaiRequest = anthropicToOpenaiRequest(bodyJson as AnthropicRequest);
+          } else {
+            openaiRequest = bodyJson as OpenAIRequest;
+          }
+          const codexRequest = openaiToCodex(openaiRequest);
+          bodyJson = codexRequest;
+          bodyModified = true;
+          log.info(`[PROXY] Transformed request: ${provider} → Codex API`);
+        } else if (provider !== "anthropic" && targetProv === "anthropic") {
           // OpenAI-compatible or Google → Anthropic
           // For Google, we need to ensure the request has required fields
           if (provider === "google") {
@@ -1751,6 +1772,29 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
+    // Codex API requires special headers
+    if (effectiveProvider === "openai-oauth" && authKey) {
+      forwardHeaders["OpenAI-Beta"] = "responses=experimental";
+      forwardHeaders["originator"] = "pi";
+      forwardHeaders["accept"] = "text/event-stream";
+
+      // Extract chatgpt-account-id from JWT token
+      try {
+        const tokenParts = authKey.split(".");
+        if (tokenParts.length >= 2) {
+          const payload = JSON.parse(Buffer.from(tokenParts[1], "base64").toString("utf-8"));
+          if (payload.chatgpt_account_id) {
+            forwardHeaders["chatgpt-account-id"] = payload.chatgpt_account_id;
+            log.info(`[PROXY] Added Codex headers (account: ${payload.chatgpt_account_id.slice(0, 8)}...)`);
+          } else {
+            log.warn(`[PROXY] JWT token missing chatgpt_account_id claim`);
+          }
+        }
+      } catch (e) {
+        log.warn(`[PROXY] Failed to decode JWT for chatgpt-account-id: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
     // Debug logging for request details (mask sensitive headers)
     const maskedHeaders: Record<string, string> = {};
     const sensitiveHeaders = ["authorization", "x-api-key", "x-goog-api-key", "api-key"];
@@ -1798,6 +1842,10 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       const needsAnthropicToOpenai = crossProviderOverride && effectiveProvider === "anthropic" && crossProviderOverride.originalProvider !== "anthropic";
       // Case 2: Anthropic client → OpenAI-compatible target (convert OpenAI SSE → Anthropic SSE)
       const needsOpenaiToAnthropic = crossProviderOverride && crossProviderOverride.originalProvider === "anthropic" && effectiveProvider !== "anthropic";
+      // Case 3: OpenAI-compatible client → Codex target (convert Codex SSE → OpenAI SSE)
+      const needsCodexToOpenai = crossProviderOverride && effectiveProvider === "openai-oauth" && crossProviderOverride.originalProvider !== "anthropic";
+      // Case 4: Anthropic client → Codex target (convert Codex SSE → OpenAI SSE → Anthropic SSE)
+      const needsCodexToAnthropic = crossProviderOverride && effectiveProvider === "openai-oauth" && crossProviderOverride.originalProvider === "anthropic";
 
       // Streaming response - build headers carefully
       const responseHeaders: Record<string, string> = {};
@@ -1846,11 +1894,19 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       let streamState: StreamingConverterState | null = null;
       let reverseStreamState: OpenAIToAnthropicStreamState | null = null;
+      let codexStreamState: CodexToOpenAIStreamState | null = null;
       let lineBuffer = "";
       // Use StringDecoder to handle multi-byte UTF-8 characters split across chunks
       const utf8Decoder = new StringDecoder("utf8");
 
-      if (needsAnthropicToOpenai) {
+      if (needsCodexToOpenai) {
+        codexStreamState = createCodexToOpenAIStreamState();
+        log.info(`[PROXY] Converting Codex SSE stream → OpenAI format`);
+      } else if (needsCodexToAnthropic) {
+        codexStreamState = createCodexToOpenAIStreamState();
+        reverseStreamState = createOpenAIToAnthropicStreamState();
+        log.info(`[PROXY] Converting Codex SSE stream → OpenAI → Anthropic format`);
+      } else if (needsAnthropicToOpenai) {
         streamState = createStreamingConverterState();
         log.info(`[PROXY] Converting Anthropic SSE stream → OpenAI format`);
       } else if (needsOpenaiToAnthropic) {
@@ -1864,7 +1920,70 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           if (done) break;
           const buf = Buffer.from(value);
 
-          if (needsAnthropicToOpenai && streamState) {
+          if (needsCodexToOpenai && codexStreamState) {
+            // Transform Codex SSE to OpenAI SSE
+            // Use StringDecoder to properly handle multi-byte UTF-8 characters
+            lineBuffer += utf8Decoder.write(buf);
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() ?? ""; // Keep incomplete line for next chunk
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim();
+                if (data && data !== "[DONE]") {
+                  const event = parseCodexSSELine(data);
+                  if (event) {
+                    const openaiChunks = codexSseToOpenaiChunks(event, codexStreamState, requestedModel ?? undefined);
+                    for (const chunk of openaiChunks) {
+                      const sseData = formatOpenAISSELine(chunk);
+                      res.write(sseData);
+                      accumulatedSize += sseData.length;
+                    }
+                  } else {
+                    log.debug(`[PROXY] Failed to parse Codex SSE event: ${data.slice(0, 200)}`);
+                  }
+                }
+              }
+            }
+
+            // Store original for metrics
+            if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
+              chunks.push(buf);
+            }
+          } else if (needsCodexToAnthropic && codexStreamState && reverseStreamState) {
+            // Transform Codex SSE → OpenAI SSE → Anthropic SSE (two-stage conversion)
+            lineBuffer += utf8Decoder.write(buf);
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim();
+                if (data && data !== "[DONE]") {
+                  const event = parseCodexSSELine(data);
+                  if (event) {
+                    // Stage 1: Codex → OpenAI chunks
+                    const openaiChunks = codexSseToOpenaiChunks(event, codexStreamState, requestedModel ?? undefined);
+                    // Stage 2: OpenAI chunks → Anthropic SSE
+                    for (const chunk of openaiChunks) {
+                      const anthropicLines = openaiChunkToAnthropicSse(chunk, reverseStreamState, requestedModel ?? undefined);
+                      for (const sseLine of anthropicLines) {
+                        res.write(sseLine);
+                        accumulatedSize += sseLine.length;
+                      }
+                    }
+                  } else {
+                    log.debug(`[PROXY] Failed to parse Codex SSE event: ${data.slice(0, 200)}`);
+                  }
+                }
+              }
+            }
+
+            // Store original for metrics
+            if (accumulatedSize <= MAX_SSE_BUFFER_SIZE) {
+              chunks.push(buf);
+            }
+          } else if (needsAnthropicToOpenai && streamState) {
             // Transform Anthropic SSE to OpenAI SSE
             // Use StringDecoder to properly handle multi-byte UTF-8 characters
             lineBuffer += utf8Decoder.write(buf);
@@ -1954,8 +2073,39 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         }
 
         // Send done markers for converted streams
-        if (needsAnthropicToOpenai) {
+        if (needsAnthropicToOpenai || needsCodexToOpenai) {
           res.write(formatOpenAISSEDone());
+        }
+
+        // For Codex → OpenAI conversion, ensure proper stream finalization
+        if (needsCodexToOpenai && codexStreamState && codexStreamState.sentFirstChunk) {
+          // If stream ended without response.done, send finalization
+          const finalChunks = finalizeCodexToOpenAIStream(codexStreamState);
+          for (const chunk of finalChunks) {
+            res.write(formatOpenAISSELine(chunk));
+          }
+        }
+
+        // For Codex → Anthropic conversion, finalize both stages
+        if (needsCodexToAnthropic && codexStreamState && reverseStreamState) {
+          // Stage 1: Finalize Codex → OpenAI
+          if (codexStreamState.sentFirstChunk) {
+            const finalChunks = finalizeCodexToOpenAIStream(codexStreamState);
+            // Stage 2: Convert finalization chunks to Anthropic
+            for (const chunk of finalChunks) {
+              const anthropicLines = openaiChunkToAnthropicSse(chunk, reverseStreamState, requestedModel ?? undefined);
+              for (const sseLine of anthropicLines) {
+                res.write(sseLine);
+              }
+            }
+          }
+          // Finalize Anthropic stream if not already done
+          if (reverseStreamState.sentMessageStart && !isOpenAIToAnthropicStreamFinalized(reverseStreamState)) {
+            const finalLines = finalizeOpenAIToAnthropicStream(reverseStreamState);
+            for (const sseLine of finalLines) {
+              res.write(sseLine);
+            }
+          }
         }
 
         // For OpenAI → Anthropic conversion, ensure proper stream finalization
@@ -1973,7 +2123,42 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       } catch (error) {
         log.error("Stream read error", { err: error instanceof Error ? error.message : String(error) });
 
-        // Even on error, try to finalize the Anthropic stream
+        // Even on error, try to finalize streams
+        if (needsCodexToOpenai && codexStreamState && codexStreamState.sentFirstChunk) {
+          try {
+            const finalChunks = finalizeCodexToOpenAIStream(codexStreamState);
+            for (const chunk of finalChunks) {
+              res.write(formatOpenAISSELine(chunk));
+            }
+            res.write(formatOpenAISSEDone());
+          } catch {
+            // Ignore errors during error recovery
+          }
+        }
+
+        // Error recovery for Codex → Anthropic
+        if (needsCodexToAnthropic && codexStreamState && reverseStreamState) {
+          try {
+            if (codexStreamState.sentFirstChunk) {
+              const finalChunks = finalizeCodexToOpenAIStream(codexStreamState);
+              for (const chunk of finalChunks) {
+                const anthropicLines = openaiChunkToAnthropicSse(chunk, reverseStreamState, requestedModel ?? undefined);
+                for (const sseLine of anthropicLines) {
+                  res.write(sseLine);
+                }
+              }
+            }
+            if (reverseStreamState.sentMessageStart && !isOpenAIToAnthropicStreamFinalized(reverseStreamState)) {
+              const finalLines = finalizeOpenAIToAnthropicStream(reverseStreamState);
+              for (const sseLine of finalLines) {
+                res.write(sseLine);
+              }
+            }
+          } catch {
+            // Ignore errors during error recovery
+          }
+        }
+
         if (needsOpenaiToAnthropic && reverseStreamState && reverseStreamState.sentMessageStart) {
           try {
             if (!isOpenAIToAnthropicStreamFinalized(reverseStreamState)) {

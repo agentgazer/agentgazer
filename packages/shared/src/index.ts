@@ -90,6 +90,12 @@ export {
   createOpenAIToAnthropicStreamState,
   finalizeOpenAIToAnthropicStream,
   isOpenAIToAnthropicStreamFinalized,
+  // Codex API converters
+  openaiToCodex,
+  codexSseToOpenaiChunks,
+  parseCodexSSELine,
+  createCodexToOpenAIStreamState,
+  finalizeCodexToOpenAIStream,
   type OpenAIRequest,
   type OpenAIResponse,
   type OpenAIStreamChunk,
@@ -98,4 +104,7 @@ export {
   type AnthropicSSEEvent,
   type StreamingConverterState,
   type OpenAIToAnthropicStreamState,
+  type CodexRequest,
+  type CodexSSEEvent,
+  type CodexToOpenAIStreamState,
 } from "./format-converter.js";

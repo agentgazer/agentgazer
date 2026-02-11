@@ -1114,3 +1114,487 @@ export function isOpenAIToAnthropicStreamFinalized(
   // Check if message_stop was already sent
   return state.sentMessageStop;
 }
+
+// ---------------------------------------------------------------------------
+// Codex API Types (OpenAI Responses API format)
+// ---------------------------------------------------------------------------
+
+export interface CodexInputItem {
+  type: "message";
+  role: "user" | "assistant" | "system";
+  content: string | CodexContentPart[];
+}
+
+export interface CodexContentPart {
+  type: "input_text" | "output_text" | "input_image" | "tool_use" | "tool_result";
+  text?: string;
+  // For images
+  image_url?: string;
+  // For tool_use
+  id?: string;
+  name?: string;
+  arguments?: string;
+  // For tool_result
+  tool_use_id?: string;
+  output?: string;
+  is_error?: boolean;
+}
+
+export interface CodexTool {
+  type: "function";
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+}
+
+export interface CodexRequest {
+  model: string;
+  store: boolean;
+  stream: boolean;
+  instructions: string;
+  input: CodexInputItem[];
+  text: { verbosity: "low" | "medium" | "high" };
+  include: string[];
+  tool_choice: "auto" | "none" | "required" | { type: "function"; name: string };
+  parallel_tool_calls: boolean;
+  temperature?: number;
+  tools?: CodexTool[];
+  reasoning?: { effort: "low" | "medium" | "high" | "xhigh"; summary: "auto" | "none" };
+  prompt_cache_key?: string;
+}
+
+// Codex SSE Event Types
+export interface CodexOutputTextDelta {
+  type: "response.output_text.delta";
+  delta: string;
+  item_id?: string;
+  output_index?: number;
+  content_index?: number;
+}
+
+export interface CodexReasoningDelta {
+  type: "response.reasoning.delta";
+  delta: string;
+}
+
+export interface CodexFunctionCallArgumentsDelta {
+  type: "response.function_call_arguments.delta";
+  delta: string;
+  item_id: string;
+  output_index: number;
+  call_id?: string;
+}
+
+export interface CodexOutputItemAdded {
+  type: "response.output_item.added";
+  item: {
+    type: "message" | "function_call";
+    id: string;
+    role?: "assistant";
+    content?: Array<{ type: "output_text"; text: string }>;
+    name?: string;
+    call_id?: string;
+    arguments?: string;
+  };
+  output_index: number;
+}
+
+export interface CodexOutputItemDone {
+  type: "response.output_item.done";
+  item: {
+    type: "message" | "function_call";
+    id: string;
+    role?: "assistant";
+    content?: Array<{ type: "output_text"; text: string }>;
+    name?: string;
+    call_id?: string;
+    arguments?: string;
+  };
+  output_index: number;
+}
+
+export interface CodexResponseDone {
+  type: "response.done" | "response.completed";
+  response: {
+    id: string;
+    output: Array<{
+      type: "message" | "function_call";
+      id: string;
+      role?: "assistant";
+      content?: Array<{ type: "output_text"; text: string }>;
+      name?: string;
+      call_id?: string;
+      arguments?: string;
+    }>;
+    usage?: {
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    };
+  };
+}
+
+export interface CodexResponseFailed {
+  type: "response.failed";
+  response: {
+    error: {
+      message: string;
+      code?: string;
+    };
+  };
+}
+
+export interface CodexError {
+  type: "error";
+  code: string;
+  message: string;
+}
+
+export type CodexSSEEvent =
+  | CodexOutputTextDelta
+  | CodexReasoningDelta
+  | CodexFunctionCallArgumentsDelta
+  | CodexOutputItemAdded
+  | CodexOutputItemDone
+  | CodexResponseDone
+  | CodexResponseFailed
+  | CodexError;
+
+// ---------------------------------------------------------------------------
+// OpenAI → Codex Conversion
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert OpenAI chat completion request to Codex Responses API format.
+ */
+export function openaiToCodex(request: OpenAIRequest): CodexRequest {
+  const instructions: string[] = [];
+  const input: CodexInputItem[] = [];
+
+  for (const msg of request.messages) {
+    if (msg.role === "system") {
+      // Extract system messages to instructions field
+      const content = typeof msg.content === "string" ? msg.content : "";
+      if (content) {
+        instructions.push(content);
+      }
+    } else if (msg.role === "user") {
+      // Convert user message
+      if (typeof msg.content === "string") {
+        input.push({ type: "message", role: "user", content: msg.content });
+      } else if (Array.isArray(msg.content)) {
+        const parts: CodexContentPart[] = msg.content.map(part => {
+          if (part.type === "text") {
+            return { type: "input_text" as const, text: part.text ?? "" };
+          } else if (part.type === "image_url" && part.image_url) {
+            return { type: "input_image" as const, image_url: part.image_url.url };
+          }
+          return { type: "input_text" as const, text: "" };
+        });
+        input.push({ type: "message", role: "user", content: parts });
+      }
+    } else if (msg.role === "assistant") {
+      // Convert assistant message
+      if (msg.tool_calls && msg.tool_calls.length > 0) {
+        // Assistant with tool calls
+        const parts: CodexContentPart[] = [];
+        if (typeof msg.content === "string" && msg.content) {
+          parts.push({ type: "output_text", text: msg.content });
+        }
+        for (const tc of msg.tool_calls) {
+          parts.push({
+            type: "tool_use",
+            id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          });
+        }
+        input.push({ type: "message", role: "assistant", content: parts });
+      } else {
+        const content = typeof msg.content === "string" ? msg.content : "";
+        input.push({ type: "message", role: "assistant", content });
+      }
+    } else if (msg.role === "tool") {
+      // Convert tool result
+      input.push({
+        type: "message",
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: msg.tool_call_id!,
+          output: typeof msg.content === "string" ? msg.content : "",
+        }],
+      });
+    }
+  }
+
+  const result: CodexRequest = {
+    model: request.model,
+    store: false,
+    stream: true, // Codex always streams
+    instructions: instructions.join("\n\n") || "You are a helpful assistant.",
+    input,
+    text: { verbosity: "medium" },
+    include: ["reasoning.encrypted_content"],
+    tool_choice: "auto",
+    parallel_tool_calls: true,
+  };
+
+  if (request.temperature !== undefined) {
+    result.temperature = request.temperature;
+  }
+
+  // Convert tools
+  if (request.tools && request.tools.length > 0) {
+    result.tools = request.tools.map(tool => ({
+      type: "function" as const,
+      name: tool.function.name,
+      description: tool.function.description,
+      parameters: tool.function.parameters,
+    }));
+  }
+
+  // Convert tool_choice
+  if (request.tool_choice) {
+    if (request.tool_choice === "none") {
+      result.tool_choice = "none";
+    } else if (request.tool_choice === "required") {
+      result.tool_choice = "required";
+    } else if (typeof request.tool_choice === "object") {
+      result.tool_choice = { type: "function", name: request.tool_choice.function.name };
+    }
+    // "auto" is already the default
+  }
+
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Codex → OpenAI Streaming Conversion
+// ---------------------------------------------------------------------------
+
+export interface CodexToOpenAIStreamState {
+  messageId: string;
+  model: string;
+  created: number;
+  inputTokens: number;
+  outputTokens: number;
+  sentFirstChunk: boolean;
+  currentText: string;
+  // Track tool calls: call_id -> { index, id, name, arguments }
+  toolCalls: Map<string, { index: number; id: string; name: string; arguments: string }>;
+  toolCallIndex: number;
+  finishReason: "stop" | "length" | "tool_calls" | null;
+}
+
+export function createCodexToOpenAIStreamState(): CodexToOpenAIStreamState {
+  return {
+    messageId: `chatcmpl-${Date.now()}`,
+    model: "",
+    created: Math.floor(Date.now() / 1000),
+    inputTokens: 0,
+    outputTokens: 0,
+    sentFirstChunk: false,
+    currentText: "",
+    toolCalls: new Map(),
+    toolCallIndex: 0,
+    finishReason: null,
+  };
+}
+
+/**
+ * Convert Codex SSE event to OpenAI stream chunk(s).
+ * Returns array of chunks (may be empty, one, or multiple).
+ */
+export function codexSseToOpenaiChunks(
+  event: CodexSSEEvent,
+  state: CodexToOpenAIStreamState,
+  requestModel?: string,
+): OpenAIStreamChunk[] {
+  const chunks: OpenAIStreamChunk[] = [];
+
+  // Helper to create a chunk
+  function createChunk(
+    delta: { role?: "assistant"; content?: string; tool_calls?: Array<{
+      index: number;
+      id?: string;
+      type?: "function";
+      function?: { name?: string; arguments?: string };
+    }> },
+    finishReason: "stop" | "length" | "tool_calls" | null = null,
+    usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number },
+  ): OpenAIStreamChunk {
+    return {
+      id: state.messageId,
+      object: "chat.completion.chunk",
+      created: state.created,
+      model: state.model || requestModel || "codex",
+      choices: [{
+        index: 0,
+        delta,
+        finish_reason: finishReason,
+      }],
+      ...(usage ? { usage } : {}),
+    };
+  }
+
+  switch (event.type) {
+    case "response.output_item.added":
+      // New output item - emit role chunk on first message
+      if (!state.sentFirstChunk && event.item.type === "message") {
+        chunks.push(createChunk({ role: "assistant" }));
+        state.sentFirstChunk = true;
+      }
+      // Track tool call start
+      if (event.item.type === "function_call" && event.item.call_id) {
+        const tcIndex = state.toolCallIndex++;
+        state.toolCalls.set(event.item.call_id, {
+          index: tcIndex,
+          id: event.item.call_id,
+          name: event.item.name || "",
+          arguments: "",
+        });
+        // Emit initial tool call chunk
+        chunks.push(createChunk({
+          tool_calls: [{
+            index: tcIndex,
+            id: event.item.call_id,
+            type: "function",
+            function: { name: event.item.name || "", arguments: "" },
+          }],
+        }));
+      }
+      break;
+
+    case "response.output_text.delta":
+      // Text content delta
+      if (!state.sentFirstChunk) {
+        chunks.push(createChunk({ role: "assistant" }));
+        state.sentFirstChunk = true;
+      }
+      state.currentText += event.delta;
+      chunks.push(createChunk({ content: event.delta }));
+      break;
+
+    case "response.function_call_arguments.delta":
+      // Tool call arguments delta
+      if (event.call_id) {
+        const tc = state.toolCalls.get(event.call_id);
+        if (tc) {
+          tc.arguments += event.delta;
+          chunks.push(createChunk({
+            tool_calls: [{
+              index: tc.index,
+              function: { arguments: event.delta },
+            }],
+          }));
+        }
+      }
+      break;
+
+    case "response.output_item.done":
+      // Output item complete
+      if (event.item.type === "function_call") {
+        state.finishReason = "tool_calls";
+      }
+      break;
+
+    case "response.done":
+    case "response.completed":
+      // Response complete
+      if (event.response.usage) {
+        state.inputTokens = event.response.usage.input_tokens;
+        state.outputTokens = event.response.usage.output_tokens;
+      }
+
+      // Determine finish reason
+      const hasToolCalls = state.toolCalls.size > 0;
+      const finishReason = hasToolCalls ? "tool_calls" : "stop";
+
+      // Emit final chunk with finish_reason and usage
+      chunks.push(createChunk(
+        {},
+        finishReason,
+        {
+          prompt_tokens: state.inputTokens,
+          completion_tokens: state.outputTokens,
+          total_tokens: state.inputTokens + state.outputTokens,
+        },
+      ));
+      break;
+
+    case "response.failed":
+      // Error in response
+      // Emit error as content for visibility
+      if (!state.sentFirstChunk) {
+        chunks.push(createChunk({ role: "assistant" }));
+        state.sentFirstChunk = true;
+      }
+      chunks.push(createChunk({ content: `[Error: ${event.response.error.message}]` }));
+      chunks.push(createChunk({}, "stop"));
+      break;
+
+    case "error":
+      // SSE error event
+      if (!state.sentFirstChunk) {
+        chunks.push(createChunk({ role: "assistant" }));
+        state.sentFirstChunk = true;
+      }
+      chunks.push(createChunk({ content: `[Error: ${event.message}]` }));
+      chunks.push(createChunk({}, "stop"));
+      break;
+
+    case "response.reasoning.delta":
+      // Reasoning delta - skip (internal to Codex)
+      break;
+  }
+
+  return chunks;
+}
+
+/**
+ * Parse a Codex SSE data line and return the event object.
+ */
+export function parseCodexSSELine(data: string): CodexSSEEvent | null {
+  try {
+    return JSON.parse(data) as CodexSSEEvent;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Finalize a Codex to OpenAI stream conversion.
+ * Ensures a proper finish chunk is sent if the stream ended unexpectedly.
+ */
+export function finalizeCodexToOpenAIStream(
+  state: CodexToOpenAIStreamState,
+): OpenAIStreamChunk[] {
+  const chunks: OpenAIStreamChunk[] = [];
+
+  // If we never sent any chunks, nothing to finalize
+  if (!state.sentFirstChunk) {
+    return chunks;
+  }
+
+  // Emit finish chunk if not already done
+  const hasToolCalls = state.toolCalls.size > 0;
+  chunks.push({
+    id: state.messageId,
+    object: "chat.completion.chunk",
+    created: state.created,
+    model: state.model,
+    choices: [{
+      index: 0,
+      delta: {},
+      finish_reason: hasToolCalls ? "tool_calls" : "stop",
+    }],
+    usage: {
+      prompt_tokens: state.inputTokens,
+      completion_tokens: state.outputTokens,
+      total_tokens: state.inputTokens + state.outputTokens,
+    },
+  });
+
+  return chunks;
+}
