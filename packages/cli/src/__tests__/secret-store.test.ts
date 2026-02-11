@@ -6,6 +6,12 @@ import {
   MachineKeyStore,
   migrateFromPlaintextConfig,
   PROVIDER_SERVICE,
+  OAUTH_SERVICE,
+  storeOAuthToken,
+  getOAuthToken,
+  removeOAuthToken,
+  listOAuthProviders,
+  type OAuthTokenData,
 } from "../secret-store.js";
 
 // ---------------------------------------------------------------------------
@@ -219,5 +225,161 @@ describe("migrateFromPlaintextConfig", () => {
 
     // Key still in store
     expect(await store.get(PROVIDER_SERVICE, "openai")).toBe("sk-test");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OAuth token storage tests
+// ---------------------------------------------------------------------------
+
+describe("OAuth token storage", () => {
+  let tmpDir: string;
+  let secretsPath: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agentgazer-oauth-"));
+    secretsPath = path.join(tmpDir, "secrets.enc");
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  const sampleToken: OAuthTokenData = {
+    accessToken: "access-token-xxx",
+    refreshToken: "refresh-token-yyy",
+    expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    scope: "openid profile email",
+    accountId: "user-abc123",
+  };
+
+  it("storeOAuthToken and getOAuthToken round-trip", async () => {
+    const store = new MachineKeyStore(secretsPath);
+
+    await storeOAuthToken(store, "openai-oauth", sampleToken);
+    const retrieved = await getOAuthToken(store, "openai-oauth");
+
+    expect(retrieved).toEqual(sampleToken);
+  });
+
+  it("getOAuthToken returns null for non-existent provider", async () => {
+    const store = new MachineKeyStore(secretsPath);
+    const token = await getOAuthToken(store, "nonexistent");
+    expect(token).toBeNull();
+  });
+
+  it("removeOAuthToken removes the token", async () => {
+    const store = new MachineKeyStore(secretsPath);
+
+    await storeOAuthToken(store, "openai-oauth", sampleToken);
+    await removeOAuthToken(store, "openai-oauth");
+
+    const retrieved = await getOAuthToken(store, "openai-oauth");
+    expect(retrieved).toBeNull();
+  });
+
+  it("listOAuthProviders returns list of providers with tokens", async () => {
+    const store = new MachineKeyStore(secretsPath);
+
+    await storeOAuthToken(store, "openai-oauth", sampleToken);
+    await storeOAuthToken(store, "another-oauth", {
+      ...sampleToken,
+      accessToken: "different-token",
+    });
+
+    const providers = await listOAuthProviders(store);
+    expect(providers.sort()).toEqual(["another-oauth", "openai-oauth"]);
+  });
+
+  it("listOAuthProviders returns empty array when no tokens stored", async () => {
+    const store = new MachineKeyStore(secretsPath);
+    const providers = await listOAuthProviders(store);
+    expect(providers).toEqual([]);
+  });
+
+  it("OAuth tokens are stored under separate service from provider keys", async () => {
+    const store = new MachineKeyStore(secretsPath);
+
+    // Store both API key and OAuth token
+    await store.set(PROVIDER_SERVICE, "openai", "sk-api-key");
+    await storeOAuthToken(store, "openai-oauth", sampleToken);
+
+    // Provider keys should not include OAuth tokens
+    const providerAccounts = await store.list(PROVIDER_SERVICE);
+    expect(providerAccounts).toContain("openai");
+    expect(providerAccounts).not.toContain("openai-oauth");
+
+    // OAuth service should only have OAuth tokens
+    const oauthAccounts = await store.list(OAUTH_SERVICE);
+    expect(oauthAccounts).toContain("openai-oauth");
+    expect(oauthAccounts).not.toContain("openai");
+  });
+
+  it("stores all OAuth token fields correctly", async () => {
+    const store = new MachineKeyStore(secretsPath);
+
+    const tokenWithAllFields: OAuthTokenData = {
+      accessToken: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.xxx",
+      refreshToken: "refresh-xxx",
+      expiresAt: 1735689600,
+      scope: "openid profile email offline_access",
+      accountId: "user-12345",
+    };
+
+    await storeOAuthToken(store, "openai-oauth", tokenWithAllFields);
+    const retrieved = await getOAuthToken(store, "openai-oauth");
+
+    expect(retrieved?.accessToken).toBe(tokenWithAllFields.accessToken);
+    expect(retrieved?.refreshToken).toBe(tokenWithAllFields.refreshToken);
+    expect(retrieved?.expiresAt).toBe(tokenWithAllFields.expiresAt);
+    expect(retrieved?.scope).toBe(tokenWithAllFields.scope);
+    expect(retrieved?.accountId).toBe(tokenWithAllFields.accountId);
+  });
+
+  it("handles token without optional fields", async () => {
+    const store = new MachineKeyStore(secretsPath);
+
+    const minimalToken: OAuthTokenData = {
+      accessToken: "access-xxx",
+      refreshToken: "refresh-xxx",
+      expiresAt: 1735689600,
+    };
+
+    await storeOAuthToken(store, "openai-oauth", minimalToken);
+    const retrieved = await getOAuthToken(store, "openai-oauth");
+
+    expect(retrieved?.accessToken).toBe(minimalToken.accessToken);
+    expect(retrieved?.refreshToken).toBe(minimalToken.refreshToken);
+    expect(retrieved?.expiresAt).toBe(minimalToken.expiresAt);
+    expect(retrieved?.scope).toBeUndefined();
+    expect(retrieved?.accountId).toBeUndefined();
+  });
+
+  it("overwrites existing token when storing new one", async () => {
+    const store = new MachineKeyStore(secretsPath);
+
+    await storeOAuthToken(store, "openai-oauth", sampleToken);
+
+    const newToken: OAuthTokenData = {
+      accessToken: "new-access-token",
+      refreshToken: "new-refresh-token",
+      expiresAt: 9999999999,
+    };
+    await storeOAuthToken(store, "openai-oauth", newToken);
+
+    const retrieved = await getOAuthToken(store, "openai-oauth");
+    expect(retrieved?.accessToken).toBe("new-access-token");
+    expect(retrieved?.expiresAt).toBe(9999999999);
+  });
+
+  it("persists OAuth tokens across store instances", async () => {
+    const store1 = new MachineKeyStore(secretsPath);
+    await storeOAuthToken(store1, "openai-oauth", sampleToken);
+
+    // Create new instance reading from same file
+    const store2 = new MachineKeyStore(secretsPath);
+    const retrieved = await getOAuthToken(store2, "openai-oauth");
+
+    expect(retrieved).toEqual(sampleToken);
   });
 });

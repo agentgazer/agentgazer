@@ -1,5 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { detectProvider, detectProviderByHostname, getProviderBaseUrl, getProviderChatEndpoint, getProviderAuthHeader } from "../providers.js";
+import {
+  detectProvider,
+  detectProviderByHostname,
+  getProviderBaseUrl,
+  getProviderChatEndpoint,
+  getProviderAuthHeader,
+  isOAuthProvider,
+  isSubscriptionProvider,
+  OAUTH_CONFIG,
+  KNOWN_PROVIDER_NAMES,
+  SELECTABLE_PROVIDER_NAMES,
+} from "../providers.js";
 
 describe("detectProvider", () => {
   describe("OpenAI", () => {
@@ -388,5 +399,99 @@ describe("getProviderAuthHeader", () => {
 
   it("returns null for unknown provider", () => {
     expect(getProviderAuthHeader("unknown", "key")).toBeNull();
+  });
+
+  it("returns Bearer Authorization for openai-oauth", () => {
+    const result = getProviderAuthHeader("openai-oauth", "oauth-token");
+    expect(result).toEqual({ name: "authorization", value: "Bearer oauth-token" });
+  });
+});
+
+describe("isOAuthProvider", () => {
+  it("returns true for openai-oauth", () => {
+    expect(isOAuthProvider("openai-oauth")).toBe(true);
+  });
+
+  it("returns false for regular openai", () => {
+    expect(isOAuthProvider("openai")).toBe(false);
+  });
+
+  it("returns false for other providers", () => {
+    expect(isOAuthProvider("anthropic")).toBe(false);
+    expect(isOAuthProvider("google")).toBe(false);
+    expect(isOAuthProvider("mistral")).toBe(false);
+    expect(isOAuthProvider("unknown")).toBe(false);
+  });
+});
+
+describe("isSubscriptionProvider", () => {
+  it("returns true for openai-oauth (Codex subscription)", () => {
+    expect(isSubscriptionProvider("openai-oauth")).toBe(true);
+  });
+
+  it("returns false for regular openai (pay-per-token)", () => {
+    expect(isSubscriptionProvider("openai")).toBe(false);
+  });
+
+  it("returns false for other providers", () => {
+    expect(isSubscriptionProvider("anthropic")).toBe(false);
+    expect(isSubscriptionProvider("google")).toBe(false);
+    expect(isSubscriptionProvider("deepseek")).toBe(false);
+    expect(isSubscriptionProvider("unknown")).toBe(false);
+  });
+});
+
+describe("OAUTH_CONFIG", () => {
+  it("has configuration for openai-oauth", () => {
+    expect(OAUTH_CONFIG["openai-oauth"]).toBeDefined();
+  });
+
+  it("has correct OAuth URLs for openai-oauth", () => {
+    const config = OAUTH_CONFIG["openai-oauth"];
+    expect(config.authorizeUrl).toBe("https://auth.openai.com/oauth/authorize");
+    expect(config.tokenUrl).toBe("https://auth.openai.com/oauth/token");
+    expect(config.deviceCodeUrl).toBe("https://auth.openai.com/codex/device");
+  });
+
+  it("has correct callback configuration for openai-oauth", () => {
+    const config = OAUTH_CONFIG["openai-oauth"];
+    expect(config.callbackPort).toBe(1455);
+    expect(config.callbackPath).toBe("/auth/callback");
+  });
+
+  it("has required scopes for openai-oauth", () => {
+    const config = OAUTH_CONFIG["openai-oauth"];
+    expect(config.scopes).toContain("openid");
+    expect(config.scopes).toContain("offline_access");
+  });
+
+  it("has extra auth params for Codex CLI flow", () => {
+    const config = OAUTH_CONFIG["openai-oauth"];
+    expect(config.extraAuthParams).toBeDefined();
+    expect(config.extraAuthParams.codex_cli_simplified_flow).toBe("true");
+    expect(config.extraAuthParams.originator).toBe("pi");
+  });
+
+  it("has Codex API endpoint", () => {
+    const config = OAUTH_CONFIG["openai-oauth"];
+    expect(config.apiEndpoint).toBe("https://chatgpt.com/backend-api/codex/responses");
+  });
+});
+
+describe("openai-oauth provider configuration", () => {
+  it("is included in KNOWN_PROVIDER_NAMES", () => {
+    expect(KNOWN_PROVIDER_NAMES).toContain("openai-oauth");
+  });
+
+  it("is included in SELECTABLE_PROVIDER_NAMES", () => {
+    expect(SELECTABLE_PROVIDER_NAMES).toContain("openai-oauth");
+  });
+
+  it("has correct base URL", () => {
+    expect(getProviderBaseUrl("openai-oauth")).toBe("https://chatgpt.com/backend-api/codex");
+  });
+
+  it("has correct chat endpoint (Codex Responses API)", () => {
+    expect(getProviderChatEndpoint("openai-oauth")).toBe("https://chatgpt.com/backend-api/codex/responses");
   });
 });

@@ -311,6 +311,24 @@ describe("calculateCost", () => {
     const cost = calculateCost("command-r-plus", 100, 50);
     expect(cost).toBeCloseTo(0.00075, 10);
   });
+
+  it("returns 0 for subscription provider (openai-oauth)", () => {
+    // openai-oauth uses subscription billing, not per-token
+    // Provider is the 5th parameter (after cacheTokens)
+    const cost = calculateCost("gpt-4o", 1_000_000, 1_000_000, undefined, "openai-oauth");
+    expect(cost).toBe(0);
+  });
+
+  it("returns 0 for subscription provider even with large token counts", () => {
+    const cost = calculateCost("gpt-4o", 10_000_000, 5_000_000, undefined, "openai-oauth");
+    expect(cost).toBe(0);
+  });
+
+  it("charges normally for openai (non-subscription)", () => {
+    // Regular openai provider should still charge
+    const cost = calculateCost("gpt-4o", 1000, 500, undefined, "openai");
+    expect(cost).toBeCloseTo(0.0075, 10);
+  });
 });
 
 describe("listSupportedModels", () => {
