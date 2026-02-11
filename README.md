@@ -35,13 +35,9 @@ This starts a local Express+SQLite server, an LLM proxy, and a web dashboard —
 
 ## How it works
 
-AgentGazer has two ways to capture data:
+Point your LLM client's base URL at `http://localhost:18900`. The proxy forwards requests to the real provider, extracts usage metrics from responses (including SSE streams), and records them locally.
 
-1. **LLM Proxy** (zero-code) — Point your LLM client's base URL at `http://localhost:18900`. The proxy forwards requests to the real provider, extracts usage metrics from responses (including SSE streams), and records them locally.
-
-2. **SDK** (manual instrumentation) — Import `@agentgazer/sdk` into your agent code and call `track()` to record events with full control over what gets captured.
-
-Both approaches store data in a local SQLite database (`~/.agentgazer/data.db`) and expose it through a REST API and web dashboard.
+All data is stored in a local SQLite database (`~/.agentgazer/data.db`) and exposed through a REST API and web dashboard.
 
 ## Governance Features
 
@@ -115,56 +111,6 @@ curl http://localhost:18900/agents/my-agent/openai \
 ```
 
 The proxy automatically injects the stored API key and handles provider-specific endpoints.
-
-### Using the SDK
-
-```bash
-npm install @agentgazer/sdk
-```
-
-```typescript
-import { AgentGazer } from "@agentgazer/sdk";
-
-const at = AgentGazer.init({
-  apiKey: "your-token",        // from ~/.agentgazer/config.json
-  agentId: "my-agent",
-  endpoint: "http://localhost:18800/api/events",
-});
-
-// Track an LLM call
-at.track({
-  provider: "openai",
-  model: "gpt-4o",
-  tokens: { input: 150, output: 50 },
-  latency_ms: 1200,
-  status: 200,
-});
-
-// Track errors
-at.error(new Error("Agent failed to parse response"));
-
-// Send heartbeats
-at.heartbeat();
-
-// Distributed tracing
-const trace = at.startTrace();
-const span = trace.startSpan("planning");
-const childSpan = span.startSpan("tool-call");
-
-at.track({
-  provider: "anthropic",
-  model: "claude-sonnet-4-20250514",
-  trace_id: trace.traceId,
-  span_id: childSpan.spanId,
-  parent_span_id: childSpan.parentSpanId,
-  tokens: { input: 500, output: 200 },
-  latency_ms: 3000,
-  status: 200,
-});
-
-// Flush and shut down when done
-await at.shutdown();
-```
 
 ## CLI commands
 
@@ -341,7 +287,6 @@ This builds and runs AgentGazer with persistent storage. The dashboard is availa
 | `agentgazer` | CLI entry point — starts server, proxy, and dashboard |
 | `@agentgazer/server` | Express API server with SQLite storage |
 | `@agentgazer/proxy` | Transparent LLM proxy with metric extraction |
-| `@agentgazer/sdk` | Client SDK for manual instrumentation |
 | `@agentgazer/shared` | Shared types, schemas, provider detection, and pricing |
 
 ## Cost tracking
