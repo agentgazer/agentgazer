@@ -14,6 +14,27 @@ export function relativeTime(iso: string | null | undefined): string {
   return `${days}d ago`;
 }
 
+export function formatTimestamp(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
+}
+
+export function formatTime(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return "-";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "-";
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 export function formatCost(n: number): string {
   return `$${n.toFixed(4)}`;
 }

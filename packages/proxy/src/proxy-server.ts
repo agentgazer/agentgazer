@@ -265,7 +265,7 @@ function normalizeRequestBody(
   const streamOptionsProviders = new Set(["openai", "deepseek", "moonshot", "zhipu", "minimax", "yi", "baichuan"]);
 
   // Providers that don't support stream_options at all
-  const noStreamOptionsProviders = new Set(["anthropic", "google", "mistral", "cohere"]);
+  const noStreamOptionsProviders = new Set(["anthropic", "google", "mistral"]);
 
   // max_completion_tokens -> max_tokens conversion for non-OpenAI providers
   if (provider !== "openai" && "max_completion_tokens" in result) {
@@ -359,25 +359,6 @@ function normalizeRequestBody(
           changes.push(`-${field}`);
           modified = true;
         }
-      }
-      break;
-    case "cohere":
-      // Cohere uses different field names and doesn't support some OpenAI fields
-      // See: https://docs.cohere.com/reference/chat
-      const cohereUnsupported = ["top_logprobs", "n", "user"];
-      for (const field of cohereUnsupported) {
-        if (field in result) {
-          delete result[field];
-          changes.push(`-${field}`);
-          modified = true;
-        }
-      }
-      // top_p → p for Cohere
-      if ("top_p" in result && !("p" in result)) {
-        result.p = result.top_p;
-        delete result.top_p;
-        changes.push("top_p→p");
-        modified = true;
       }
       break;
   }
@@ -594,43 +575,6 @@ function parseGoogleStreamingResponse(
   };
 }
 
-function parseCohereSSE(
-  dataLines: string[],
-  statusCode: number
-): ParsedResponse {
-  let tokensIn: number | null = null;
-  let tokensOut: number | null = null;
-
-  for (const line of dataLines) {
-    try {
-      const data = JSON.parse(line);
-      if (data.meta?.billed_units) {
-        tokensIn = data.meta.billed_units.input_tokens ?? null;
-        tokensOut = data.meta.billed_units.output_tokens ?? null;
-      }
-      // Cohere v2 chat streaming uses response.meta at the end
-      if (data.response?.meta?.billed_units) {
-        tokensIn = data.response.meta.billed_units.input_tokens ?? null;
-        tokensOut = data.response.meta.billed_units.output_tokens ?? null;
-      }
-    } catch {
-      continue;
-    }
-  }
-
-  const tokensTotal =
-    tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null;
-
-  return {
-    model: null,
-    tokensIn,
-    tokensOut,
-    tokensTotal,
-    statusCode,
-    errorMessage: null,
-  };
-}
-
 /**
  * Parse Codex (OpenAI Responses API) SSE format.
  * Codex uses response.done/response.completed events with usage info.
@@ -716,8 +660,6 @@ function parseSSEResponse(
       return parseCodexSSE(dataLines, statusCode);
     case "anthropic":
       return parseAnthropicSSE(dataLines, statusCode);
-    case "cohere":
-      return parseCohereSSE(dataLines, statusCode);
     default:
       return null;
   }
@@ -1285,7 +1227,10 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
 
       let targetUrl: string;
-      if (providerUsesPathRouting(routeProvider) && trailingPath) {
+      if (routeProvider === "agentgazer") {
+        // Virtual provider - requires cross-provider override (resolved in handleSimplifiedRoute)
+        targetUrl = "PLACEHOLDER_REQUIRES_OVERRIDE";
+      } else if (providerUsesPathRouting(routeProvider) && trailingPath) {
         // Path-based routing: append trailing path to root URL
         const rootUrl = getProviderRootUrl(routeProvider);
         if (!rootUrl) {
@@ -1353,13 +1298,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   }
 
   function extractStreamingMetrics(
-    provider: ProviderName,
+    provider: ProviderName,  // For response parsing
     statusCode: number,
     sseBody: Buffer,
     latencyMs: number,
     effectiveAgentId: string,
     requestedModel: string | null,
     actualModel: string | null,  // Model after override (for cost calculation)
+    eventProvider?: ProviderName,  // For event recording (defaults to provider)
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping streaming metric extraction");
@@ -1392,7 +1338,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const event: AgentEvent = {
       agent_id: effectiveAgentId,
       event_type: "llm_call",
-      provider,
+      provider: eventProvider ?? provider,  // Use original provider for event
       model: effectiveModel,
       requested_model: requestedModel,
       tokens_in: parsed.tokensIn,
@@ -1410,13 +1356,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   }
 
   function extractAndQueueMetrics(
-    provider: ProviderName,
+    provider: ProviderName,  // For response parsing
     statusCode: number,
     responseBody: Buffer,
     latencyMs: number,
     effectiveAgentId: string,
     requestedModel: string | null,
     actualModel: string | null,  // Model after override (for cost calculation)
+    eventProvider?: ProviderName,  // For event recording (defaults to provider)
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping metric extraction");
@@ -1457,7 +1404,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const event: AgentEvent = {
       agent_id: effectiveAgentId,
       event_type: "llm_call",
-      provider,
+      provider: eventProvider ?? provider,  // Use original provider for event
       model: effectiveModel,
       requested_model: requestedModel,
       tokens_in: parsed.tokensIn,
@@ -1620,6 +1567,102 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Always check for model override rules (even if request has no model)
       // This handles providers like Google where model is in URL, not body
       const override = getModelOverride(db, effectiveAgentId, provider);
+
+      // Virtual "agentgazer" provider requires cross-provider override
+      // But if model is "agentgazer-proxy", return connection success and create agent
+      if (provider === "agentgazer" && !override.targetProvider) {
+        if (requestedModel === "agentgazer-proxy" && db) {
+          // Connection test - create agent and return success
+          log.info(`[PROXY] AgentGazer connection test for agent: ${effectiveAgentId}`);
+          upsertAgent(db, effectiveAgentId);
+
+          // Record connection event
+          const event: AgentEvent = {
+            agent_id: effectiveAgentId,
+            event_type: "custom",
+            provider: "agentgazer",
+            model: "agentgazer-proxy",
+            tokens_in: 0,
+            tokens_out: 0,
+            tokens_total: 0,
+            cost_usd: 0,
+            latency_ms: 0,
+            status_code: 200,
+            source: "proxy",
+            timestamp: new Date().toISOString(),
+            tags: { event_name: "connection_test" },
+          };
+          eventBuffer.add(event);
+
+          const messageContent = `AgentGazer connected successfully for agent "${effectiveAgentId}".\n\nNext step: Go to Dashboard > Agents > ${effectiveAgentId} > Model Settings and configure the "agentgazer" provider with your desired model and target provider.`;
+          const completionId = `chatcmpl-${Date.now()}`;
+          const created = Math.floor(Date.now() / 1000);
+
+          if (isStreaming) {
+            // Return OpenAI streaming response (SSE)
+            res.writeHead(200, {
+              "Content-Type": "text/event-stream",
+              "Cache-Control": "no-cache",
+              "Connection": "keep-alive",
+            });
+
+            // Send content chunk
+            const chunk = {
+              id: completionId,
+              object: "chat.completion.chunk",
+              created,
+              model: "agentgazer-proxy",
+              choices: [{
+                index: 0,
+                delta: { role: "assistant", content: messageContent },
+                finish_reason: null,
+              }],
+            };
+            res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+
+            // Send finish chunk
+            const finishChunk = {
+              id: completionId,
+              object: "chat.completion.chunk",
+              created,
+              model: "agentgazer-proxy",
+              choices: [{
+                index: 0,
+                delta: {},
+                finish_reason: "stop",
+              }],
+            };
+            res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
+            res.write("data: [DONE]\n\n");
+            res.end();
+          } else {
+            // Return OpenAI non-streaming response
+            sendJson(res, 200, {
+              id: completionId,
+              object: "chat.completion",
+              created,
+              model: "agentgazer-proxy",
+              choices: [{
+                index: 0,
+                message: {
+                  role: "assistant",
+                  content: messageContent,
+                },
+                finish_reason: "stop",
+              }],
+              usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+            });
+          }
+          return;
+        }
+
+        log.error(`[PROXY] Provider "agentgazer" requires cross-provider override. Configure Model Settings in Dashboard.`);
+        sendJson(res, 400, {
+          error: "AgentGazer proxy requires Model Settings configuration",
+          hint: "Go to Dashboard > Agents > Model Settings and set Target Provider for agentgazer",
+        });
+        return;
+      }
 
       // Apply model override if configured
       if (override.model) {
@@ -2245,8 +2288,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       const fullBody = Buffer.concat(chunks);
 
       try {
-        // Use effective provider for metrics extraction
-        extractStreamingMetrics(effectiveProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel);
+        // Use effective provider for parsing, original provider for event recording
+        extractStreamingMetrics(effectiveProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
@@ -2325,8 +2368,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       res.end(finalResponseBody);
 
       try {
-        // Use effective provider for metrics, but pass original response for parsing
-        extractAndQueueMetrics(effectiveProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel);
+        // Use effective provider for parsing, original provider for event recording
+        extractAndQueueMetrics(effectiveProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }

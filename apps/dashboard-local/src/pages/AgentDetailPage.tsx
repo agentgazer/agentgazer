@@ -145,6 +145,11 @@ export default function AgentDetailPage() {
         </div>
       )}
 
+      {/* Model Settings */}
+      <div className="mt-6">
+        <ModelSettings agentId={agentId!} />
+      </div>
+
       {/* Policy Settings */}
       <div className="mt-6">
         <PolicySettings agentId={agentId!} />
@@ -153,11 +158,6 @@ export default function AgentDetailPage() {
       {/* Kill Switch Settings */}
       <div className="mt-6">
         <KillSwitchSettings agentId={agentId!} />
-      </div>
-
-      {/* Model Settings */}
-      <div className="mt-6">
-        <ModelSettings agentId={agentId!} />
       </div>
 
       {/* Rate Limit Settings */}

@@ -138,23 +138,6 @@ describe("validateProviderKey", () => {
     });
   });
 
-  describe("Cohere validation", () => {
-    it("returns valid with models list on success", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: () => Promise.resolve({
-          models: [{ name: "command-r" }, { name: "command-r-plus" }],
-        }),
-      });
-
-      const result = await validateProviderKey("cohere", "test-key");
-
-      expect(result.valid).toBe(true);
-      expect(result.models).toContain("command-r");
-    });
-  });
-
   describe("DeepSeek validation", () => {
     it("returns valid with models list on success", async () => {
       global.fetch = vi.fn().mockResolvedValue({

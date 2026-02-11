@@ -23,8 +23,6 @@ export async function validateProviderKey(
       return validateGoogle(apiKey);
     case "mistral":
       return validateMistral(apiKey);
-    case "cohere":
-      return validateCohere(apiKey);
     case "deepseek":
       return validateDeepSeek(apiKey);
     case "moonshot":
@@ -163,27 +161,6 @@ async function validateMistral(apiKey: string): Promise<ValidationResult> {
 
     const data = await res.json() as { data: { id: string }[] };
     const models = data.data?.map(m => m.id) ?? [];
-    return { valid: true, models };
-  } catch (err) {
-    return { valid: false, error: String(err) };
-  }
-}
-
-async function validateCohere(apiKey: string): Promise<ValidationResult> {
-  try {
-    const res = await fetch("https://api.cohere.com/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
-
-    if (res.status === 401) {
-      return { valid: false, error: "Invalid API key" };
-    }
-    if (!res.ok) {
-      return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` };
-    }
-
-    const data = await res.json() as { models: { name: string }[] };
-    const models = data.models?.map(m => m.name) ?? [];
     return { valid: true, models };
   } catch (err) {
     return { valid: false, error: String(err) };

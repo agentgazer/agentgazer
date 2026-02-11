@@ -4,12 +4,12 @@ export type ProviderName =
   | "anthropic"
   | "google"
   | "mistral"
-  | "cohere"
   | "deepseek"
   | "moonshot"
   | "zhipu"
   | "minimax"
   | "baichuan"
+  | "agentgazer"
   | "unknown";
 
 interface ProviderPattern {
@@ -25,12 +25,12 @@ export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   anthropic: "Anthropic (Claude)",
   google: "Google (Gemini)",
   mistral: "Mistral",
-  cohere: "Cohere (Command)",
   deepseek: "DeepSeek",
   moonshot: "Moonshot (Kimi)",
   zhipu: "Zhipu (GLM-4)",
   minimax: "MiniMax (abab)",
   baichuan: "Baichuan",
+  agentgazer: "AgentGazer (Proxy)",
 };
 
 /** All known provider names (excludes "unknown"). Single source of truth. */
@@ -40,12 +40,12 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "anthropic",
   "google",
   "mistral",
-  "cohere",
   "deepseek",
   "moonshot",
   "zhipu",
   "minimax",
   "baichuan",
+  "agentgazer",
 ];
 
 /**
@@ -58,7 +58,6 @@ export const SELECTABLE_PROVIDER_NAMES: ProviderName[] = [
   "anthropic",
   "google",
   "mistral",
-  "cohere",
   "deepseek",
   "moonshot",
   "zhipu",
@@ -84,10 +83,6 @@ const PROVIDER_PATTERNS: ProviderPattern[] = [
   {
     name: "mistral",
     hostPatterns: [/^api\.mistral\.ai$/],
-  },
-  {
-    name: "cohere",
-    hostPatterns: [/^api\.cohere\.com$/, /^api\.cohere\.ai$/],
   },
   {
     name: "deepseek",
@@ -175,7 +170,6 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
     anthropic: "https://api.anthropic.com/v1",
     google: "https://generativelanguage.googleapis.com/v1beta/openai",
     mistral: "https://api.mistral.ai/v1",
-    cohere: "https://api.cohere.com/v2",
     deepseek: "https://api.deepseek.com/v1",
     moonshot: "https://api.moonshot.ai/v1",
     zhipu: "https://api.z.ai/api/paas/v4",
@@ -197,7 +191,6 @@ export function getProviderRootUrl(provider: ProviderName): string | null {
     anthropic: "https://api.anthropic.com",
     google: "https://generativelanguage.googleapis.com/v1beta",  // Include version prefix
     mistral: "https://api.mistral.ai",
-    cohere: "https://api.cohere.com",
     deepseek: "https://api.deepseek.com",
     moonshot: "https://api.moonshot.ai",
     zhipu: "https://api.z.ai",
@@ -228,7 +221,6 @@ export function getProviderChatEndpoint(provider: ProviderName): string | null {
     anthropic: "https://api.anthropic.com/v1/messages",
     google: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     mistral: "https://api.mistral.ai/v1/chat/completions",
-    cohere: "https://api.cohere.com/v2/chat",
     deepseek: "https://api.deepseek.com/v1/chat/completions",
     moonshot: "https://api.moonshot.ai/v1/chat/completions",
     zhipu: "https://api.z.ai/api/paas/v4/chat/completions",
@@ -252,7 +244,6 @@ export function getProviderAuthHeader(
     case "openai":
     case "openai-oauth":
     case "mistral":
-    case "cohere":
     case "deepseek":
     case "moonshot":
     case "zhipu":

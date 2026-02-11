@@ -23,7 +23,6 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   anthropic: "Anthropic",
   google: "Google",
   mistral: "Mistral",
-  cohere: "Cohere",
   deepseek: "DeepSeek",
   moonshot: "Moonshot",
   zhipu: "Zhipu",

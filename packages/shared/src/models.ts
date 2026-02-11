@@ -60,12 +60,6 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "mistral-small-latest",
     "codestral-latest",
   ],
-  cohere: [
-    "command-a-03-2025",
-    "command-r-plus-08-2024",
-    "command-r-08-2024",
-    "command-r7b-12-2024",
-  ],
   deepseek: [
     "deepseek-chat",
     "deepseek-reasoner",

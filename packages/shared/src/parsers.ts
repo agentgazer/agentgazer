@@ -122,37 +122,11 @@ function parseMistral(body: unknown, statusCode: number): ParsedResponse {
   return parseOpenAI(body, statusCode);
 }
 
-function parseCohere(body: unknown, statusCode: number): ParsedResponse {
-  if (statusCode >= 400) {
-    const err = body as { message?: string };
-    return makeErrorResult(statusCode, err?.message);
-  }
-  const data = body as {
-    meta?: {
-      billed_units?: {
-        input_tokens?: number;
-        output_tokens?: number;
-      };
-    };
-  };
-  const tokensIn = data.meta?.billed_units?.input_tokens ?? null;
-  const tokensOut = data.meta?.billed_units?.output_tokens ?? null;
-  return {
-    model: null,  // Cohere doesn't always echo model in response
-    tokensIn,
-    tokensOut,
-    tokensTotal: tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null,
-    statusCode,
-    errorMessage: null,
-  };
-}
-
 const PARSERS: Record<string, ResponseParser> = {
   openai: parseOpenAI,
   anthropic: parseAnthropic,
   google: parseGoogle,
   mistral: parseMistral,
-  cohere: parseCohere,
   deepseek: parseOpenAI,
   moonshot: parseOpenAI,
   zhipu: parseOpenAI,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { eventsApi, api, type EventRow, type EventsQueryParams } from "../lib/api";
-import { formatCost } from "../lib/format";
+import { formatCost, formatTimestamp } from "../lib/format";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 
@@ -37,11 +37,6 @@ function getTimeRangeFrom(range: string): string | undefined {
     default:
       return undefined;
   }
-}
-
-function formatTimestamp(ts: string): string {
-  const d = new Date(ts);
-  return d.toLocaleString();
 }
 
 function getStatusColor(statusCode: number | null, eventType: string): string {

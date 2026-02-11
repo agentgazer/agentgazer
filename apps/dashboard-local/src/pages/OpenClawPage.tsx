@@ -12,12 +12,12 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 
 function generateOpenclawConfig(
-  proxyPort: number = 18900,
+  proxyHost: string = "localhost:18900",
   agentName: string = ""
 ): OpenclawModels {
   // Simplified approach: single "agentgazer" provider pointing to proxy
   // AgentGazer handles all routing via cross-provider override
-  const baseUrl = `http://localhost:${proxyPort}/agents/${agentName || "openclaw"}/openai`;
+  const baseUrl = `http://${proxyHost}/agents/${agentName || "openclaw"}/agentgazer`;
 
   return {
     mode: "merge",
@@ -27,7 +27,7 @@ function generateOpenclawConfig(
         apiKey: "managed-by-agentgazer",
         api: "openai-completions",
         models: [
-          { id: "default", name: "AgentGazer Proxy" },
+          { id: "agentgazer-proxy", name: "AgentGazer Proxy" },
         ],
       },
     },
@@ -43,7 +43,7 @@ export default function OpenClawPage() {
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [configSuccess, setConfigSuccess] = useState(false);
-  const [proxyPort] = useState(18900); // Could be made configurable
+  const [proxyHost, setProxyHost] = useState("localhost:18900");
   const [agentName, setAgentName] = useState<string>("openclaw");
   // OAuth state
   const [oauthLoading, setOauthLoading] = useState(false);
@@ -74,8 +74,8 @@ export default function OpenClawPage() {
   }, [loadData]);
 
   const configuredProviders = providers.filter((p) => p.configured && p.active);
-  const generatedConfig = generateOpenclawConfig(proxyPort, agentName);
-  const primaryModel = "agentgazer/default";
+  const generatedConfig = generateOpenclawConfig(proxyHost, agentName);
+  const primaryModel = "agentgazer/agentgazer-proxy";
 
   async function handleApply() {
     setApplying(true);
@@ -318,8 +318,25 @@ export default function OpenClawPage() {
         </h2>
         <p className="mb-3 text-sm text-gray-400">
           This configuration will route your OpenClaw LLM requests through
-          AgentGazer proxy (port {proxyPort}).
+          AgentGazer proxy.
         </p>
+
+        {/* Proxy Host Input */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-300">
+            Proxy Host
+          </label>
+          <input
+            type="text"
+            value={proxyHost}
+            onChange={(e) => setProxyHost(e.target.value)}
+            placeholder="localhost:18900"
+            className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            AgentGazer proxy address (use internal IP for network access, e.g., 192.168.1.100:18900)
+          </p>
+        </div>
 
         {/* Agent Name Input */}
         <div className="mb-4">
@@ -380,6 +397,9 @@ export default function OpenClawPage() {
             Send a test message through OpenClaw (Discord, Telegram, etc.)
           </li>
           <li>Check the Agents page to see your OpenClaw agent appear</li>
+          <li>
+            Go to <span className="text-white">Agents → {agentName || "openclaw"} → Model Settings</span> and configure the <span className="text-white">agentgazer</span> provider with your desired model and target provider
+          </li>
         </ol>
       </div>
 
@@ -402,7 +422,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   anthropic: "Anthropic (Claude Opus, Sonnet, Haiku)",
   google: "Google (Gemini)",
   mistral: "Mistral (Mistral Large, Codestral)",
-  cohere: "Cohere (Command R+)",
   deepseek: "DeepSeek (V3, R1)",
   moonshot: "Moonshot (Kimi K2.5)",
   zhipu: "Zhipu / Z.ai (GLM-4.7)",
@@ -430,7 +449,6 @@ function AddProviderModal({
     "anthropic",
     "google",
     "mistral",
-    "cohere",
     "deepseek",
     "moonshot",
     "zhipu",

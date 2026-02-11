@@ -31,8 +31,8 @@ agentgazer start
 
 1. Go to **OpenClaw** page in the sidebar
 2. Verify your providers are listed under "Prerequisites"
-3. Enter an **Agent Name** (e.g., `openclaw`)
-4. Select a **Default Model** from the dropdown
+3. Set **Proxy Host** (default: `localhost:18900`, use internal IP for network access)
+4. Enter an **Agent Name** (e.g., `openclaw`)
 5. Click **Apply Configuration**
 
 This automatically writes to `~/.openclaw/openclaw.json`.
@@ -43,9 +43,16 @@ This automatically writes to `~/.openclaw/openclaw.json`.
 openclaw restart
 ```
 
-### Step 5: Verify
+### Step 5: Send a Test Message
 
-Send a test message through OpenClaw (Discord, Telegram, etc.), then check the **Agents** page — your OpenClaw agent should appear with request data.
+Send a test message through OpenClaw (Discord, Telegram, etc.), then check the **Agents** page — your OpenClaw agent should appear.
+
+### Step 6: Configure Model Routing
+
+1. Go to **Agents** → **openclaw** → **Model Settings**
+2. For the `agentgazer` provider, configure:
+   - **Model Override**: The actual model to use (e.g., `claude-sonnet-4-20250514`)
+   - **Target Provider**: The actual provider (e.g., `anthropic`)
 
 ## How It Works
 
@@ -120,12 +127,12 @@ If you prefer to edit `~/.openclaw/openclaw.json` manually:
   "models": {
     "mode": "merge",
     "providers": {
-      "anthropic-traced": {
-        "baseUrl": "http://localhost:18900/agents/openclaw/anthropic",
+      "agentgazer": {
+        "baseUrl": "http://localhost:18900/agents/openclaw/agentgazer",
         "apiKey": "managed-by-agentgazer",
-        "api": "anthropic-messages",
+        "api": "openai-completions",
         "models": [
-          { "id": "claude-sonnet-4-20250514", "name": "claude-sonnet-4-20250514" }
+          { "id": "agentgazer-proxy", "name": "AgentGazer Proxy" }
         ]
       }
     }
@@ -133,30 +140,30 @@ If you prefer to edit `~/.openclaw/openclaw.json` manually:
   "agents": {
     "defaults": {
       "model": {
-        "primary": "anthropic-traced/claude-sonnet-4-20250514"
+        "primary": "agentgazer/agentgazer-proxy"
       }
     }
   }
 }
 ```
 
-### URL Format
+### How It Works
 
-```
-http://localhost:18900/agents/{agent-name}/{provider}
-```
+1. OpenClaw sends all requests to the `agentgazer` provider
+2. The proxy receives requests at `/agents/openclaw/agentgazer`
+3. AgentGazer looks up **Model Override Rules** for the agent and routes to the actual provider
 
-- `{agent-name}` — Identifies this agent in AgentGazer (e.g., `openclaw`)
-- `{provider}` — Provider name: `anthropic`, `openai`, `google`, etc.
+### Setting Up Model Routing
 
-### Supported Providers
+After applying the config, set up routing in the Dashboard:
 
-| Provider | API Type |
-|----------|----------|
-| `anthropic` | `anthropic-messages` |
-| `openai` | `openai-completions` |
-| `google` | `google-generative-ai` |
-| Others | `openai-completions` (OpenAI-compatible) |
+1. Go to **Agents** → **openclaw** (appears after first request)
+2. Click **Model Settings**
+3. For the `agentgazer` provider entry, configure:
+   - **Model Override**: The actual model to use (e.g., `claude-sonnet-4-20250514`)
+   - **Target Provider**: The actual provider (e.g., `anthropic`)
+
+This allows you to change which model/provider OpenClaw uses without editing its config file.
 
 ### API Key Handling
 

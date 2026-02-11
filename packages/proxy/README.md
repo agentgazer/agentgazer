@@ -8,7 +8,6 @@ Transparent HTTP proxy for LLM API calls. Forwards requests to upstream provider
 - Anthropic (`api.anthropic.com`)
 - Google (`generativelanguage.googleapis.com`)
 - Mistral (`api.mistral.ai`)
-- Cohere (`api.cohere.com`)
 - DeepSeek (`api.deepseek.com`)
 - Moonshot (`api.moonshot.cn`)
 - Zhipu / GLM (`open.bigmodel.cn`)
@@ -80,7 +79,7 @@ When `providerKeys` is configured, the proxy injects the correct auth header per
 
 | Provider | Header |
 |----------|--------|
-| OpenAI, Mistral, Cohere, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan | `Authorization: Bearer <key>` |
+| OpenAI, Mistral, DeepSeek, Moonshot, Zhipu, MiniMax, Baichuan | `Authorization: Bearer <key>` |
 | Anthropic | `x-api-key: <key>` |
 | Google | `x-goog-api-key: <key>` |
 

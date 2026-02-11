@@ -48,7 +48,7 @@ agentgazer providers list
 
 When a request goes through the proxy, the correct auth header is injected automatically:
 
-- OpenAI / Mistral / Cohere / DeepSeek / Moonshot / Zhipu / MiniMax / Baichuan → `Authorization: Bearer <key>`
+- OpenAI / Mistral / DeepSeek / Moonshot / Zhipu / MiniMax / Baichuan → `Authorization: Bearer <key>`
 - Anthropic → `x-api-key: <key>`
 - Google → `x-goog-api-key: <key>`
 

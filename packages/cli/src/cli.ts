@@ -370,35 +370,26 @@ async function cmdOnboard(): Promise<void> {
   const { store, backendName } = await detectSecretStore(getConfigDir());
   console.log(`  Secret backend: ${backendName}\n`);
 
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
   let providerCount = 0;
 
-  try {
-    console.log("  Configure provider API keys (the proxy will inject these for you).");
-    const providerList = KNOWN_PROVIDERS.map(p => PROVIDER_DISPLAY_NAMES[p] || p).join(", ");
-    console.log(`  Available: ${providerList}\n`);
+  console.log("  Configure provider API keys (the proxy will inject these for you).");
+  const providerList = KNOWN_PROVIDERS.map(p => PROVIDER_DISPLAY_NAMES[p] || p).join(", ");
+  console.log(`  Available: ${providerList}\n`);
 
-    for (const provider of KNOWN_PROVIDERS) {
-      const displayName = PROVIDER_DISPLAY_NAMES[provider] || provider;
-      const key = await askSecret(`  API key for ${displayName} (Enter to skip): `);
-      if (!key) continue;
+  for (const provider of KNOWN_PROVIDERS) {
+    const displayName = PROVIDER_DISPLAY_NAMES[provider] || provider;
+    const key = await askSecret(`  API key for ${displayName} (Enter to skip): `);
+    if (!key) continue;
 
-      // Store API key in secret store
-      await store.set(PROVIDER_SERVICE, provider, key);
+    // Store API key in secret store
+    await store.set(PROVIDER_SERVICE, provider, key);
 
-      // Store provider entry in config.json (apiKey is empty — actual key is in secret store)
-      const providerConfig: ProviderConfig = { apiKey: "" };
-      setProvider(provider, providerConfig);
+    // Store provider entry in config.json (apiKey is empty — actual key is in secret store)
+    const providerConfig: ProviderConfig = { apiKey: "" };
+    setProvider(provider, providerConfig);
 
-      providerCount++;
-      console.log(`  ✓ ${provider} configured.\n`);
-    }
-  } finally {
-    rl.close();
+    providerCount++;
+    console.log(`  ✓ ${provider} configured.\n`);
   }
 
   console.log(`
@@ -415,6 +406,9 @@ async function cmdOnboard(): Promise<void> {
 
   Next: run "agentgazer start" to launch.
 `);
+
+  // Exit explicitly since raw stdin mode keeps the event loop alive
+  process.exit(0);
 }
 
 

@@ -58,11 +58,6 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "mistral-nemo": { inputPerMToken: 0.02, outputPerMToken: 0.04 },
   "codestral-latest": { inputPerMToken: 0.30, outputPerMToken: 0.90 },
 
-  // Cohere
-  "command-r-plus": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
-  "command-r": { inputPerMToken: 0.50, outputPerMToken: 1.50 },
-  "aya-expanse": { inputPerMToken: 0.50, outputPerMToken: 1.50 },
-
   // DeepSeek (V3.2 unified pricing)
   "deepseek-chat": { inputPerMToken: 0.28, outputPerMToken: 0.42 },
   "deepseek-reasoner": { inputPerMToken: 0.28, outputPerMToken: 0.42 },
@@ -232,7 +227,6 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
   google: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
   mistral: ["mistral-large-latest", "mistral-large-3", "mistral-medium-3", "mistral-small-latest", "mistral-nemo", "codestral-latest"],
-  cohere: ["command-r-plus", "command-r", "aya-expanse"],
   deepseek: ["deepseek-chat", "deepseek-reasoner"],
   moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
   zhipu: ["glm-4.7", "glm-4.7-flashx", "glm-4.7-flash", "glm-4.6", "glm-4.5", "glm-4.5-x", "glm-4.5-air", "glm-4.5-airx", "glm-4.5-flash"],

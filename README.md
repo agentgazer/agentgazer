@@ -103,7 +103,7 @@ The proxy auto-detects the provider from the request URL and forwards to the cor
 | Anthropic | `api.anthropic.com` | | Moonshot | `api.moonshot.cn` |
 | Google | `generativelanguage.googleapis.com` | | Zhipu (智譜) | `open.bigmodel.cn` |
 | Mistral | `api.mistral.ai` | | MiniMax | `api.minimax.chat` |
-| Cohere | `api.cohere.com` | | Baichuan (百川) | `api.baichuan-ai.com` |
+| | | | Baichuan (百川) | `api.baichuan-ai.com` |
 
 **Simplified Routing (Recommended):**
 

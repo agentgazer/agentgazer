@@ -104,22 +104,6 @@ describe("detectProvider", () => {
     });
   });
 
-  describe("Cohere", () => {
-    it("detects Cohere .com domain", () => {
-      expect(detectProvider("https://api.cohere.com/v1/chat")).toBe("cohere");
-    });
-
-    it("detects Cohere .ai domain", () => {
-      expect(detectProvider("https://api.cohere.ai/v1/generate")).toBe(
-        "cohere"
-      );
-    });
-
-    it("detects Cohere with v2 path", () => {
-      expect(detectProvider("https://api.cohere.com/v2/chat")).toBe("cohere");
-    });
-  });
-
   describe("DeepSeek", () => {
     it("detects DeepSeek by host", () => {
       expect(
@@ -246,10 +230,6 @@ describe("getProviderBaseUrl", () => {
     expect(getProviderBaseUrl("mistral")).toBe("https://api.mistral.ai/v1");
   });
 
-  it("returns base URL with version for cohere", () => {
-    expect(getProviderBaseUrl("cohere")).toBe("https://api.cohere.com/v2");
-  });
-
   it("returns base URL with version for deepseek", () => {
     expect(getProviderBaseUrl("deepseek")).toBe("https://api.deepseek.com/v1");
   });
@@ -300,12 +280,6 @@ describe("getProviderChatEndpoint", () => {
     );
   });
 
-  it("returns complete chat endpoint for cohere", () => {
-    expect(getProviderChatEndpoint("cohere")).toBe(
-      "https://api.cohere.com/v2/chat"
-    );
-  });
-
   it("returns complete chat endpoint for deepseek", () => {
     expect(getProviderChatEndpoint("deepseek")).toBe(
       "https://api.deepseek.com/v1/chat/completions"
@@ -350,11 +324,6 @@ describe("getProviderAuthHeader", () => {
   it("returns Bearer Authorization for mistral", () => {
     const result = getProviderAuthHeader("mistral", "key-123");
     expect(result).toEqual({ name: "authorization", value: "Bearer key-123" });
-  });
-
-  it("returns Bearer Authorization for cohere", () => {
-    const result = getProviderAuthHeader("cohere", "co-key");
-    expect(result).toEqual({ name: "authorization", value: "Bearer co-key" });
   });
 
   it("returns x-api-key for anthropic", () => {

@@ -13,7 +13,7 @@ Shared types, schemas, and utilities used by all AgentGazer packages.
 
 ### Provider detection
 
-- `detectProvider(url)` — Detects the LLM provider from a URL (returns `openai`, `anthropic`, `google`, `mistral`, `cohere`, or `unknown`)
+- `detectProvider(url)` — Detects the LLM provider from a URL (returns `openai`, `anthropic`, `google`, `mistral`, `deepseek`, or `unknown`)
 - `getProviderBaseUrl(provider)` — Returns the base API URL for a provider
 
 ### Response parsing

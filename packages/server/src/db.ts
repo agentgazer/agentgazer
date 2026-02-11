@@ -1358,6 +1358,17 @@ export function deleteProvider(db: Database.Database, provider: string): boolean
   return deleteAll();
 }
 
+// Normalize SQLite datetime to ISO format with Z suffix
+function normalizeTimestamp(ts: string | null | undefined): string {
+  if (!ts) return new Date().toISOString();
+  // Already has Z or timezone info
+  if (ts.includes("Z") || ts.includes("+") || ts.includes("-", 10)) {
+    return ts;
+  }
+  // SQLite format: "YYYY-MM-DD HH:MM:SS" -> "YYYY-MM-DDTHH:MM:SS.000Z"
+  return ts.replace(" ", "T") + ".000Z";
+}
+
 export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[] {
   const events: RecentEvent[] = [];
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
@@ -1376,7 +1387,7 @@ export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[
       type: "kill_switch",
       agent_id: e.agent_id,
       message: "Loop detected, deactivated",
-      timestamp: e.timestamp,
+      timestamp: normalizeTimestamp(e.timestamp),
     });
   }
 
@@ -1394,7 +1405,7 @@ export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[
       type: "new_agent",
       agent_id: a.agent_id,
       message: "First request received",
-      timestamp: a.created_at,
+      timestamp: normalizeTimestamp(a.created_at),
     });
   }
 
@@ -1416,7 +1427,7 @@ export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[
         type: "budget_warning",
         agent_id: b.agent_id,
         message: `Budget ${Math.round((b.today_spend / b.budget_limit) * 100)}%: $${b.today_spend.toFixed(2)} / $${b.budget_limit.toFixed(2)}`,
-        timestamp: b.timestamp,
+        timestamp: normalizeTimestamp(b.timestamp),
         details: { current_spend: b.today_spend, budget_limit: b.budget_limit },
       });
     }
@@ -1442,7 +1453,7 @@ export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[
       type: "high_error_rate",
       agent_id: r.agent_id,
       message: `${errorRate.toFixed(1)}% errors in last hour`,
-      timestamp: r.timestamp,
+      timestamp: normalizeTimestamp(r.timestamp),
       details: { error_rate: errorRate },
     });
   }

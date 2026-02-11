@@ -102,22 +102,6 @@ describe("getModelPricing", () => {
     });
   });
 
-  it("returns pricing for command-r-plus", () => {
-    const pricing = getModelPricing("command-r-plus");
-    expect(pricing).toEqual({
-      inputPerMToken: 2.5,
-      outputPerMToken: 10.0,
-    });
-  });
-
-  it("returns pricing for command-r", () => {
-    const pricing = getModelPricing("command-r");
-    expect(pricing).toEqual({
-      inputPerMToken: 0.5,
-      outputPerMToken: 1.5,
-    });
-  });
-
   // DeepSeek (V3.2 unified pricing)
   it("returns pricing for deepseek-chat", () => {
     const pricing = getModelPricing("deepseek-chat");
@@ -303,15 +287,6 @@ describe("calculateCost", () => {
     expect(cost).toBeCloseTo(0.066, 10);
   });
 
-  it("calculates cost for command-r-plus", () => {
-    // $2.50/1M in, $10.00/1M out
-    // 100 in = 0.0001 * 2.50 = 0.00025
-    // 50 out = 0.00005 * 10.00 = 0.0005
-    // total = 0.00075
-    const cost = calculateCost("command-r-plus", 100, 50);
-    expect(cost).toBeCloseTo(0.00075, 10);
-  });
-
   it("returns 0 for subscription provider (openai-oauth)", () => {
     // openai-oauth uses subscription billing, not per-token
     // Provider is the 5th parameter (after cacheTokens)
@@ -369,12 +344,6 @@ describe("listSupportedModels", () => {
     expect(models).toContain("mistral-large-latest");
     expect(models).toContain("mistral-small-latest");
     expect(models).toContain("codestral-latest");
-  });
-
-  it("includes known Cohere models", () => {
-    const models = listSupportedModels();
-    expect(models).toContain("command-r-plus");
-    expect(models).toContain("command-r");
   });
 
   it("includes known DeepSeek models", () => {

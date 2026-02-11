@@ -31,8 +31,8 @@ agentgazer start
 
 1. 點擊側邊欄的 **OpenClaw** 頁面
 2. 確認你的 Provider 已列在「Prerequisites」下方
-3. 輸入 **Agent Name**（例如 `openclaw`）
-4. 從下拉選單選擇 **Default Model**
+3. 設定 **Proxy Host**（預設：`localhost:18900`，內網存取請使用內網 IP）
+4. 輸入 **Agent Name**（例如 `openclaw`）
 5. 點擊 **Apply Configuration**
 
 這會自動寫入 `~/.openclaw/openclaw.json`。
@@ -43,9 +43,16 @@ agentgazer start
 openclaw restart
 ```
 
-### 步驟 5：驗證
+### 步驟 5：發送測試訊息
 
-透過 OpenClaw 發送一則測試訊息（Discord、Telegram 等），然後檢查 **Agents** 頁面 — 你的 OpenClaw agent 應該會出現並顯示請求資料。
+透過 OpenClaw 發送一則測試訊息（Discord、Telegram 等），然後檢查 **Agents** 頁面 — 你的 OpenClaw agent 應該會出現。
+
+### 步驟 6：設定模型路由
+
+1. 前往 **Agents** → **openclaw** → **Model Settings**
+2. 針對 `agentgazer` provider，設定：
+   - **Model Override**：實際使用的模型（例如 `claude-sonnet-4-20250514`）
+   - **Target Provider**：實際的 provider（例如 `anthropic`）
 
 ## 運作原理
 
@@ -120,12 +127,12 @@ Proxy 攔截請求、提取指標、再轉發到真正的 Provider。**Prompt �
   "models": {
     "mode": "merge",
     "providers": {
-      "anthropic-traced": {
-        "baseUrl": "http://localhost:18900/agents/openclaw/anthropic",
+      "agentgazer": {
+        "baseUrl": "http://localhost:18900/agents/openclaw/agentgazer",
         "apiKey": "managed-by-agentgazer",
-        "api": "anthropic-messages",
+        "api": "openai-completions",
         "models": [
-          { "id": "claude-sonnet-4-20250514", "name": "claude-sonnet-4-20250514" }
+          { "id": "agentgazer-proxy", "name": "AgentGazer Proxy" }
         ]
       }
     }
@@ -133,30 +140,30 @@ Proxy 攔截請求、提取指標、再轉發到真正的 Provider。**Prompt �
   "agents": {
     "defaults": {
       "model": {
-        "primary": "anthropic-traced/claude-sonnet-4-20250514"
+        "primary": "agentgazer/agentgazer-proxy"
       }
     }
   }
 }
 ```
 
-### URL 格式
+### 運作方式
 
-```
-http://localhost:18900/agents/{agent-name}/{provider}
-```
+1. OpenClaw 將所有請求發送到 `agentgazer` provider
+2. Proxy 在 `/agents/openclaw/agentgazer` 接收請求
+3. AgentGazer 查找該 agent 的 **Model Override Rules** 並路由到實際的 provider
 
-- `{agent-name}` — 在 AgentGazer 中識別此 agent（例如 `openclaw`）
-- `{provider}` — Provider 名稱：`anthropic`、`openai`、`google` 等
+### 設定模型路由
 
-### 支援的 Provider
+套用設定後，在 Dashboard 中設定路由：
 
-| Provider | API 類型 |
-|----------|----------|
-| `anthropic` | `anthropic-messages` |
-| `openai` | `openai-completions` |
-| `google` | `google-generative-ai` |
-| 其他 | `openai-completions`（OpenAI 相容） |
+1. 前往 **Agents** → **openclaw**（首次請求後出現）
+2. 點擊 **Model Settings**
+3. 針對 `agentgazer` provider 項目，設定：
+   - **Model Override**：實際使用的模型（例如 `claude-sonnet-4-20250514`）
+   - **Target Provider**：實際的 provider（例如 `anthropic`）
+
+這讓你可以不用編輯 OpenClaw 設定檔就能更換使用的模型/provider。
 
 ### API 金鑰處理
 

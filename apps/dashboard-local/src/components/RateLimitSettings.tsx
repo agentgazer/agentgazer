@@ -8,7 +8,6 @@ const KNOWN_PROVIDER_NAMES = [
   "anthropic",
   "google",
   "mistral",
-  "cohere",
   "deepseek",
   "moonshot",
   "zhipu",
