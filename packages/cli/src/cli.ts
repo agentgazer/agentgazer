@@ -1477,7 +1477,7 @@ async function cmdLogout(provider: string, flags: Record<string, string>): Promi
 // Stop command
 // ---------------------------------------------------------------------------
 
-function cmdStop(): void {
+async function cmdStop(): Promise<void> {
   const configDir = getConfigDir();
   const pidFile = path.join(configDir, "agentgazer.pid");
   const config = readConfig();
@@ -1498,17 +1498,16 @@ function cmdStop(): void {
         }
       }
       // Wait a bit and force kill if needed
-      setTimeout(() => {
-        for (const pid of pidsOnPorts) {
-          try {
-            process.kill(pid, 0);
-            process.kill(pid, "SIGKILL");
-          } catch {
-            // Already dead
-          }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      for (const pid of pidsOnPorts) {
+        try {
+          process.kill(pid, 0);
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // Already dead
         }
-        console.log("AgentGazer stopped.");
-      }, 1000);
+      }
+      console.log("AgentGazer stopped.");
       return;
     }
     console.log("AgentGazer is not running.");
@@ -1532,34 +1531,31 @@ function cmdStop(): void {
     console.log(`Stopping AgentGazer (PID: ${pid})...`);
 
     // Wait for process to exit (poll for up to 5 seconds)
-    let attempts = 0;
     const maxAttempts = 50;
     const checkInterval = 100;
 
-    const waitForExit = (): void => {
+    for (let attempts = 0; attempts < maxAttempts; attempts++) {
+      await new Promise((resolve) => setTimeout(resolve, checkInterval));
       try {
         process.kill(pid, 0);
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(waitForExit, checkInterval);
-        } else {
-          console.log("Process did not exit gracefully, sending SIGKILL...");
-          try {
-            process.kill(pid, "SIGKILL");
-          } catch {
-            // Already dead
-          }
-          if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
-          console.log("AgentGazer stopped.");
-        }
+        // Process still running, continue waiting
       } catch {
         // Process exited
         if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
         console.log("AgentGazer stopped.");
+        return;
       }
-    };
+    }
 
-    waitForExit();
+    // Timeout reached, force kill
+    console.log("Process did not exit gracefully, sending SIGKILL...");
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already dead
+    }
+    if (fs.existsSync(pidFile)) fs.unlinkSync(pidFile);
+    console.log("AgentGazer stopped.");
   } catch (err) {
     console.error(`Failed to stop AgentGazer: ${err}`);
     process.exit(1);
@@ -1627,7 +1623,7 @@ async function main(): Promise<void> {
       await cmdStart(flags);
       break;
     case "stop":
-      cmdStop();
+      await cmdStop();
       break;
     case "logs":
       await cmdLogs(flags);
@@ -1691,7 +1687,19 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+// Commands that keep running (don't auto-exit)
+const LONG_RUNNING_COMMANDS = ["start", "overview"];
+
+main()
+  .then(() => {
+    const subcommand = process.argv[2];
+    // Only auto-exit for short-lived commands
+    // Long-running commands (start, overview, logs -f) manage their own lifecycle
+    if (!LONG_RUNNING_COMMANDS.includes(subcommand)) {
+      process.exit(0);
+    }
+  })
+  .catch((err) => {
+    console.error("Fatal error:", err);
+    process.exit(1);
+  });
