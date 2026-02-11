@@ -1176,6 +1176,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     latencyMs: number,
     effectiveAgentId: string,
     requestedModel: string | null,
+    actualModel: string | null,  // Model after override (for cost calculation)
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping streaming metric extraction");
@@ -1190,9 +1191,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
-    // Use requestedModel as fallback when provider doesn't return model in response
-    // (Google Gemini API typically doesn't include model in streaming response)
-    const effectiveModel = parsed.model ?? requestedModel;
+    // Use actualModel (after override) as fallback for cost calculation
+    // This ensures cross-provider overrides use the target model's pricing
+    const effectiveModel = parsed.model ?? actualModel ?? requestedModel;
 
     let costUsd: number | null = null;
     if (effectiveModel && parsed.tokensIn != null && parsed.tokensOut != null) {
@@ -1232,6 +1233,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     latencyMs: number,
     effectiveAgentId: string,
     requestedModel: string | null,
+    actualModel: string | null,  // Model after override (for cost calculation)
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping metric extraction");
@@ -1253,9 +1255,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       return;
     }
 
-    // Use requestedModel as fallback when provider doesn't return model in response
-    // (Google Gemini API typically doesn't include model in response)
-    const effectiveModel = parsed.model ?? requestedModel;
+    // Use actualModel (after override) as fallback for cost calculation
+    // This ensures cross-provider overrides use the target model's pricing
+    const effectiveModel = parsed.model ?? actualModel ?? requestedModel;
 
     // Calculate cost if we have the necessary token data
     let costUsd: number | null = null;
@@ -1414,7 +1416,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     }
 
     // Model override and request normalization
-    let requestedModel: string | null = null;
+    let requestedModel: string | null = null;  // Original model from client request
+    let actualModel: string | null = null;     // Model after override (for cost calculation)
     let modifiedRequestBody = requestBody;
     let crossProviderOverride: { targetProvider: ProviderName; originalProvider: ProviderName } | null = null;
     let effectiveProvider = provider; // May change if cross-provider override
@@ -1428,6 +1431,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Extract model from request body if present
       if (bodyJson.model) {
         requestedModel = bodyJson.model;
+        actualModel = bodyJson.model;  // Default to same as requested
       }
 
       // Always check for model override rules (even if request has no model)
@@ -1442,6 +1446,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           log.info(`[PROXY] Model override (no model in request): → ${override.model}`);
         }
         bodyJson.model = override.model;
+        actualModel = override.model;  // Track the actual model for cost calculation
         bodyModified = true;
       }
 
@@ -1838,7 +1843,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       try {
         // Use effective provider for metrics extraction
-        extractStreamingMetrics(effectiveProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel);
+        extractStreamingMetrics(effectiveProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel);
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
@@ -1918,7 +1923,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       try {
         // Use effective provider for metrics, but pass original response for parsing
-        extractAndQueueMetrics(effectiveProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel);
+        extractAndQueueMetrics(effectiveProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel);
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }

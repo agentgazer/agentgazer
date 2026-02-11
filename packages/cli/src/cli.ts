@@ -388,30 +388,12 @@ async function cmdOnboard(): Promise<void> {
   Setup complete. ${providerCount} provider(s) configured.
   ───────────────────────────────────────
 
-  Add this to your project to start tracking:
-
-  ┌──────────────────────────────────────────────────────────┐
-  │                                                          │
-  │  import { AgentGazer } from "@agentgazer/sdk";           │
-  │                                                          │
-  │  const at = AgentGazer.init({                            │
-  │    apiKey: "${saved.token.slice(0, 20)}...",│
-  │    agentId: "my-agent",                                  │
-  │  });                                                     │
-  │                                                          │
-  │  at.track({                                              │
-  │    provider: "openai",                                   │
-  │    model: "gpt-4o",                                      │
-  │    tokens: { input: 150, output: 50 },                   │
-  │    latency_ms: 1200,                                     │
-  │    status: 200,                                          │
-  │  });                                                     │
-  │                                                          │
-  └──────────────────────────────────────────────────────────┘
-
-  Or point your LLM client at the proxy (with auto API key injection):
+  Point your LLM client at the proxy:
 
     export OPENAI_BASE_URL=http://localhost:18900/openai/v1
+    export ANTHROPIC_BASE_URL=http://localhost:18900/anthropic
+
+  API keys are auto-injected from your configured providers.
 
   Next: run "agentgazer start" to launch.
 `);
