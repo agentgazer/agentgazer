@@ -631,6 +631,49 @@ function parseCohereSSE(
   };
 }
 
+/**
+ * Parse Codex (OpenAI Responses API) SSE format.
+ * Codex uses response.done/response.completed events with usage info.
+ */
+function parseCodexSSE(
+  dataLines: string[],
+  statusCode: number
+): ParsedResponse {
+  let model: string | null = null;
+  let tokensIn: number | null = null;
+  let tokensOut: number | null = null;
+
+  for (const line of dataLines) {
+    try {
+      const data = JSON.parse(line);
+      // Look for response.done or response.completed events
+      if (data.type === "response.done" || data.type === "response.completed") {
+        if (data.response?.usage) {
+          tokensIn = data.response.usage.input_tokens ?? null;
+          tokensOut = data.response.usage.output_tokens ?? null;
+        }
+        if (data.response?.model) {
+          model = data.response.model;
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  const tokensTotal =
+    tokensIn != null && tokensOut != null ? tokensIn + tokensOut : null;
+
+  return {
+    model,
+    tokensIn,
+    tokensOut,
+    tokensTotal,
+    statusCode,
+    errorMessage: null,
+  };
+}
+
 function parseSSEResponse(
   provider: string,
   sseText: string,
@@ -668,6 +711,9 @@ function parseSSEResponse(
     case "minimax":
     case "yi":
       return parseOpenAISSE(dataLines, statusCode);
+    case "openai-oauth":
+      // Codex uses Responses API format - parse for usage info
+      return parseCodexSSE(dataLines, statusCode);
     case "anthropic":
       return parseAnthropicSSE(dataLines, statusCode);
     case "cohere":
@@ -1852,7 +1898,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     log.info(`[PROXY] Response: ${providerResponse.status} ${providerResponse.statusText}`);
 
     const contentType = providerResponse.headers.get("content-type") ?? "";
-    const isSSE = contentType.includes("text/event-stream");
+    // Codex may not return text/event-stream content-type, so also check if we requested streaming
+    const isSSE = contentType.includes("text/event-stream") ||
+      (effectiveProvider === "openai-oauth" && isStreaming);
 
     if (isSSE && providerResponse.body) {
       // Determine stream conversion direction BEFORE setting headers
