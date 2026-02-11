@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { providerApi, type ProviderInfo } from "../lib/api";
+import { providerApi, oauthApi, type ProviderInfo } from "../lib/api";
 import { useConnection } from "../contexts/ConnectionContext";
 import { usePolling } from "../hooks/usePolling";
 import { formatCost } from "../lib/format";
@@ -9,6 +9,7 @@ import ErrorBanner from "../components/ErrorBanner";
 
 const PROVIDER_ICONS: Record<string, string> = {
   openai: "O",
+  "openai-oauth": "C",  // C for Codex
   anthropic: "A",
   google: "G",
   mistral: "M",
@@ -21,6 +22,7 @@ const PROVIDER_ICONS: Record<string, string> = {
 
 const PROVIDER_LABELS: Record<string, string> = {
   openai: "OpenAI (GPT-4o, o1, o3)",
+  "openai-oauth": "OpenAI Codex (OAuth)",
   anthropic: "Anthropic (Claude Opus, Sonnet, Haiku)",
   google: "Google (Gemini)",
   mistral: "Mistral (Mistral Large, Codestral)",
@@ -36,11 +38,87 @@ export default function ProvidersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [togglingProvider, setTogglingProvider] = useState<string | null>(null);
 
+  // OAuth state
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const oauthPollingRef = useRef(false);
+
   const fetcher = useCallback(() => providerApi.list(), []);
   const { data, error, loading, refresh } = usePolling(fetcher, 3000);
 
   // Filter to only show configured providers in the table
   const configuredProviders = data?.providers.filter((p) => p.configured) ?? [];
+
+  // Check if openai-oauth is configured
+  const openaiOAuthProvider = data?.providers.find((p) => p.name === "openai-oauth");
+  const isOAuthLoggedIn = openaiOAuthProvider?.configured ?? false;
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      oauthPollingRef.current = false;
+    };
+  }, []);
+
+  // OAuth handlers
+  async function handleOAuthLogin() {
+    setOauthLoading(true);
+    setOauthError(null);
+    try {
+      const { authUrl } = await oauthApi.start("openai-oauth");
+      // Open auth URL in new window
+      window.open(authUrl, "_blank", "width=600,height=700");
+      // Start polling for completion
+      oauthPollingRef.current = true;
+      pollOAuthStatus();
+    } catch (err) {
+      setOauthError(String(err));
+      setOauthLoading(false);
+    }
+  }
+
+  async function pollOAuthStatus() {
+    const maxAttempts = 60; // 5 minutes with 5s interval
+    let attempts = 0;
+
+    const poll = async () => {
+      try {
+        const status = await oauthApi.getStatus("openai-oauth");
+        if (status.loggedIn) {
+          oauthPollingRef.current = false;
+          setOauthLoading(false);
+          // Refresh providers to show updated status
+          refresh();
+          return;
+        }
+      } catch {
+        // Ignore polling errors
+      }
+
+      attempts++;
+      if (attempts < maxAttempts && oauthPollingRef.current) {
+        setTimeout(poll, 5000);
+      } else {
+        oauthPollingRef.current = false;
+        setOauthLoading(false);
+      }
+    };
+
+    setTimeout(poll, 3000); // Start after 3 seconds
+  }
+
+  async function handleOAuthLogout() {
+    setOauthLoading(true);
+    setOauthError(null);
+    try {
+      await oauthApi.logout("openai-oauth");
+      refresh();
+    } catch (err) {
+      setOauthError(String(err));
+    } finally {
+      setOauthLoading(false);
+    }
+  }
 
   async function handleToggleActive(provider: ProviderInfo) {
     setTogglingProvider(provider.name);
@@ -66,34 +144,63 @@ export default function ProvidersPage() {
             Manage LLM provider connections and settings
           </p>
         </div>
-        <div className="relative">
-          <button
-            onClick={() => setShowAddModal(true)}
-            disabled={!isLoopback}
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              isLoopback
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "cursor-not-allowed bg-gray-700 text-gray-500"
-            }`}
-            title={
-              isLoopback
-                ? "Add a new provider"
-                : "Only available from localhost for API key security"
-            }
-          >
-            + Add Provider
-          </button>
-          {!isLoopback && (
-            <div className="absolute right-0 top-full mt-1 w-64 rounded bg-gray-800 p-2 text-xs text-gray-400 shadow-lg">
-              Only available from localhost for API key security
-            </div>
+        <div className="flex items-center gap-3">
+          {/* OAuth Login/Logout Button */}
+          {isLoopback && (
+            isOAuthLoggedIn ? (
+              <button
+                onClick={handleOAuthLogout}
+                disabled={oauthLoading}
+                className="rounded-md border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50"
+              >
+                {oauthLoading ? "..." : "Logout OpenAI Codex"}
+              </button>
+            ) : (
+              <button
+                onClick={handleOAuthLogin}
+                disabled={oauthLoading}
+                className="rounded-md border border-green-600 bg-green-600/10 px-4 py-2 text-sm font-medium text-green-400 transition-colors hover:bg-green-600/20 disabled:opacity-50"
+              >
+                {oauthLoading ? "Waiting..." : "Login OpenAI Codex"}
+              </button>
+            )
           )}
+
+          <div className="relative">
+            <button
+              onClick={() => setShowAddModal(true)}
+              disabled={!isLoopback}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                isLoopback
+                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                  : "cursor-not-allowed bg-gray-700 text-gray-500"
+              }`}
+              title={
+                isLoopback
+                  ? "Add a new provider"
+                  : "Only available from localhost for API key security"
+              }
+            >
+              + Add Provider
+            </button>
+            {!isLoopback && (
+              <div className="absolute right-0 top-full mt-1 w-64 rounded bg-gray-800 p-2 text-xs text-gray-400 shadow-lg">
+                Only available from localhost for API key security
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {error && (
         <div className="mt-4">
           <ErrorBanner message={error} />
+        </div>
+      )}
+
+      {oauthError && (
+        <div className="mt-4">
+          <ErrorBanner message={`OAuth error: ${oauthError}`} />
         </div>
       )}
 
@@ -140,12 +247,19 @@ export default function ProvidersPage() {
                         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-800 text-sm font-bold text-white">
                           {icon}
                         </div>
-                        <Link
-                          to={`/providers/${provider.name}`}
-                          className="font-medium capitalize text-blue-400 hover:text-blue-300"
-                        >
-                          {provider.name}
-                        </Link>
+                        <div className="flex items-center gap-2">
+                          <Link
+                            to={`/providers/${provider.name}`}
+                            className="font-medium capitalize text-blue-400 hover:text-blue-300"
+                          >
+                            {PROVIDER_LABELS[provider.name] || provider.name}
+                          </Link>
+                          {provider.authType === "oauth" && (
+                            <span className="rounded bg-green-900/30 px-1.5 py-0.5 text-xs text-green-400">
+                              OAuth
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
