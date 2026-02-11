@@ -18,11 +18,11 @@ POST http://localhost:18900/agents/{agent-name}/{provider}
 | `anthropic` | Anthropic Messages |
 | `google` | Google Gemini (OpenAI-compatible) |
 | `mistral` | Mistral Chat |
-| `cohere` | Cohere Chat v2 |
 | `deepseek` | DeepSeek Chat |
 | `moonshot` | Moonshot / Kimi Chat |
 | `zhipu` | Zhipu GLM Chat |
 | `minimax` | MiniMax Chat |
+| `baichuan` | Baichuan Chat |
 
 ### Example: OpenAI via Simplified Routing
 
@@ -72,9 +72,12 @@ The Proxy supports path prefix routing, which automatically forwards requests to
 | `/openai/...` | `https://api.openai.com` |
 | `/anthropic/...` | `https://api.anthropic.com` |
 | `/google/...` | `https://generativelanguage.googleapis.com` |
-| `/cohere/...` | `https://api.cohere.ai` |
 | `/mistral/...` | `https://api.mistral.ai` |
 | `/deepseek/...` | `https://api.deepseek.com` |
+| `/moonshot/...` | `https://api.moonshot.cn` |
+| `/zhipu/...` | `https://open.bigmodel.cn` |
+| `/minimax/...` | `https://api.minimax.chat` |
+| `/baichuan/...` | `https://api.baichuan-ai.com` |
 
 ### OpenAI SDK Integration Example
 

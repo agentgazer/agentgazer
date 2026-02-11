@@ -85,8 +85,11 @@ Multiple agents can share the same Proxy and API key while tracking usage separa
 | Anthropic | ✓ |
 | Google | ✓ |
 | Mistral | ✓ |
-| Cohere | ✓ |
 | DeepSeek | ✓ |
+| Moonshot | ✓ |
+| Zhipu | ✓ |
+| MiniMax | ✓ |
+| Baichuan | ✓ |
 
 ## Project Structure
 

@@ -85,8 +85,11 @@ const openai = new OpenAI({
 | Anthropic | ✓ |
 | Google | ✓ |
 | Mistral | ✓ |
-| Cohere | ✓ |
 | DeepSeek | ✓ |
+| Moonshot | ✓ |
+| Zhipu（智譜） | ✓ |
+| MiniMax | ✓ |
+| Baichuan（百川） | ✓ |
 
 ## 專案結構
 
