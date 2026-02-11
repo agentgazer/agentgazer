@@ -740,41 +740,62 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
 
   console.log(`  New version available: ${latestVersion}`);
 
-  // Detect installation method by following symlinks
-  const execPath = process.argv[1];
-  let realPath = execPath;
+  // Step 1: Use `which` to find the actual binary path the shell uses
+  let whichPath = "";
   try {
-    realPath = fs.realpathSync(execPath);
+    whichPath = execSync("which agentgazer", { encoding: "utf-8" }).trim();
   } catch {
-    // Keep execPath if realpathSync fails
+    whichPath = process.argv[1];
   }
 
-  // Check the resolved path - /Cellar/ means Homebrew formula, /node_modules/ means npm
-  const isHomebrew = realPath.includes("/Cellar/");
-  const isGlobalNpm = realPath.includes("/node_modules/");
+  // Step 2: Resolve symlinks to find the real location
+  let realPath = whichPath;
+  try {
+    realPath = fs.realpathSync(whichPath);
+  } catch {
+    // Keep whichPath
+  }
+
+  // Step 3: Get npm global prefix
+  let npmPrefix = "";
+  try {
+    npmPrefix = execSync("npm config get prefix", { encoding: "utf-8" }).trim();
+  } catch {
+    // Ignore
+  }
+
+  const npmBinPath = path.join(npmPrefix, "bin", "agentgazer");
+
+  // Step 4: Determine installation method
+  const isHomebrew = realPath.includes("/Cellar/") ||
+    (realPath.includes("/homebrew/") && !realPath.includes("/node_modules/"));
+  const isNpmGlobal = realPath.startsWith(npmPrefix) ||
+    realPath.includes("/node_modules/@agentgazer/cli");
+
+  console.log(`  Binary path: ${whichPath}`);
+  if (whichPath !== realPath) {
+    console.log(`  Resolved to: ${realPath}`);
+  }
+  console.log(`  npm prefix:  ${npmPrefix}`);
 
   if (isHomebrew) {
+    // Homebrew installation
     console.log("\n  Detected: Homebrew installation");
     console.log("  Updating via Homebrew...\n");
-
     try {
-      execSync("brew update && brew upgrade agentgazer/tap/agentgazer", {
-        stdio: "inherit",
-      });
+      execSync("brew update && brew upgrade agentgazer/tap/agentgazer", { stdio: "inherit" });
       console.log("\n  ✓ Update complete!");
     } catch {
       console.error("\n  Update failed. Try manually:");
       console.error("    brew update && brew upgrade agentgazer/tap/agentgazer");
       process.exit(1);
     }
-  } else if (isGlobalNpm) {
+  } else if (isNpmGlobal) {
+    // npm global installation
     console.log("\n  Detected: npm global installation");
     console.log("  Updating via npm...\n");
-
     try {
-      execSync("npm install -g @agentgazer/cli@latest", {
-        stdio: "inherit",
-      });
+      execSync("npm install -g @agentgazer/cli@latest", { stdio: "inherit" });
       console.log("\n  ✓ Update complete!");
     } catch {
       console.error("\n  Update failed. Try manually:");
@@ -782,57 +803,36 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
       process.exit(1);
     }
   } else {
-    // Check if there's a path mismatch (binary in one place, npm installs to another)
-    let npmGlobalRoot = "";
+    // PATH conflict: binary exists but not in npm or Homebrew location
+    console.log("\n  ⚠ Path conflict detected!");
+    console.log(`  You are running: ${whichPath}`);
+    console.log(`  But npm installs to: ${npmBinPath}`);
+
+    // Check file ownership to determine if sudo is needed
+    let needsSudo = false;
     try {
-      npmGlobalRoot = execSync("npm root -g", { encoding: "utf-8" }).trim();
+      const stat = fs.statSync(whichPath);
+      needsSudo = stat.uid === 0; // root owned
     } catch {
       // Ignore
     }
 
-    // Resolve the binary path (follow symlinks)
-    let realBinPath = "";
-    try {
-      realBinPath = fs.realpathSync(execPath);
-    } catch {
-      realBinPath = execPath;
-    }
-
-    const binInNpmRoot = realBinPath.includes(npmGlobalRoot) || realBinPath.includes("/node_modules/@agentgazer/cli");
-
-    if (npmGlobalRoot && !binInNpmRoot) {
-      // Path mismatch detected - old binary not in current npm global location
-      console.log("\n  Detected: Stale installation (binary location differs from npm global path)");
-      console.log(`  Current binary: ${execPath}`);
-      console.log(`  npm global root: ${npmGlobalRoot}`);
-      console.log("\n  Cleaning up and reinstalling...\n");
-
-      try {
-        // Remove the old binary/symlink
-        const binDir = path.dirname(execPath);
-        const binName = path.basename(execPath);
-        execSync(`rm -f "${path.join(binDir, binName)}"`, { stdio: "inherit" });
-
-        // Install fresh
-        execSync("npm install -g @agentgazer/cli@latest", { stdio: "inherit" });
-
-        console.log("\n  ✓ Update complete!");
-        console.log("  Note: You may need to open a new terminal or run 'hash -r' to refresh the command path.");
-      } catch (err) {
-        console.error("\n  Update failed. Try manually:");
-        console.error(`    sudo rm ${execPath}`);
-        console.error("    npm install -g @agentgazer/cli@latest");
-        process.exit(1);
-      }
+    console.log("\n  To fix this, remove the stale binary and reinstall:\n");
+    if (needsSudo) {
+      console.log(`    sudo rm ${whichPath}`);
     } else {
-      // Unknown installation method
-      console.log("\n  Could not detect installation method.");
-      console.log("  Please update manually:\n");
-      console.log("    npm:      npm install -g @agentgazer/cli@latest");
-      console.log("    Homebrew: brew upgrade agentgazer/tap/agentgazer");
-      console.log("    Docker:   docker pull ghcr.io/agentgazer/agentgazer:latest");
-      process.exit(0);
+      console.log(`    rm ${whichPath}`);
     }
+    console.log("    npm install -g @agentgazer/cli@latest");
+    console.log("\n  Or if you prefer Homebrew:\n");
+    if (needsSudo) {
+      console.log(`    sudo rm ${whichPath}`);
+    } else {
+      console.log(`    rm ${whichPath}`);
+    }
+    console.log("    brew install agentgazer/tap/agentgazer");
+
+    process.exit(1);
   }
 
   console.log("\n  Your settings in ~/.agentgazer/ have been preserved.");
