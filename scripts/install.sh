@@ -152,8 +152,14 @@ install_agentgazer() {
 
   mkdir -p "$LIB_DIR"
 
+  # Clear any cached versions to ensure fresh install
+  "$RESOLVED_NODE" "$RESOLVED_NPM" cache clean --force 2>/dev/null || true
+
+  # Remove old installation to force fresh dependency resolution
+  rm -rf "$LIB_DIR/lib/node_modules/@agentgazer" 2>/dev/null || true
+
   # Use the resolved node to run npm install
-  "$RESOLVED_NODE" "$RESOLVED_NPM" install -g @agentgazer/cli \
+  "$RESOLVED_NODE" "$RESOLVED_NPM" install -g @agentgazer/cli@latest \
     --prefix "$LIB_DIR" \
     --loglevel error 2>&1
 
