@@ -1277,6 +1277,96 @@ export type CodexSSEEvent =
 // ---------------------------------------------------------------------------
 
 /**
+ * JSON Schema keywords that Codex API doesn't support.
+ * Similar to Gemini/Cloud Code Assist API restrictions.
+ */
+const CODEX_UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
+  "patternProperties",
+  "additionalProperties",
+  "$schema",
+  "$id",
+  "$ref",
+  "$defs",
+  "definitions",
+  "examples",
+  // Validation constraints that can cause 400 errors
+  "minLength",
+  "maxLength",
+  "minimum",
+  "maximum",
+  "multipleOf",
+  "pattern",
+  "format",
+  "minItems",
+  "maxItems",
+  "uniqueItems",
+  "minProperties",
+  "maxProperties",
+]);
+
+/**
+ * Clean JSON Schema for Codex API compatibility.
+ * Removes unsupported keywords that cause validation errors.
+ */
+function cleanSchemaForCodex(schema: unknown): unknown {
+  if (!schema || typeof schema !== "object") {
+    return schema;
+  }
+  if (Array.isArray(schema)) {
+    return schema.map(cleanSchemaForCodex);
+  }
+
+  const obj = schema as Record<string, unknown>;
+  const cleaned: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip unsupported keywords
+    if (CODEX_UNSUPPORTED_SCHEMA_KEYWORDS.has(key)) {
+      continue;
+    }
+
+    // Convert 'const' to 'enum' (Codex prefers enum)
+    if (key === "const") {
+      cleaned.enum = [value];
+      continue;
+    }
+
+    // Handle array types with null (e.g., ["string", "null"] -> "string")
+    if (key === "type" && Array.isArray(value)) {
+      const types = value.filter((t) => t !== "null");
+      cleaned.type = types.length === 1 ? types[0] : types;
+      continue;
+    }
+
+    // Recursively clean nested objects
+    if (key === "properties" && value && typeof value === "object") {
+      const props = value as Record<string, unknown>;
+      cleaned[key] = Object.fromEntries(
+        Object.entries(props).map(([k, v]) => [k, cleanSchemaForCodex(v)])
+      );
+    } else if (key === "items") {
+      if (Array.isArray(value)) {
+        cleaned[key] = value.map(cleanSchemaForCodex);
+      } else if (typeof value === "object") {
+        cleaned[key] = cleanSchemaForCodex(value);
+      } else {
+        cleaned[key] = value;
+      }
+    } else if (key === "anyOf" || key === "oneOf" || key === "allOf") {
+      if (Array.isArray(value)) {
+        cleaned[key] = value.map(cleanSchemaForCodex);
+      } else {
+        cleaned[key] = value;
+      }
+    } else {
+      cleaned[key] = value;
+    }
+  }
+
+  return cleaned;
+}
+
+/**
  * Convert OpenAI chat completion request to Codex Responses API format.
  * Uses proper Responses API input types including function_call and function_call_output.
  */
@@ -1371,13 +1461,15 @@ export function openaiToCodex(request: OpenAIRequest): CodexRequest {
     result.temperature = request.temperature;
   }
 
-  // Convert tools
+  // Convert tools (clean schema for Codex compatibility)
   if (request.tools && request.tools.length > 0) {
     result.tools = request.tools.map(tool => ({
       type: "function" as const,
       name: tool.function.name,
       description: tool.function.description,
-      parameters: tool.function.parameters,
+      parameters: tool.function.parameters
+        ? cleanSchemaForCodex(tool.function.parameters) as Record<string, unknown>
+        : undefined,
     }));
   }
 
