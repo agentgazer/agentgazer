@@ -785,6 +785,8 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
     try {
       execSync("brew update && brew upgrade agentgazer/tap/agentgazer", { stdio: "inherit" });
       console.log("\n  ✓ Update complete!");
+      console.log("\n  Your settings in ~/.agentgazer/ have been preserved.");
+      process.exit(0);
     } catch {
       console.error("\n  Update failed. Try manually:");
       console.error("    brew update && brew upgrade agentgazer/tap/agentgazer");
@@ -797,6 +799,8 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
     try {
       execSync("npm install -g @agentgazer/cli@latest", { stdio: "inherit" });
       console.log("\n  ✓ Update complete!");
+      console.log("\n  Your settings in ~/.agentgazer/ have been preserved.");
+      process.exit(0);
     } catch {
       console.error("\n  Update failed. Try manually:");
       console.error("    npm install -g @agentgazer/cli@latest");
@@ -834,9 +838,6 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
 
     process.exit(1);
   }
-
-  console.log("\n  Your settings in ~/.agentgazer/ have been preserved.");
-  process.exit(0);
 }
 
 async function cmdDoctor(flags: Record<string, string>): Promise<void> {
