@@ -49,8 +49,8 @@ describe("getModelPricing", () => {
   it("returns pricing for claude-opus-4-5-20251101", () => {
     const pricing = getModelPricing("claude-opus-4-5-20251101");
     expect(pricing).toEqual({
-      inputPerMToken: 15.0,
-      outputPerMToken: 75.0,
+      inputPerMToken: 5.0,
+      outputPerMToken: 25.0,
     });
   });
 
@@ -73,8 +73,8 @@ describe("getModelPricing", () => {
   it("returns pricing for claude-haiku-4-5-20251001", () => {
     const pricing = getModelPricing("claude-haiku-4-5-20251001");
     expect(pricing).toEqual({
-      inputPerMToken: 0.8,
-      outputPerMToken: 4.0,
+      inputPerMToken: 1.0,
+      outputPerMToken: 5.0,
     });
   });
 
@@ -82,15 +82,15 @@ describe("getModelPricing", () => {
     const pricing = getModelPricing("gemini-2.5-pro");
     expect(pricing).toEqual({
       inputPerMToken: 1.25,
-      outputPerMToken: 5.0,
+      outputPerMToken: 10.0,
     });
   });
 
   it("returns pricing for gemini-3-pro-preview", () => {
     const pricing = getModelPricing("gemini-3-pro-preview");
     expect(pricing).toEqual({
-      inputPerMToken: 2.5,
-      outputPerMToken: 10.0,
+      inputPerMToken: 2.0,
+      outputPerMToken: 12.0,
     });
   });
 
@@ -113,25 +113,25 @@ describe("getModelPricing", () => {
   it("returns pricing for command-r", () => {
     const pricing = getModelPricing("command-r");
     expect(pricing).toEqual({
-      inputPerMToken: 0.15,
-      outputPerMToken: 0.6,
+      inputPerMToken: 0.5,
+      outputPerMToken: 1.5,
     });
   });
 
-  // DeepSeek
+  // DeepSeek (V3.2 unified pricing)
   it("returns pricing for deepseek-chat", () => {
     const pricing = getModelPricing("deepseek-chat");
     expect(pricing).toEqual({
-      inputPerMToken: 0.27,
-      outputPerMToken: 1.10,
+      inputPerMToken: 0.28,
+      outputPerMToken: 0.42,
     });
   });
 
   it("returns pricing for deepseek-reasoner", () => {
     const pricing = getModelPricing("deepseek-reasoner");
     expect(pricing).toEqual({
-      inputPerMToken: 0.55,
-      outputPerMToken: 2.19,
+      inputPerMToken: 0.28,
+      outputPerMToken: 0.42,
     });
   });
 
@@ -160,12 +160,12 @@ describe("getModelPricing", () => {
     });
   });
 
-  // Zhipu
+  // Zhipu (GLM)
   it("returns pricing for glm-4.7", () => {
     const pricing = getModelPricing("glm-4.7");
     expect(pricing).toEqual({
-      inputPerMToken: 0.28,
-      outputPerMToken: 1.11,
+      inputPerMToken: 0.60,
+      outputPerMToken: 2.20,
     });
   });
 
@@ -177,16 +177,16 @@ describe("getModelPricing", () => {
     });
   });
 
-  it("returns pricing for glm-4", () => {
-    const pricing = getModelPricing("glm-4");
+  it("returns pricing for glm-4.5", () => {
+    const pricing = getModelPricing("glm-4.5");
     expect(pricing).toEqual({
-      inputPerMToken: 0.14,
-      outputPerMToken: 0.42,
+      inputPerMToken: 0.60,
+      outputPerMToken: 2.20,
     });
   });
 
-  it("returns pricing for glm-4-flash (free)", () => {
-    const pricing = getModelPricing("glm-4-flash");
+  it("returns pricing for glm-4.5-flash (free)", () => {
+    const pricing = getModelPricing("glm-4.5-flash");
     expect(pricing).toEqual({
       inputPerMToken: 0,
       outputPerMToken: 0,
@@ -194,11 +194,11 @@ describe("getModelPricing", () => {
   });
 
   // MiniMax
-  it("returns pricing for MiniMax-M2", () => {
-    const pricing = getModelPricing("MiniMax-M2");
+  it("returns pricing for minimax-m2", () => {
+    const pricing = getModelPricing("minimax-m2");
     expect(pricing).toEqual({
-      inputPerMToken: 0.30,
-      outputPerMToken: 1.20,
+      inputPerMToken: 0.255,
+      outputPerMToken: 1.00,
     });
   });
 
@@ -245,21 +245,21 @@ describe("calculateCost", () => {
   });
 
   it("calculates cost for claude-opus-4-5-20251101", () => {
-    // claude-opus-4-5-20251101: $15.00/1M in, $75.00/1M out
-    // 10000 in = 10000/1M * 15.00 = 0.15
-    // 5000 out = 5000/1M * 75.00 = 0.375
-    // total = 0.525
+    // claude-opus-4-5-20251101: $5.00/1M in, $25.00/1M out
+    // 10000 in = 10000/1M * 5.00 = 0.05
+    // 5000 out = 5000/1M * 25.00 = 0.125
+    // total = 0.175
     const cost = calculateCost("claude-opus-4-5-20251101", 10000, 5000);
-    expect(cost).toBeCloseTo(0.525, 10);
+    expect(cost).toBeCloseTo(0.175, 10);
   });
 
   it("calculates cost for gemini-2.5-flash (low-cost model)", () => {
-    // gemini-2.5-flash: $0.15/1M in, $0.60/1M out
-    // 1M in = 1.0 * 0.15 = 0.15
-    // 1M out = 1.0 * 0.60 = 0.60
-    // total = 0.75
+    // gemini-2.5-flash: $0.30/1M in, $2.50/1M out
+    // 1M in = 1.0 * 0.30 = 0.30
+    // 1M out = 1.0 * 2.50 = 2.50
+    // total = 2.80
     const cost = calculateCost("gemini-2.5-flash", 1_000_000, 1_000_000);
-    expect(cost).toBeCloseTo(0.75, 10);
+    expect(cost).toBeCloseTo(2.80, 10);
   });
 
   it("returns 0 cost for zero tokens", () => {
@@ -272,12 +272,12 @@ describe("calculateCost", () => {
   });
 
   it("handles large token counts correctly", () => {
-    // gemini-2.5-pro: $1.25/1M in, $5.00/1M out
+    // gemini-2.5-pro: $1.25/1M in, $10.00/1M out
     // 10M in = 10 * 1.25 = 12.5
-    // 5M out = 5 * 5.00 = 25
-    // total = 37.5
+    // 5M out = 5 * 10.00 = 50
+    // total = 62.5
     const cost = calculateCost("gemini-2.5-pro", 10_000_000, 5_000_000);
-    expect(cost).toBeCloseTo(37.5, 10);
+    expect(cost).toBeCloseTo(62.5, 10);
   });
 
   it("handles only input tokens (zero output)", () => {
@@ -295,12 +295,12 @@ describe("calculateCost", () => {
   });
 
   it("calculates cost for mistral-small-latest", () => {
-    // $0.20/1M in, $0.60/1M out
-    // 500000 in = 0.5 * 0.20 = 0.10
-    // 200000 out = 0.2 * 0.60 = 0.12
-    // total = 0.22
+    // $0.06/1M in, $0.18/1M out
+    // 500000 in = 0.5 * 0.06 = 0.03
+    // 200000 out = 0.2 * 0.18 = 0.036
+    // total = 0.066
     const cost = calculateCost("mistral-small-latest", 500_000, 200_000);
-    expect(cost).toBeCloseTo(0.22, 10);
+    expect(cost).toBeCloseTo(0.066, 10);
   });
 
   it("calculates cost for command-r-plus", () => {
@@ -394,15 +394,15 @@ describe("listSupportedModels", () => {
     const models = listSupportedModels();
     expect(models).toContain("glm-4.7");
     expect(models).toContain("glm-4.7-flash");
-    expect(models).toContain("glm-4");
-    expect(models).toContain("glm-4-air");
-    expect(models).toContain("glm-4-flash");
+    expect(models).toContain("glm-4.5");
+    expect(models).toContain("glm-4.5-air");
+    expect(models).toContain("glm-4.5-flash");
   });
 
   it("includes known MiniMax models", () => {
     const models = listSupportedModels();
-    expect(models).toContain("MiniMax-M2");
-    expect(models).toContain("MiniMax-M2.1");
+    expect(models).toContain("minimax-m2");
+    expect(models).toContain("minimax-m2.1");
   });
 
   it("includes known Baichuan models", () => {

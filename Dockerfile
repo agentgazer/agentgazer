@@ -16,7 +16,6 @@ COPY packages/cli/package.json       packages/cli/package.json
 COPY packages/server/package.json    packages/server/package.json
 COPY packages/proxy/package.json     packages/proxy/package.json
 COPY packages/shared/package.json    packages/shared/package.json
-COPY packages/sdk/package.json       packages/sdk/package.json
 COPY apps/dashboard-local/package.json apps/dashboard-local/package.json
 
 # Install all dependencies (including devDependencies needed for build)
@@ -57,7 +56,6 @@ COPY packages/cli/package.json       packages/cli/package.json
 COPY packages/server/package.json    packages/server/package.json
 COPY packages/proxy/package.json     packages/proxy/package.json
 COPY packages/shared/package.json    packages/shared/package.json
-COPY packages/sdk/package.json       packages/sdk/package.json
 COPY apps/dashboard-local/package.json apps/dashboard-local/package.json
 
 # Install production dependencies only
@@ -68,7 +66,6 @@ COPY --from=build /app/packages/cli/dist       packages/cli/dist
 COPY --from=build /app/packages/server/dist    packages/server/dist
 COPY --from=build /app/packages/proxy/dist     packages/proxy/dist
 COPY --from=build /app/packages/shared/dist    packages/shared/dist
-COPY --from=build /app/packages/sdk/dist       packages/sdk/dist
 COPY --from=build /app/apps/dashboard-local/dist apps/dashboard-local/dist
 
 # Dashboard/server port and LLM proxy port
