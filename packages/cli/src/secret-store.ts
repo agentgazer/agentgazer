@@ -466,6 +466,73 @@ export async function migrateFromPlaintextConfig(
 // ---------------------------------------------------------------------------
 
 export const PROVIDER_SERVICE = "com.agentgazer.provider";
+export const OAUTH_SERVICE = "com.agentgazer.oauth";
+
+// ---------------------------------------------------------------------------
+// OAuth token storage
+// ---------------------------------------------------------------------------
+
+export interface OAuthTokenData {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number; // Unix timestamp (seconds)
+  scope?: string;
+  /** Account ID extracted from JWT (for Codex API) */
+  accountId?: string;
+}
+
+/**
+ * Store OAuth token for a provider.
+ */
+export async function storeOAuthToken(
+  store: SecretStore,
+  provider: string,
+  token: OAuthTokenData
+): Promise<void> {
+  const value = JSON.stringify(token);
+  await store.set(OAUTH_SERVICE, provider, value);
+}
+
+/**
+ * Get OAuth token for a provider.
+ * Returns null if not found or if parsing fails.
+ */
+export async function getOAuthToken(
+  store: SecretStore,
+  provider: string
+): Promise<OAuthTokenData | null> {
+  const value = await store.get(OAUTH_SERVICE, provider);
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as OAuthTokenData;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove OAuth token for a provider.
+ */
+export async function removeOAuthToken(
+  store: SecretStore,
+  provider: string
+): Promise<void> {
+  await store.delete(OAUTH_SERVICE, provider);
+}
+
+/**
+ * List all providers with OAuth tokens stored.
+ */
+export async function listOAuthProviders(
+  store: SecretStore
+): Promise<string[]> {
+  return store.list(OAUTH_SERVICE);
+}
+
+// ---------------------------------------------------------------------------
+// Provider key helpers
+// ---------------------------------------------------------------------------
 
 export async function loadProviderKeys(
   store: SecretStore

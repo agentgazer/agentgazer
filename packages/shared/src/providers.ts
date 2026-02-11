@@ -1,5 +1,6 @@
 export type ProviderName =
   | "openai"
+  | "openai-oauth"
   | "anthropic"
   | "google"
   | "mistral"
@@ -19,7 +20,8 @@ interface ProviderPattern {
 
 /** Mapping of provider names to their popular model names for display. */
 export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  openai: "OpenAI (GPT-4)",
+  openai: "OpenAI (API Key)",
+  "openai-oauth": "OpenAI (Codex OAuth)",
   anthropic: "Anthropic (Claude)",
   google: "Google (Gemini)",
   mistral: "Mistral",
@@ -34,6 +36,7 @@ export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
 /** All known provider names (excludes "unknown"). Single source of truth. */
 export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "openai",
+  "openai-oauth",
   "anthropic",
   "google",
   "mistral",
@@ -51,6 +54,7 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
  */
 export const SELECTABLE_PROVIDER_NAMES: ProviderName[] = [
   "openai",
+  "openai-oauth",
   "anthropic",
   "google",
   "mistral",
@@ -167,6 +171,7 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
   // and the SDK will send /openai/chat/completions which becomes /v1/chat/completions
   const urls: Record<string, string> = {
     openai: "https://api.openai.com/v1",
+    "openai-oauth": "https://chatgpt.com/backend-api/codex",  // Codex uses different API
     anthropic: "https://api.anthropic.com/v1",
     google: "https://generativelanguage.googleapis.com/v1beta/openai",
     mistral: "https://api.mistral.ai/v1",
@@ -188,6 +193,7 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
 export function getProviderRootUrl(provider: ProviderName): string | null {
   const urls: Record<string, string> = {
     openai: "https://api.openai.com",
+    "openai-oauth": "https://chatgpt.com",  // Codex uses different API
     anthropic: "https://api.anthropic.com",
     google: "https://generativelanguage.googleapis.com/v1beta",  // Include version prefix
     mistral: "https://api.mistral.ai",
@@ -218,6 +224,7 @@ export function providerUsesPathRouting(provider: ProviderName): boolean {
 export function getProviderChatEndpoint(provider: ProviderName): string | null {
   const endpoints: Record<string, string> = {
     openai: "https://api.openai.com/v1/chat/completions",
+    "openai-oauth": "https://chatgpt.com/backend-api/codex/responses",  // Codex API endpoint
     anthropic: "https://api.anthropic.com/v1/messages",
     google: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     mistral: "https://api.mistral.ai/v1/chat/completions",
@@ -243,6 +250,7 @@ export function getProviderAuthHeader(
 ): { name: string; value: string } | null {
   switch (provider) {
     case "openai":
+    case "openai-oauth":
     case "mistral":
     case "cohere":
     case "deepseek":
@@ -317,3 +325,40 @@ export function parseAgentPath(
   const rest = match[2] ?? "/";
   return { agentId, remainingPath: rest };
 }
+
+/**
+ * Check if a provider uses OAuth authentication instead of API keys.
+ */
+export function isOAuthProvider(provider: ProviderName): boolean {
+  return provider === "openai-oauth";
+}
+
+/**
+ * Check if a provider uses subscription billing (cost = $0).
+ */
+export function isSubscriptionProvider(provider: ProviderName): boolean {
+  return provider === "openai-oauth";
+}
+
+/**
+ * OAuth configuration for providers that support it.
+ */
+export const OAUTH_CONFIG = {
+  "openai-oauth": {
+    clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
+    authorizeUrl: "https://auth.openai.com/oauth/authorize",
+    tokenUrl: "https://auth.openai.com/oauth/token",
+    deviceCodeUrl: "https://auth.openai.com/codex/device",
+    callbackPort: 1455,
+    callbackPath: "/auth/callback",
+    scopes: ["openid", "profile", "email", "offline_access"],
+    // Additional params required for Codex CLI flow
+    extraAuthParams: {
+      id_token_add_organizations: "true",
+      codex_cli_simplified_flow: "true",
+      originator: "pi",
+    },
+    // API endpoint for Codex (NOT standard OpenAI API)
+    apiEndpoint: "https://chatgpt.com/backend-api/codex/responses",
+  },
+} as const;

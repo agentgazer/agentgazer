@@ -5,6 +5,7 @@ interface ProviderRecord {
   name: string;
   active: boolean;
   configured: boolean;
+  authType?: "oauth" | "apikey";
   total_cost?: number;
   today_cost?: number;
   total_tokens?: number;
@@ -50,12 +51,13 @@ ${c.bold}  AgentGazer — Providers${c.reset}
 `);
 
     // Header
-    const header = `  ${"Provider".padEnd(12)}${"Status".padEnd(12)}${"API Key".padEnd(14)}${"Tokens".padStart(10)}  ${"Today".padStart(8)}  ${"Total".padStart(8)}`;
+    const header = `  ${"Provider".padEnd(14)}${"Status".padEnd(12)}${"Auth".padEnd(14)}${"Tokens".padStart(10)}  ${"Today".padStart(8)}  ${"Total".padStart(8)}`;
     console.log(`${c.dim}${header}${c.reset}`);
     console.log(`${c.dim}  ${"─".repeat(header.length - 2)}${c.reset}`);
 
     for (const p of providers) {
-      const name = p.name.padEnd(12);
+      const name = p.name.padEnd(14);
+      const isOAuth = p.authType === "oauth";
 
       // Status with color
       let status: string;
@@ -65,19 +67,27 @@ ${c.bold}  AgentGazer — Providers${c.reset}
         status = `${c.green}● active${c.reset}`.padEnd(12 + 9);
       }
 
-      // Key status with icon
-      let keyStatus: string;
+      // Auth status with icon (different display for OAuth vs API Key)
+      let authStatus: string;
       if (p.configured) {
-        keyStatus = `${c.green}✓ secured${c.reset}`.padEnd(14 + 9);
+        if (isOAuth) {
+          authStatus = `${c.green}✓ OAuth${c.reset}`.padEnd(14 + 9);
+        } else {
+          authStatus = `${c.green}✓ API Key${c.reset}`.padEnd(14 + 9);
+        }
       } else {
-        keyStatus = `${c.yellow}○ not set${c.reset}`.padEnd(14 + 9);
+        if (isOAuth) {
+          authStatus = `${c.yellow}○ login${c.reset}`.padEnd(14 + 9);
+        } else {
+          authStatus = `${c.yellow}○ not set${c.reset}`.padEnd(14 + 9);
+        }
       }
 
       const tokens = formatTokens(p.total_tokens ?? 0).padStart(10);
       const todayCost = formatCurrency(p.today_cost ?? 0).padStart(8);
       const totalCost = formatCurrency(p.total_cost ?? 0).padStart(8);
 
-      console.log(`  ${c.cyan}${name}${c.reset}${status}${keyStatus}${c.dim}${tokens}${c.reset}  ${todayCost}  ${c.bold}${totalCost}${c.reset}`);
+      console.log(`  ${c.cyan}${name}${c.reset}${status}${authStatus}${c.dim}${tokens}${c.reset}  ${todayCost}  ${c.bold}${totalCost}${c.reset}`);
     }
 
     // Summary
@@ -90,6 +100,7 @@ ${c.bold}  AgentGazer — Providers${c.reset}
     console.log(`
   ${c.dim}Commands:${c.reset}
     agentgazer provider add <name>      Add API key
+    agentgazer login <provider>         Login via OAuth (e.g., openai-oauth)
     agentgazer provider <name> stat     View statistics
     agentgazer provider <name> models   List available models
 `);

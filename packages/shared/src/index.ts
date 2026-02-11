@@ -29,9 +29,12 @@ export {
   providerUsesPathRouting,
   parsePathPrefix,
   parseAgentPath,
+  isOAuthProvider,
+  isSubscriptionProvider,
   KNOWN_PROVIDER_NAMES,
   SELECTABLE_PROVIDER_NAMES,
   PROVIDER_DISPLAY_NAMES,
+  OAUTH_CONFIG,
   type ProviderName,
 } from "./providers.js";
 

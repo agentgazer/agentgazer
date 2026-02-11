@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import {
   providerApi,
   openclawApi,
+  oauthApi,
   type ProviderInfo,
   type OpenclawModels,
   type OpenclawConfigResponse,
@@ -14,6 +15,7 @@ import ErrorBanner from "../components/ErrorBanner";
 // Model lists per provider - keep in sync with packages/shared/src/models.ts
 const PROVIDER_MODELS: Record<string, string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "o1", "o3-mini"],
+  "openai-oauth": ["gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5.1-codex-max", "gpt-5-codex"],
   anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
   google: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
   mistral: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
@@ -30,6 +32,7 @@ const PROVIDER_MODELS: Record<string, string[]> = {
 const PROVIDER_API_MAP: Record<string, string> = {
   anthropic: "anthropic-messages",
   openai: "openai-completions",
+  "openai-oauth": "openai-responses",  // Codex uses Responses API
   google: "google-generative-ai",  // Uses Google's native Generative AI API
   // All other providers use OpenAI-compatible API
   mistral: "openai-completions",
@@ -87,6 +90,10 @@ export default function OpenClawPage() {
   const [agentName, setAgentName] = useState<string>("openclaw");
   const [primaryModel, setPrimaryModel] = useState<string>("");
   const [copied, setCopied] = useState(false);
+  // OAuth state
+  const [oauthLoading, setOauthLoading] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthPolling, setOauthPolling] = useState(false);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -168,6 +175,70 @@ export default function OpenClawPage() {
     }
   }
 
+  // OAuth handlers
+  async function handleOAuthLogin() {
+    setOauthLoading(true);
+    setOauthError(null);
+    try {
+      const { authUrl } = await oauthApi.start("openai-oauth");
+      // Open auth URL in new window
+      window.open(authUrl, "_blank", "width=600,height=700");
+      // Start polling for completion
+      setOauthPolling(true);
+      pollOAuthStatus();
+    } catch (err) {
+      setOauthError(String(err));
+      setOauthLoading(false);
+    }
+  }
+
+  async function pollOAuthStatus() {
+    const maxAttempts = 60; // 5 minutes with 5s interval
+    let attempts = 0;
+
+    const poll = async () => {
+      try {
+        const status = await oauthApi.getStatus("openai-oauth");
+        if (status.loggedIn) {
+          setOauthPolling(false);
+          setOauthLoading(false);
+          // Reload providers to show updated status
+          await loadData(false);
+          return;
+        }
+      } catch {
+        // Ignore polling errors
+      }
+
+      attempts++;
+      if (attempts < maxAttempts && oauthPolling) {
+        setTimeout(poll, 5000);
+      } else {
+        setOauthPolling(false);
+        setOauthLoading(false);
+      }
+    };
+
+    setTimeout(poll, 3000); // Start after 3 seconds
+  }
+
+  async function handleOAuthLogout() {
+    setOauthLoading(true);
+    setOauthError(null);
+    try {
+      await oauthApi.logout("openai-oauth");
+      await loadData(false);
+    } catch (err) {
+      setOauthError(String(err));
+    } finally {
+      setOauthLoading(false);
+    }
+  }
+
+  // Check if openai-oauth is configured
+  const openaiOAuthProvider = providers.find((p) => p.name === "openai-oauth");
+  const isOAuthLoggedIn = openaiOAuthProvider?.configured ?? false;
+
   if (loading) return <LoadingSpinner />;
 
   return (
@@ -195,18 +266,19 @@ export default function OpenClawPage() {
       {/* Prerequisites */}
       <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
         <h2 className="mb-2 font-medium text-white">Prerequisites</h2>
-        <ul className="space-y-2 text-sm text-gray-400">
+        <ul className="space-y-3 text-sm text-gray-400">
+          {/* API Key Providers */}
           <li className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {configuredProviders.length > 0 ? (
+              {configuredProviders.filter(p => p.authType !== "oauth").length > 0 ? (
                 <span className="text-green-400">✓</span>
               ) : (
                 <span className="text-yellow-400">○</span>
               )}
               <span>
-                {configuredProviders.length > 0
-                  ? `${configuredProviders.length} provider(s) configured: ${configuredProviders.map((p) => p.name).join(", ")}`
-                  : "No providers configured"}
+                {configuredProviders.filter(p => p.authType !== "oauth").length > 0
+                  ? `${configuredProviders.filter(p => p.authType !== "oauth").length} API key provider(s): ${configuredProviders.filter(p => p.authType !== "oauth").map((p) => p.name).join(", ")}`
+                  : "No API key providers configured"}
               </span>
             </div>
             <Link
@@ -216,6 +288,60 @@ export default function OpenClawPage() {
               Add Provider
             </Link>
           </li>
+
+          {/* OAuth Providers (OpenAI Codex) */}
+          <li className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isOAuthLoggedIn ? (
+                <span className="text-green-400">✓</span>
+              ) : (
+                <span className="text-yellow-400">○</span>
+              )}
+              <span>
+                {isOAuthLoggedIn
+                  ? "OpenAI Codex (OAuth) logged in"
+                  : "OpenAI Codex (subscription, $0 cost)"}
+              </span>
+              {isOAuthLoggedIn && (
+                <span className="rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-400">
+                  OAuth
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {isOAuthLoggedIn ? (
+                <button
+                  onClick={handleOAuthLogout}
+                  disabled={oauthLoading || !isLoopback}
+                  className="rounded bg-gray-600 px-3 py-1 text-xs font-medium text-white hover:bg-gray-500 disabled:opacity-50"
+                >
+                  Logout
+                </button>
+              ) : (
+                <button
+                  onClick={handleOAuthLogin}
+                  disabled={oauthLoading || !isLoopback}
+                  className="rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {oauthLoading
+                    ? oauthPolling
+                      ? "Waiting..."
+                      : "Loading..."
+                    : "Login OpenAI Codex"}
+                </button>
+              )}
+            </div>
+          </li>
+          {oauthError && (
+            <li className="text-red-400 text-xs pl-6">{oauthError}</li>
+          )}
+          {oauthPolling && (
+            <li className="text-yellow-400 text-xs pl-6">
+              Complete authorization in the browser window, then wait...
+            </li>
+          )}
+
+          {/* OpenClaw Installation */}
           <li className="flex items-center gap-2">
             <span className="text-gray-500">○</span>
             <span>

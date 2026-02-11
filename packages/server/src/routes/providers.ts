@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import type Database from "better-sqlite3";
-import { KNOWN_PROVIDER_NAMES, SELECTABLE_PROVIDER_NAMES, ProviderName } from "@agentgazer/shared";
+import { KNOWN_PROVIDER_NAMES, SELECTABLE_PROVIDER_NAMES, ProviderName, isOAuthProvider } from "@agentgazer/shared";
 import { PROVIDER_MODELS } from "@agentgazer/shared";
 import {
   getProviderSettings,
@@ -26,6 +26,7 @@ interface SecretStore {
 interface ProvidersRouterOptions {
   db: Database.Database;
   secretStore?: SecretStore;
+  oauthSecretStore?: SecretStore; // For OAuth token lookups
 }
 
 // Middleware to check if request is from loopback
@@ -45,9 +46,10 @@ function requireLoopback(req: Request, res: Response, next: () => void): void {
 }
 
 const PROVIDER_SERVICE = "com.agentgazer.provider";
+const OAUTH_SERVICE = "com.agentgazer.oauth";
 
 export function createProvidersRouter(options: ProvidersRouterOptions): Router {
-  const { db, secretStore } = options;
+  const { db, secretStore, oauthSecretStore } = options;
   const router = Router();
 
   // GET /api/connection-info
@@ -62,6 +64,11 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
         ? await secretStore.list(PROVIDER_SERVICE)
         : [];
 
+      // Get OAuth configured providers
+      const oauthProviders: string[] = oauthSecretStore
+        ? await oauthSecretStore.list(OAUTH_SERVICE)
+        : (secretStore ? await secretStore.list(OAUTH_SERVICE) : []);
+
       const settings = getAllProviderSettings(db);
       const settingsMap = new Map(settings.map(s => [s.provider, s]));
 
@@ -70,13 +77,19 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
       const statsMap = new Map(allStats.map(s => [s.provider, s]));
 
       const providers = SELECTABLE_PROVIDER_NAMES.map(name => {
-        const configured = configuredProviders.includes(name);
+        // For OAuth providers, check OAuth token store; for API key providers, check API key store
+        const isOAuth = isOAuthProvider(name);
+        const configured = isOAuth
+          ? oauthProviders.includes(name)
+          : configuredProviders.includes(name);
+
         const providerSettings = settingsMap.get(name);
         const stats = statsMap.get(name);
 
         return {
           name,
           configured,
+          authType: isOAuth ? "oauth" as const : "apikey" as const,
           active: providerSettings?.active !== 0,
           rate_limit: providerSettings?.rate_limit_max_requests
             ? {

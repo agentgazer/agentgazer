@@ -75,6 +75,7 @@ export interface ProviderInfo {
   name: string;
   configured: boolean;
   active: boolean;
+  authType?: "oauth" | "apikey";
   rate_limit: { max_requests: number; window_seconds: number } | null;
   // Stats fields
   agent_count: number;
@@ -348,4 +349,35 @@ export const eventsApi = {
     if (params.to) urlParams.set("to", params.to);
     return `/api/events/export?${urlParams.toString()}`;
   },
+};
+
+// ---------------------------------------------------------------------------
+// OAuth API Types
+// ---------------------------------------------------------------------------
+
+export interface OAuthStatus {
+  loggedIn: boolean;
+  expiresAt?: number;
+  expired?: boolean;
+  error?: string;
+}
+
+export interface OAuthStartResponse {
+  sessionId: string;
+  authUrl: string;
+}
+
+// ---------------------------------------------------------------------------
+// OAuth API Functions
+// ---------------------------------------------------------------------------
+
+export const oauthApi = {
+  getStatus: (provider: string) =>
+    api.get<OAuthStatus>(`/api/oauth/${provider}/status`),
+
+  start: (provider: string) =>
+    api.post<OAuthStartResponse>(`/api/oauth/${provider}/start`, {}),
+
+  logout: (provider: string) =>
+    api.post<{ success: boolean }>(`/api/oauth/${provider}/logout`, {}),
 };

@@ -25,10 +25,20 @@ import {
   migrateFromPlaintextConfig,
   loadProviderKeys,
   PROVIDER_SERVICE,
+  storeOAuthToken,
+  getOAuthToken,
+  removeOAuthToken,
+  listOAuthProviders,
 } from "./secret-store.js";
+import {
+  startOAuthFlow,
+  startDeviceCodeFlow,
+  pollDeviceCodeAuthorization,
+  type OAuthToken,
+} from "./oauth.js";
 import { startServer } from "@agentgazer/server";
 import { startProxy } from "@agentgazer/proxy";
-import { KNOWN_PROVIDER_NAMES, PROVIDER_DISPLAY_NAMES, validateProviderKey, type ProviderName } from "@agentgazer/shared";
+import { KNOWN_PROVIDER_NAMES, PROVIDER_DISPLAY_NAMES, validateProviderKey, isOAuthProvider, OAUTH_CONFIG, type ProviderName } from "@agentgazer/shared";
 
 // New command imports
 import { cmdAgents } from "./commands/agents.js";
@@ -178,6 +188,8 @@ Commands:
   logs                        Show daemon logs (use -f to follow)
   status                      Show current configuration
   reset-token                 Generate a new auth token
+  login <provider>            Login via OAuth (for subscription providers)
+  logout <provider>           Logout from OAuth provider
   overview                    Launch real-time TUI dashboard
   events                      Query and display agent events
 
@@ -258,6 +270,9 @@ Options (for uninstall):
   --data                     Remove agent data only
   --yes                      Skip confirmation prompts
 
+Options (for login):
+  --device                   Use device code flow (for headless environments)
+
 Examples:
   agentgazer onboard                    First-time setup
   agentgazer start                      Start with defaults
@@ -265,6 +280,9 @@ Examples:
   agentgazer stop                       Stop the daemon
   agentgazer logs -f                    Follow daemon logs
   agentgazer overview                   Launch TUI dashboard
+  agentgazer login openai-oauth         Login to OpenAI Codex via OAuth
+  agentgazer login openai-oauth --device  Use device code flow
+  agentgazer logout openai-oauth        Logout from OpenAI Codex
   agentgazer provider add openai        Add OpenAI (prompts for key)
   agentgazer agent my-bot stat          Show stats for my-bot
   agentgazer agent my-bot killswitch on Enable kill switch
@@ -1308,6 +1326,158 @@ async function cmdUninstall(flags: Record<string, string>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Login/Logout commands (OAuth)
+// ---------------------------------------------------------------------------
+
+async function cmdLogin(provider: string, flags: Record<string, string>): Promise<void> {
+  if (!provider) {
+    console.error("Usage: agentgazer login <provider>");
+    console.error("\nSupported OAuth providers:");
+    console.error("  openai-oauth    OpenAI Codex (subscription)");
+    process.exit(1);
+  }
+
+  const normalizedProvider = provider.toLowerCase() as ProviderName;
+
+  if (!isOAuthProvider(normalizedProvider)) {
+    console.error(`Error: "${provider}" does not support OAuth login.`);
+    console.error("\nFor API key authentication, use:");
+    console.error(`  agentgazer provider add ${provider}`);
+    process.exit(1);
+  }
+
+  const configDir = getConfigDir();
+  const { store, backendName } = await detectSecretStore(configDir);
+
+  // Check if already logged in
+  const existingToken = await getOAuthToken(store, normalizedProvider);
+  if (existingToken) {
+    const expiresDate = new Date(existingToken.expiresAt * 1000);
+    const isExpired = existingToken.expiresAt < Date.now() / 1000;
+
+    if (!isExpired) {
+      console.log(`\n  Already logged in to ${PROVIDER_DISPLAY_NAMES[normalizedProvider] || normalizedProvider}`);
+      console.log(`  Token expires: ${expiresDate.toLocaleString()}`);
+      console.log("\n  To log out, run:");
+      console.log(`    agentgazer logout ${normalizedProvider}`);
+      return;
+    }
+
+    console.log(`\n  Previous login expired. Starting new OAuth flow...`);
+  }
+
+  const useDeviceCode = "device" in flags;
+
+  console.log(`\n  Logging in to ${PROVIDER_DISPLAY_NAMES[normalizedProvider] || normalizedProvider}...`);
+  console.log(`  Secret backend: ${backendName}\n`);
+
+  if (useDeviceCode) {
+    // Device code flow (for headless environments)
+    try {
+      const deviceResp = await startDeviceCodeFlow(normalizedProvider);
+
+      console.log("  ┌────────────────────────────────────────────────┐");
+      console.log("  │                                                │");
+      console.log(`  │  Code:  ${deviceResp.userCode.padEnd(38)}│`);
+      console.log("  │                                                │");
+      console.log("  └────────────────────────────────────────────────┘");
+      console.log(`\n  Visit: ${deviceResp.verificationUri}`);
+      console.log("  Enter the code above to authorize.\n");
+      console.log("  Waiting for authorization...");
+
+      const token = await pollDeviceCodeAuthorization(
+        normalizedProvider,
+        deviceResp.deviceCode,
+        deviceResp.interval
+      );
+
+      await storeOAuthToken(store, normalizedProvider, {
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken,
+        expiresAt: token.expiresAt,
+        scope: token.scope,
+      });
+
+      console.log("\n  ✓ Login successful!");
+      console.log(`  Token stored in ${backendName}`);
+      console.log(`  Expires: ${new Date(token.expiresAt * 1000).toLocaleString()}`);
+    } catch (err) {
+      console.error(`\n  ✗ Login failed: ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  } else {
+    // Browser-based OAuth flow with PKCE
+    try {
+      const { authUrl, tokenPromise } = await startOAuthFlow({
+        provider: normalizedProvider,
+      });
+
+      console.log("  Opening browser for authorization...\n");
+      console.log(`  If browser doesn't open, visit:\n  ${authUrl}\n`);
+
+      // Try to open browser
+      try {
+        const open = await import("open");
+        await open.default(authUrl);
+      } catch {
+        // Browser couldn't be opened, user will need to use the URL
+      }
+
+      console.log("  Waiting for authorization callback...");
+
+      const token = await tokenPromise;
+
+      await storeOAuthToken(store, normalizedProvider, {
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken,
+        expiresAt: token.expiresAt,
+        scope: token.scope,
+      });
+
+      console.log("\n  ✓ Login successful!");
+      console.log(`  Token stored in ${backendName}`);
+      console.log(`  Expires: ${new Date(token.expiresAt * 1000).toLocaleString()}`);
+    } catch (err) {
+      console.error(`\n  ✗ Login failed: ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  }
+
+  console.log("\n  The proxy will now automatically inject OAuth tokens");
+  console.log("  for requests to this provider.");
+}
+
+async function cmdLogout(provider: string, flags: Record<string, string>): Promise<void> {
+  if (!provider) {
+    console.error("Usage: agentgazer logout <provider>");
+    console.error("\nTo see logged-in providers:");
+    console.error("  agentgazer providers");
+    process.exit(1);
+  }
+
+  const normalizedProvider = provider.toLowerCase() as ProviderName;
+
+  if (!isOAuthProvider(normalizedProvider)) {
+    console.error(`Error: "${provider}" does not use OAuth.`);
+    console.error("\nTo remove an API key, use:");
+    console.error(`  agentgazer provider ${provider} delete`);
+    process.exit(1);
+  }
+
+  const configDir = getConfigDir();
+  const { store } = await detectSecretStore(configDir);
+
+  const existingToken = await getOAuthToken(store, normalizedProvider);
+  if (!existingToken) {
+    console.log(`\n  Not logged in to ${PROVIDER_DISPLAY_NAMES[normalizedProvider] || normalizedProvider}`);
+    return;
+  }
+
+  await removeOAuthToken(store, normalizedProvider);
+  console.log(`\n  ✓ Logged out from ${PROVIDER_DISPLAY_NAMES[normalizedProvider] || normalizedProvider}`);
+}
+
+// ---------------------------------------------------------------------------
 // Stop command
 // ---------------------------------------------------------------------------
 
@@ -1471,6 +1641,12 @@ async function main(): Promise<void> {
       break;
     case "reset-token":
       cmdResetToken();
+      break;
+    case "login":
+      await cmdLogin(positional[0], flags);
+      break;
+    case "logout":
+      await cmdLogout(positional[0], flags);
       break;
     case "overview": {
       const { cmdOverview } = await import("./commands/overview.js");

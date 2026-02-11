@@ -1,3 +1,5 @@
+import { isSubscriptionProvider, type ProviderName } from "./providers.js";
+
 export interface ModelPricing {
   inputPerMToken: number;   // USD per 1M input tokens
   outputPerMToken: number;  // USD per 1M output tokens
@@ -154,6 +156,11 @@ export function calculateCost(
   provider?: string
 ): number | null {
   if (tokensIn < 0 || tokensOut < 0) return null;
+
+  // Subscription providers (e.g., openai-oauth) have no per-token cost
+  if (provider && isSubscriptionProvider(provider as ProviderName)) {
+    return 0;
+  }
 
   const pricing = getModelPricing(model);
   if (!pricing) return null;

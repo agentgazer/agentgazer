@@ -9,6 +9,8 @@ import {
   calculateCost,
   createLogger,
   KNOWN_PROVIDER_NAMES,
+  isOAuthProvider,
+  OAUTH_CONFIG,
   openaiToAnthropic,
   anthropicToOpenaiRequest,
   anthropicToOpenai,
@@ -105,9 +107,10 @@ import { EventBuffer } from "./event-buffer.js";
 import { RateLimiter, type RateLimitConfig } from "./rate-limiter.js";
 import { loopDetector, type KillSwitchConfig } from "./loop-detector.js";
 
-/** SecretStore interface for loading provider API keys */
+/** SecretStore interface for loading provider API keys and OAuth tokens */
 export interface SecretStore {
   get(service: string, account: string): Promise<string | null>;
+  set(service: string, account: string, value: string): Promise<void>;
   list(service: string): Promise<string[]>;
 }
 
@@ -141,7 +144,61 @@ const MAX_SSE_BUFFER_SIZE = 50 * 1024 * 1024; // 50 MB
 const UPSTREAM_TIMEOUT_MS = 120_000; // 2 minutes
 const RATE_LIMIT_REFRESH_INTERVAL_MS = 30_000; // 30 seconds
 const PROVIDER_KEYS_REFRESH_INTERVAL_MS = 10_000; // 10 seconds
+const OAUTH_TOKEN_REFRESH_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
 const PROVIDER_SERVICE = "com.agentgazer.provider";
+const OAUTH_SERVICE = "com.agentgazer.oauth";
+
+/** OAuth token data structure */
+interface OAuthTokenData {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number; // Unix timestamp (seconds)
+  scope?: string;
+}
+
+/** Refresh OAuth token using refresh_token */
+async function refreshOAuthToken(
+  provider: ProviderName,
+  refreshToken: string
+): Promise<OAuthTokenData> {
+  const config = OAUTH_CONFIG[provider as keyof typeof OAUTH_CONFIG];
+  if (!config) {
+    throw new Error(`No OAuth config for provider: ${provider}`);
+  }
+
+  const body = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: refreshToken,
+    client_id: config.clientId,
+  });
+
+  const response = await fetch(config.tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: body.toString(),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Token refresh failed: ${response.status} ${text}`);
+  }
+
+  const data = await response.json() as {
+    access_token: string;
+    refresh_token?: string;
+    expires_in: number;
+    scope?: string;
+  };
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || refreshToken,
+    expiresAt: Math.floor(Date.now() / 1000) + data.expires_in,
+    scope: data.scope,
+  };
+}
 
 function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -1033,6 +1090,77 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     providerKeysRefreshTimer.unref();
   }
 
+  // OAuth token cache: provider -> token data
+  let oauthTokens: Record<string, OAuthTokenData> = {};
+
+  // Load and refresh OAuth tokens from secret store
+  async function loadOAuthTokens(): Promise<void> {
+    if (!secretStore) return;
+
+    try {
+      const oauthProviders = await secretStore.list(OAUTH_SERVICE);
+      const newTokens: Record<string, OAuthTokenData> = {};
+
+      for (const provider of oauthProviders) {
+        const value = await secretStore.get(OAUTH_SERVICE, provider);
+        if (value) {
+          try {
+            const tokenData = JSON.parse(value) as OAuthTokenData;
+            newTokens[provider] = tokenData;
+          } catch {
+            log.error(`Invalid OAuth token data for ${provider}`);
+          }
+        }
+      }
+
+      oauthTokens = newTokens;
+    } catch (err) {
+      log.error("Failed to load OAuth tokens", { err: String(err) });
+    }
+  }
+
+  // Get OAuth access token for a provider, refreshing if needed
+  async function getOAuthAccessToken(provider: ProviderName): Promise<string | null> {
+    const tokenData = oauthTokens[provider];
+    if (!tokenData) return null;
+
+    const nowMs = Date.now();
+    const expiresAtMs = tokenData.expiresAt * 1000;
+
+    // Check if token needs refresh (within threshold)
+    if (expiresAtMs - nowMs < OAUTH_TOKEN_REFRESH_THRESHOLD_MS) {
+      log.info(`OAuth token for ${provider} expiring soon, refreshing...`);
+      try {
+        const newToken = await refreshOAuthToken(provider, tokenData.refreshToken);
+        oauthTokens[provider] = newToken;
+
+        // Save refreshed token to secret store
+        if (secretStore) {
+          await secretStore.set(OAUTH_SERVICE, provider, JSON.stringify(newToken));
+        }
+
+        return newToken.accessToken;
+      } catch (err) {
+        log.error(`Failed to refresh OAuth token for ${provider}`, { err: String(err) });
+        // Return existing token if refresh fails (it might still work)
+        return tokenData.accessToken;
+      }
+    }
+
+    return tokenData.accessToken;
+  }
+
+  // Initial load of OAuth tokens
+  if (secretStore) {
+    void loadOAuthTokens();
+
+    // Refresh OAuth tokens periodically
+    const oauthRefreshTimer = setInterval(() => {
+      void loadOAuthTokens();
+    }, PROVIDER_KEYS_REFRESH_INTERVAL_MS);
+    oauthRefreshTimer.unref();
+  }
+
   const startTime = Date.now();
 
   const eventBuffer = new EventBuffer({
@@ -1567,26 +1695,44 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
-    // Inject API key (use effective provider for cross-provider override)
-    const providerKey = providerKeys[effectiveProvider];
-    if (crossProviderOverride) {
-      // Debug: show available provider keys for troubleshooting
-      const availableProviders = Object.keys(providerKeys);
-      log.info(`[PROXY] Cross-provider: looking for "${effectiveProvider}" key, available: [${availableProviders.join(", ")}]`);
-      // Show key lengths for debugging
-      const keyLengths = availableProviders.map(p => `${p}:${providerKeys[p]?.length ?? 0}`).join(", ");
-      log.info(`[PROXY] Key lengths: ${keyLengths}`);
+    // Inject API key or OAuth token (use effective provider for cross-provider override)
+    let authKey: string | null = null;
+    let authType: "apikey" | "oauth" = "apikey";
+
+    if (isOAuthProvider(effectiveProvider)) {
+      // Use OAuth token for OAuth providers
+      authKey = await getOAuthAccessToken(effectiveProvider);
+      authType = "oauth";
+      if (!authKey) {
+        log.warn(`[PROXY] No OAuth token configured for provider: ${effectiveProvider}. Run 'agentgazer login ${effectiveProvider}'.`);
+        sendJson(res, 401, {
+          error: `OAuth not configured for ${effectiveProvider}. Run 'agentgazer login ${effectiveProvider}' to authenticate.`,
+        });
+        return;
+      }
+    } else {
+      // Use API key for regular providers
+      authKey = providerKeys[effectiveProvider] ?? null;
+      if (crossProviderOverride) {
+        // Debug: show available provider keys for troubleshooting
+        const availableProviders = Object.keys(providerKeys);
+        log.info(`[PROXY] Cross-provider: looking for "${effectiveProvider}" key, available: [${availableProviders.join(", ")}]`);
+        // Show key lengths for debugging
+        const keyLengths = availableProviders.map(p => `${p}:${providerKeys[p]?.length ?? 0}`).join(", ");
+        log.info(`[PROXY] Key lengths: ${keyLengths}`);
+      }
     }
-    if (providerKey) {
-      const authHeader = getProviderAuthHeader(effectiveProvider, providerKey, useNativeApi && !crossProviderOverride);
+
+    if (authKey) {
+      const authHeader = getProviderAuthHeader(effectiveProvider, authKey, useNativeApi && !crossProviderOverride);
       if (authHeader) {
         const existingAuthKey = Object.keys(forwardHeaders).find(k => k.toLowerCase() === authHeader.name.toLowerCase());
         if (existingAuthKey) delete forwardHeaders[existingAuthKey];
         forwardHeaders[authHeader.name] = authHeader.value;
-        const maskedKey = providerKey.length > 12 ? `${providerKey.slice(0, 8)}...${providerKey.slice(-4)}` : "****";
-        log.info(`[PROXY] Injected ${authHeader.name}=${maskedKey} (len=${providerKey.length}) for ${effectiveProvider}${crossProviderOverride ? " (cross-provider)" : ""}${useNativeApi ? " (native API)" : ""}`);
+        const maskedKey = authKey.length > 12 ? `${authKey.slice(0, 8)}...${authKey.slice(-4)}` : "****";
+        log.info(`[PROXY] Injected ${authHeader.name}=${maskedKey} (len=${authKey.length}) for ${effectiveProvider}${crossProviderOverride ? " (cross-provider)" : ""}${authType === "oauth" ? " (OAuth)" : ""}${useNativeApi ? " (native API)" : ""}`);
       }
-    } else {
+    } else if (!isOAuthProvider(effectiveProvider)) {
       log.warn(`[PROXY] No API key configured for provider: ${effectiveProvider}`);
     }
 

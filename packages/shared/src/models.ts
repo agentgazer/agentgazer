@@ -33,6 +33,15 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "o1",
     "o1-pro",
   ],
+  // OpenAI OAuth (Codex subscription) - Codex-specific models
+  "openai-oauth": [
+    "gpt-5.3-codex",
+    "gpt-5.2-codex",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-mini",
+    "gpt-5.1-codex-max",
+    "gpt-5-codex",
+  ],
   anthropic: [
     "claude-opus-4-5-20251101",
     "claude-sonnet-4-5-20250929",
