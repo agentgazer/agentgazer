@@ -263,16 +263,16 @@ export interface OpenclawProvider {
 export const openclawApi = {
   getConfig: () => api.get<OpenclawConfigResponse>("/api/openclaw/config"),
 
-  updateConfig: (models: OpenclawModels) =>
-    api.put<{ success: boolean }>("/api/openclaw/config", { models }),
-
-  updateDefaultModel: (primary: string) =>
+  updateConfig: (models: OpenclawModels, primaryModel?: string) =>
     api.put<{ success: boolean }>("/api/openclaw/config", {
-      agents: {
-        defaults: {
-          model: { primary },
+      models,
+      ...(primaryModel && {
+        agents: {
+          defaults: {
+            model: { primary: primaryModel },
+          },
         },
-      },
+      }),
     }),
 };
 
