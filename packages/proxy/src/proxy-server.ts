@@ -1583,10 +1583,16 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         const targetProv = override.targetProvider as ProviderName;
         log.info(`[PROXY] Cross-provider override: ${provider} → ${targetProv}`);
 
-        // Check if we have an API key for the target provider
-        if (!providerKeys[targetProv]) {
-          log.error(`[PROXY] No API key configured for target provider: ${targetProv}`);
-          sendJson(res, 400, { error: `Cross-provider override failed: no API key for ${targetProv}` });
+        // Check if we have credentials for the target provider
+        // OAuth providers use OAuth tokens, others use API keys
+        const isTargetOAuth = isOAuthProvider(targetProv);
+        const hasOAuthToken = isTargetOAuth && oauthTokens[targetProv];
+        const hasApiKey = !isTargetOAuth && providerKeys[targetProv];
+
+        if (!hasOAuthToken && !hasApiKey) {
+          const credType = isTargetOAuth ? "OAuth token" : "API key";
+          log.error(`[PROXY] No ${credType} configured for target provider: ${targetProv}`);
+          sendJson(res, 400, { error: `Cross-provider override failed: no ${credType} for ${targetProv}` });
           return;
         }
 
