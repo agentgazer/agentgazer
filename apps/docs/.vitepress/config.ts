@@ -56,7 +56,6 @@ export default defineConfig({
               text: "Core Concepts",
               items: [
                 { text: "Proxy", link: "/en/guide/proxy" },
-                { text: "SDK", link: "/en/guide/sdk" },
                 { text: "Dashboard", link: "/en/guide/dashboard" },
                 { text: "Provider Keys", link: "/en/guide/providers" },
                 { text: "Alerts", link: "/en/guide/alerts" },
@@ -120,7 +119,6 @@ export default defineConfig({
               text: "核心功能",
               items: [
                 { text: "代理伺服器", link: "/zh/guide/proxy" },
-                { text: "SDK", link: "/zh/guide/sdk" },
                 { text: "儀表板", link: "/zh/guide/dashboard" },
                 { text: "Provider 金鑰管理", link: "/zh/guide/providers" },
                 { text: "告警系統", link: "/zh/guide/alerts" },

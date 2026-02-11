@@ -30,12 +30,7 @@ All data stays on your machine. Prompts and API keys never leave your environmen
 
 ## How It Works
 
-Two ways to capture data:
-
-| Method | Description | Best For |
-|--------|-------------|----------|
-| **Proxy** | Point your LLM client at `localhost:18900`. Zero code changes. | Existing codebases, quick setup |
-| **SDK** | Call `track()` manually in your code. | Fine-grained control, custom events |
+Point your LLM client at the AgentGazer Proxy (`localhost:18900`). Zero code changes required.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -44,9 +39,9 @@ Two ways to capture data:
 │  ┌──────────┐    ┌─────────────────┐                        │
 │  │ AI Agent │───▶│ AgentGazer Proxy│───▶ LLM Provider       │
 │  └──────────┘    │    (:18900)      │     (OpenAI, etc.)     │
-│       │          └────────┬────────┘                        │
-│       │ SDK               │                                 │
-│       ▼                   ▼                                 │
+│                  └────────┬────────┘                        │
+│                           │                                 │
+│                           ▼                                 │
 │  ┌─────────────────────────────────┐                        │
 │  │   Server (:18800) + Dashboard    │                        │
 │  │         SQLite DB               │                        │
@@ -107,5 +102,4 @@ AgentGazer is a monorepo:
 | `agentgazer` | CLI — starts server, proxy, dashboard |
 | `@agentgazer/server` | Express API + SQLite |
 | `@agentgazer/proxy` | Transparent LLM proxy |
-| `@agentgazer/sdk` | Client SDK for manual tracking |
 | `@agentgazer/shared` | Types, pricing tables, provider detection |

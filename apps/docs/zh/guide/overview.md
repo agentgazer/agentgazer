@@ -30,12 +30,7 @@ agentgazer start
 
 ## 運作方式
 
-兩種資料收集方式：
-
-| 方式 | 說明 | 適合 |
-|------|------|------|
-| **Proxy** | 把 LLM client 指向 `localhost:18900`，零程式碼改動 | 既有專案、快速上手 |
-| **SDK** | 在程式碼中手動呼叫 `track()` | 精細控制、自訂事件 |
+把 LLM client 指向 AgentGazer Proxy（`localhost:18900`），零程式碼改動。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -44,9 +39,9 @@ agentgazer start
 │  ┌──────────┐    ┌─────────────────┐                        │
 │  │ AI Agent │───▶│ AgentGazer Proxy│───▶ LLM Provider       │
 │  └──────────┘    │    (:18900)      │     (OpenAI 等)        │
-│       │          └────────┬────────┘                        │
-│       │ SDK               │                                 │
-│       ▼                   ▼                                 │
+│                  └────────┬────────┘                        │
+│                           │                                 │
+│                           ▼                                 │
 │  ┌─────────────────────────────────┐                        │
 │  │   Server (:18800) + Dashboard    │                        │
 │  │         SQLite DB               │                        │
@@ -107,5 +102,4 @@ AgentGazer 是一個 monorepo：
 | `agentgazer` | CLI — 啟動 server、proxy、dashboard |
 | `@agentgazer/server` | Express API + SQLite |
 | `@agentgazer/proxy` | 透明 LLM proxy |
-| `@agentgazer/sdk` | 手動追蹤用的 Client SDK |
 | `@agentgazer/shared` | 型別、定價表、Provider 偵測 |

@@ -78,6 +78,5 @@ npm uninstall -g agentgazer
 ## 下一步
 
 - [Proxy 指南](/zh/guide/proxy) — 透過 Proxy 路由 LLM 呼叫（零程式碼改動）
-- [SDK 指南](/zh/guide/sdk) — 手動埋點追蹤
 - [儀表板](/zh/guide/dashboard) — 使用 Web UI
 - [告警](/zh/guide/alerts) — 設定下線、錯誤、預算通知

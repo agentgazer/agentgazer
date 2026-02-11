@@ -2,10 +2,9 @@
 
 ## Events are not appearing in the dashboard
 
-1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agentgazer/config.json`
-2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:18800/api/events`
-3. **Ensure the buffer has been flushed**: Events may still be in the buffer. Call `at.shutdown()` to force a flush, or wait for the 5-second auto-flush cycle
-4. **Check console warnings**: SDK network errors do not throw exceptions but are logged as warnings in the console
+1. **Verify the Proxy is running**: Run `agentgazer doctor` to check service status
+2. **Check your baseURL**: Ensure your LLM client points to `http://localhost:18900/{provider}` or `/agents/{agent}/{provider}`
+3. **Check Proxy logs**: Run `agentgazer start -v` for verbose output to see request handling
 
 ## Proxy cannot detect the Provider
 

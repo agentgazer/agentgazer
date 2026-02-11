@@ -2,10 +2,9 @@
 
 ## 事件沒有出現在儀表板
 
-1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agentgazer/config.json` 中的一致
-2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:18800/api/events`
-3. **確認 Buffer 已 Flush**：事件可能還在 buffer 中。呼叫 `at.shutdown()` 強制送出，或等待 5 秒的自動 flush 週期
-4. **查看 console 警告**：SDK 的網路錯誤不會拋出例外，但會在 console 記錄 warning
+1. **確認 Proxy 正在運行**：執行 `agentgazer doctor` 檢查服務狀態
+2. **檢查 baseURL**：確認 LLM client 指向 `http://localhost:18900/{provider}` 或 `/agents/{agent}/{provider}`
+3. **查看 Proxy 日誌**：執行 `agentgazer start -v` 取得詳細輸出來查看請求處理狀況
 
 ## Proxy 無法偵測 Provider
 

@@ -78,6 +78,5 @@ User data (`~/.agentgazer/`) is preserved. Remove manually if needed.
 ## Next Steps
 
 - [Proxy Guide](/en/guide/proxy) — Route LLM calls through the proxy (zero code changes)
-- [SDK Guide](/en/guide/sdk) — Manual instrumentation for fine-grained control
 - [Dashboard](/en/guide/dashboard) — Navigate the web UI
 - [Alerts](/en/guide/alerts) — Set up notifications for downtime, errors, and budget
