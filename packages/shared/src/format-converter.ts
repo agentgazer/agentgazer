@@ -1468,12 +1468,12 @@ export function codexSseToOpenaiChunks(
   switch (event.type) {
     case "response.output_item.added":
       // New output item - emit role chunk on first message
-      if (!state.sentFirstChunk && event.item.type === "message") {
+      if (!state.sentFirstChunk && event.item?.type === "message") {
         chunks.push(createChunk({ role: "assistant" }));
         state.sentFirstChunk = true;
       }
       // Track tool call start
-      if (event.item.type === "function_call" && event.item.call_id) {
+      if (event.item?.type === "function_call" && event.item.call_id) {
         const tcIndex = state.toolCallIndex++;
         state.toolCalls.set(event.item.call_id, {
           index: tcIndex,
@@ -1521,7 +1521,7 @@ export function codexSseToOpenaiChunks(
 
     case "response.output_item.done":
       // Output item complete
-      if (event.item.type === "function_call") {
+      if (event.item?.type === "function_call") {
         state.finishReason = "tool_calls";
       }
       break;
@@ -1529,9 +1529,9 @@ export function codexSseToOpenaiChunks(
     case "response.done":
     case "response.completed":
       // Response complete
-      if (event.response.usage) {
-        state.inputTokens = event.response.usage.input_tokens;
-        state.outputTokens = event.response.usage.output_tokens;
+      if (event.response?.usage) {
+        state.inputTokens = event.response.usage.input_tokens ?? 0;
+        state.outputTokens = event.response.usage.output_tokens ?? 0;
       }
 
       // Determine finish reason
@@ -1557,7 +1557,8 @@ export function codexSseToOpenaiChunks(
         chunks.push(createChunk({ role: "assistant" }));
         state.sentFirstChunk = true;
       }
-      chunks.push(createChunk({ content: `[Error: ${event.response.error.message}]` }));
+      const errorMsg = event.response?.error?.message ?? "Unknown error";
+      chunks.push(createChunk({ content: `[Error: ${errorMsg}]` }));
       chunks.push(createChunk({}, "stop"));
       break;
 
@@ -1573,6 +1574,13 @@ export function codexSseToOpenaiChunks(
 
     case "response.reasoning.delta":
       // Reasoning delta - skip (internal to Codex)
+      break;
+
+    default:
+      // Unknown event types - ignore silently
+      // Codex/Responses API may send: response.created, response.in_progress,
+      // response.content_part.added, response.content_part.done, response.output_text.done,
+      // response.refusal.delta, response.refusal.done, etc.
       break;
   }
 

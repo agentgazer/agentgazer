@@ -1788,18 +1788,24 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         if (tokenParts.length >= 2) {
           const payload = JSON.parse(Buffer.from(tokenParts[1], "base64").toString("utf-8"));
           // Try multiple possible claim names for the account ID
+          // OpenAI OAuth tokens often have nested claims in https://api.openai.com/auth
+          const authClaim = payload["https://api.openai.com/auth"];
           const accountId = payload.chatgpt_account_id
             || payload.account_id
-            || payload["https://api.openai.com/auth"]?.account_id
+            || authClaim?.account_id
+            || authClaim?.user_id
+            || authClaim?.organization_id
             || payload.org_id
-            || payload.organization_id;
+            || payload.organization_id
+            || payload.sub; // Fallback to subject claim
           if (accountId) {
             forwardHeaders["chatgpt-account-id"] = accountId;
             log.info(`[PROXY] Added Codex headers (account: ${String(accountId).slice(0, 8)}...)`);
           } else {
             // Log available claims for debugging
             const claimKeys = Object.keys(payload).slice(0, 10).join(", ");
-            log.warn(`[PROXY] JWT token missing account_id claim. Available: ${claimKeys}`);
+            const authClaimKeys = authClaim ? Object.keys(authClaim).join(", ") : "none";
+            log.warn(`[PROXY] JWT token missing account_id claim. Top-level: ${claimKeys}. Auth claim keys: ${authClaimKeys}`);
           }
         }
       } catch (e) {
