@@ -26,6 +26,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   deepseek: "DeepSeek",
   moonshot: "Moonshot",
   zhipu: "Zhipu",
+  "zhipu-coding-plan": "Zhipu Coding Plan",
   minimax: "MiniMax",
   baichuan: "Baichuan",
 };

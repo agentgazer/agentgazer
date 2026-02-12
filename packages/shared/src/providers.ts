@@ -7,6 +7,7 @@ export type ProviderName =
   | "deepseek"
   | "moonshot"
   | "zhipu"
+  | "zhipu-coding-plan"
   | "minimax"
   | "baichuan"
   | "agentgazer"
@@ -28,6 +29,7 @@ export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   deepseek: "DeepSeek",
   moonshot: "Moonshot (Kimi)",
   zhipu: "Zhipu (GLM-4)",
+  "zhipu-coding-plan": "Zhipu (GLM Coding Plan)",
   minimax: "MiniMax (abab)",
   baichuan: "Baichuan",
   agentgazer: "AgentGazer (Proxy)",
@@ -43,6 +45,7 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "deepseek",
   "moonshot",
   "zhipu",
+  "zhipu-coding-plan",
   "minimax",
   "baichuan",
   "agentgazer",
@@ -61,6 +64,7 @@ export const SELECTABLE_PROVIDER_NAMES: ProviderName[] = [
   "deepseek",
   "moonshot",
   "zhipu",
+  "zhipu-coding-plan",
   "minimax",
   "baichuan",
 ];
@@ -173,6 +177,7 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
     deepseek: "https://api.deepseek.com/v1",
     moonshot: "https://api.moonshot.ai/v1",
     zhipu: "https://api.z.ai/api/paas/v4",
+    "zhipu-coding-plan": "https://api.z.ai/api/coding/paas/v4",
     minimax: "https://api.minimax.io/v1",
     baichuan: "https://api.baichuan-ai.com/v1",
   };
@@ -194,6 +199,7 @@ export function getProviderRootUrl(provider: ProviderName): string | null {
     deepseek: "https://api.deepseek.com",
     moonshot: "https://api.moonshot.ai",
     zhipu: "https://api.z.ai",
+    "zhipu-coding-plan": "https://api.z.ai",
     minimax: "https://api.minimax.io",
     baichuan: "https://api.baichuan-ai.com",
   };
@@ -224,6 +230,7 @@ export function getProviderChatEndpoint(provider: ProviderName): string | null {
     deepseek: "https://api.deepseek.com/v1/chat/completions",
     moonshot: "https://api.moonshot.ai/v1/chat/completions",
     zhipu: "https://api.z.ai/api/paas/v4/chat/completions",
+    "zhipu-coding-plan": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     minimax: "https://api.minimax.io/v1/text/chatcompletion_v2",
     baichuan: "https://api.baichuan-ai.com/v1/chat/completions",
   };
@@ -247,6 +254,7 @@ export function getProviderAuthHeader(
     case "deepseek":
     case "moonshot":
     case "zhipu":
+    case "zhipu-coding-plan":
     case "minimax":
     case "baichuan":
       return { name: "authorization", value: `Bearer ${apiKey}` };
@@ -328,7 +336,7 @@ export function isOAuthProvider(provider: ProviderName): boolean {
  * Check if a provider uses subscription billing (cost = $0).
  */
 export function isSubscriptionProvider(provider: ProviderName): boolean {
-  return provider === "openai-oauth";
+  return provider === "openai-oauth" || provider === "zhipu-coding-plan";
 }
 
 /**

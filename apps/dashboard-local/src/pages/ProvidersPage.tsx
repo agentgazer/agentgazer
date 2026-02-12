@@ -16,6 +16,7 @@ const PROVIDER_ICONS: Record<string, string> = {
   deepseek: "D",
   moonshot: "m",
   zhipu: "Z",
+  "zhipu-coding-plan": "Z",
   minimax: "X",
 };
 
@@ -28,6 +29,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   deepseek: "DeepSeek (V3, R1)",
   moonshot: "Moonshot (Kimi K2.5)",
   zhipu: "Zhipu / Z.ai (GLM-4.7)",
+  "zhipu-coding-plan": "Zhipu Coding Plan (GLM-4.7, Subscription)",
   minimax: "MiniMax (M2)",
 };
 
@@ -335,6 +337,7 @@ function AddProviderModal({
     "deepseek",
     "moonshot",
     "zhipu",
+    "zhipu-coding-plan",
     "minimax",
   ];
 

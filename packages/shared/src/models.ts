@@ -77,6 +77,13 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "glm-4.5",
     "glm-4.5-flash",
   ],
+  "zhipu-coding-plan": [
+    "glm-5",
+    "glm-4.7",
+    "glm-4.6",
+    "glm-4.5",
+    "glm-4.5-air",
+  ],
   minimax: [
     "MiniMax-M2.1",
     "MiniMax-M2.1-lightning",

@@ -230,6 +230,7 @@ const PROVIDER_MODELS: Record<string, string[]> = {
   deepseek: ["deepseek-chat", "deepseek-reasoner"],
   moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
   zhipu: ["glm-4.7", "glm-4.7-flashx", "glm-4.7-flash", "glm-4.6", "glm-4.5", "glm-4.5-x", "glm-4.5-air", "glm-4.5-airx", "glm-4.5-flash"],
+  "zhipu-coding-plan": ["glm-4.7", "glm-4.7-flashx", "glm-4.7-flash", "glm-4.6", "glm-4.5", "glm-4.5-x", "glm-4.5-air", "glm-4.5-airx", "glm-4.5-flash"],
   minimax: ["minimax-01", "minimax-m1", "minimax-m2", "minimax-m2.1", "minimax-m2-her"],
   baichuan: ["Baichuan4-Air", "Baichuan4-Turbo", "Baichuan4"],
 };

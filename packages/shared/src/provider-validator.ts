@@ -29,6 +29,8 @@ export async function validateProviderKey(
       return validateMoonshot(apiKey);
     case "zhipu":
       return validateZhipu(apiKey);
+    case "zhipu-coding-plan":
+      return validateZhipuCodingPlan(apiKey);
     case "minimax":
       return validateMinimax(apiKey);
     case "baichuan":
@@ -230,6 +232,28 @@ async function validateZhipu(apiKey: string): Promise<ValidationResult> {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
     }
+
+    if (res.status === 401) {
+      return { valid: false, error: "Invalid API key" };
+    }
+    if (!res.ok) {
+      return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` };
+    }
+
+    const data = await res.json() as { data: { id: string }[] };
+    const models = data.data?.map(m => m.id) ?? [];
+    return { valid: true, models };
+  } catch (err) {
+    return { valid: false, error: String(err) };
+  }
+}
+
+async function validateZhipuCodingPlan(apiKey: string): Promise<ValidationResult> {
+  // Zhipu Coding Plan uses subscription endpoint
+  try {
+    const res = await fetch("https://api.z.ai/api/coding/paas/v4/models", {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
 
     if (res.status === 401) {
       return { valid: false, error: "Invalid API key" };
