@@ -280,9 +280,16 @@ describe("parseProviderResponse", () => {
   });
 
   describe("unknown provider", () => {
-    it("returns null for unknown provider", () => {
-      const result = parseProviderResponse("unknown", { data: "test" }, 200);
-      expect(result).toBeNull();
+    it("falls back to OpenAI format for unknown provider", () => {
+      // Unknown providers should try OpenAI-compatible format as fallback
+      const result = parseProviderResponse("unknown", {
+        model: "custom-model",
+        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+      }, 200);
+      expect(result).not.toBeNull();
+      expect(result?.model).toBe("custom-model");
+      expect(result?.tokensIn).toBe(10);
+      expect(result?.tokensOut).toBe(20);
     });
   });
 

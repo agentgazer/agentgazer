@@ -140,6 +140,10 @@ export function parseProviderResponse(
   statusCode: number
 ): ParsedResponse | null {
   const parser = PARSERS[provider];
-  if (!parser) return null;
+  if (!parser) {
+    // For unknown providers, try OpenAI-compatible format as fallback
+    // Many providers (including custom endpoints) use this format
+    return parseOpenAI(body, statusCode);
+  }
   return parser(body, statusCode);
 }

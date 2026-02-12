@@ -695,7 +695,9 @@ function parseSSEResponse(
     case "anthropic":
       return parseAnthropicSSE(dataLines, statusCode);
     default:
-      return null;
+      // For unknown providers, try OpenAI-compatible format as fallback
+      // Many providers (including custom zhipu endpoints) use this format
+      return parseOpenAISSE(dataLines, statusCode);
   }
 }
 
@@ -1416,8 +1418,30 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const sseText = sseBody.toString("utf-8");
     const parsed = parseSSEResponse(provider, sseText, statusCode);
 
+    // Record response for loop detection (even if parsing fails)
+    loopDetector.recordResponse(effectiveAgentId, sseText);
+
+    // If parsing fails, still record a basic event with available info
     if (!parsed) {
-      log.warn(`No parseable SSE data for provider: ${provider} — skipping event`);
+      log.warn(`No parseable SSE data for provider: ${provider} — recording basic event`);
+      const basicEvent: AgentEvent = {
+        agent_id: effectiveAgentId,
+        event_type: "llm_call",
+        provider: eventProvider ?? provider,
+        model: actualModel ?? requestedModel,
+        requested_model: requestedModel,
+        tokens_in: null,
+        tokens_out: null,
+        tokens_total: null,
+        cost_usd: null,
+        latency_ms: latencyMs,
+        ttft_ms: ttftMs ?? null,
+        status_code: statusCode,
+        source: "proxy",
+        timestamp: new Date().toISOString(),
+        tags: { streaming: "true", parse_failed: "true" },
+      };
+      eventBuffer.add(basicEvent);
       return;
     }
 
@@ -1432,9 +1456,6 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         cacheRead: parsed.cacheReadTokens ?? undefined,
       }, provider);
     }
-
-    // Record response for loop detection
-    loopDetector.recordResponse(effectiveAgentId, sseText);
 
     const event: AgentEvent = {
       agent_id: effectiveAgentId,
@@ -1472,23 +1493,50 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     actualModel: string | null,  // Model after override (for cost calculation)
     eventProvider?: ProviderName,  // For event recording (defaults to provider)
   ): void {
+    const responseText = responseBody.toString("utf-8");
+
+    // Record response for loop detection (always, even if parsing fails)
+    loopDetector.recordResponse(effectiveAgentId, responseText);
+
+    // Helper to record basic event when parsing fails
+    const recordBasicEvent = (reason: string): void => {
+      log.warn(`${reason} — recording basic event`);
+      const basicEvent: AgentEvent = {
+        agent_id: effectiveAgentId,
+        event_type: "llm_call",
+        provider: eventProvider ?? provider,
+        model: actualModel ?? requestedModel,
+        requested_model: requestedModel,
+        tokens_in: null,
+        tokens_out: null,
+        tokens_total: null,
+        cost_usd: null,
+        latency_ms: latencyMs,
+        status_code: statusCode,
+        source: "proxy",
+        timestamp: new Date().toISOString(),
+        tags: { parse_failed: "true" },
+      };
+      eventBuffer.add(basicEvent);
+    };
+
     if (provider === "unknown") {
-      log.warn("Unrecognized provider - skipping metric extraction");
+      recordBasicEvent("Unrecognized provider");
       return;
     }
 
     // Parse the response body as JSON
     let parsedBody: unknown;
     try {
-      parsedBody = JSON.parse(responseBody.toString("utf-8"));
+      parsedBody = JSON.parse(responseText);
     } catch {
-      log.warn(`Could not parse response body as JSON for ${provider} - skipping metric extraction`);
+      recordBasicEvent(`Could not parse response body as JSON for ${provider}`);
       return;
     }
 
     const parsed = parseProviderResponse(provider, parsedBody, statusCode);
     if (!parsed) {
-      log.warn(`No parser result for provider: ${provider}`);
+      recordBasicEvent(`No parser result for provider: ${provider}`);
       return;
     }
 
@@ -1504,9 +1552,6 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         cacheRead: parsed.cacheReadTokens ?? undefined,
       }, provider);
     }
-
-    // Record response for loop detection
-    loopDetector.recordResponse(effectiveAgentId, responseBody.toString("utf-8"));
 
     const event: AgentEvent = {
       agent_id: effectiveAgentId,
