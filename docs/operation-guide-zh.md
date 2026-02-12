@@ -182,7 +182,7 @@ agentgazer start
 啟動後會自動開啟瀏覽器，前往儀表板：
 
 ```
-http://localhost:18800
+http://localhost:18880
 ```
 
 預設連接埠：
@@ -198,7 +198,7 @@ http://localhost:18800
 
 ```bash
 # 檢查伺服器健康狀態
-curl http://localhost:18800/api/health
+curl http://localhost:18880/api/health
 
 # 檢查 Proxy 健康狀態
 curl http://localhost:18900/health
@@ -470,7 +470,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 const at = AgentGazer.init({
   apiKey: "your-token",           // 必填：在 onboard 時產生的 Token
   agentId: "my-agent",            // 必填：此 Agent 的唯一識別碼
-  endpoint: "http://localhost:18800/api/events",  // 選填：預設指向本地伺服器
+  endpoint: "http://localhost:18880/api/events",  // 選填：預設指向本地伺服器
 });
 ```
 
@@ -570,7 +570,7 @@ import OpenAI from "openai";
 const at = AgentGazer.init({
   apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
-  endpoint: "http://localhost:18800/api/events",
+  endpoint: "http://localhost:18880/api/events",
 });
 
 const openai = new OpenAI();
@@ -1042,7 +1042,7 @@ export SMTP_SECURE=false
 ### 事件沒有出現在儀表板
 
 1. **檢查 Token 是否正確**：確認 SDK 或 Proxy 使用的 Token 與 `~/.agentgazer/config.json` 中的一致
-2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:18800/api/events`
+2. **檢查端點設定**：確認 endpoint 指向 `http://localhost:18880/api/events`
 3. **確認 Buffer 已 Flush**：事件可能還在 buffer 中。呼叫 `at.shutdown()` 強制送出，或等待 5 秒的自動 flush 週期
 4. **查看 console 警告**：SDK 的網路錯誤不會拋出例外，但會在 console 記錄 warning
 
@@ -1104,7 +1104,7 @@ agentgazer start
 - [ ] 記下認證 Token
 - [ ] 使用 `agentgazer providers set` 設定 LLM Provider API Key
 - [ ] 執行 `agentgazer start` 啟動所有服務
-- [ ] 在瀏覽器中開啟 `http://localhost:18800` 登入儀表板
+- [ ] 在瀏覽器中開啟 `http://localhost:18880` 登入儀表板
 - [ ] 在 AI Agent 中設定 Proxy（將 base URL 指向 `http://localhost:18900`）或整合 SDK
 - [ ] 確認事件資料正常出現在儀表板
 - [ ] 設定告警規則（agent_down / error_rate / budget）

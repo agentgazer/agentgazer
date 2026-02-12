@@ -23,7 +23,7 @@ agentgazer start
 
 ### 步驟 2：設定 Provider
 
-1. 開啟 Dashboard [http://localhost:18800](http://localhost:18800)
+1. 開啟 Dashboard [http://localhost:18880](http://localhost:18880)
 2. 前往 **Providers** 頁面
 3. 新增你的 LLM Provider API 金鑰（Anthropic、OpenAI 等）
 

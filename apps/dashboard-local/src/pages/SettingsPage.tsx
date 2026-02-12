@@ -46,7 +46,7 @@ export default function SettingsPage() {
   const [initialPorts, setInitialPorts] = useState<{ port?: number; proxyPort?: number }>({});
 
   // Form state
-  const [port, setPort] = useState<number>(18800);
+  const [port, setPort] = useState<number>(18880);
   const [proxyPort, setProxyPort] = useState<number>(18900);
   const [autoOpen, setAutoOpen] = useState<boolean>(true);
   const [retentionDays, setRetentionDays] = useState<number>(30);
@@ -68,7 +68,7 @@ export default function SettingsPage() {
       const data = await api.get<Settings>("/api/settings");
 
       // Initialize form state
-      setPort(data.server?.port ?? 18800);
+      setPort(data.server?.port ?? 18880);
       setProxyPort(data.server?.proxyPort ?? 18900);
       setAutoOpen(data.server?.autoOpen ?? true);
       setRetentionDays(data.data?.retentionDays ?? 30);
@@ -189,7 +189,7 @@ export default function SettingsPage() {
               <input
                 type="number"
                 value={port}
-                onChange={(e) => setPort(parseInt(e.target.value, 10) || 18800)}
+                onChange={(e) => setPort(parseInt(e.target.value, 10) || 18880)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>

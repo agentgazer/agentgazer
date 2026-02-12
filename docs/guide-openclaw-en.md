@@ -73,7 +73,7 @@ The recommended way to integrate is through the AgentGazer Dashboard.
 agentgazer start
 ```
 
-Open [http://localhost:18800](http://localhost:18800) in your browser.
+Open [http://localhost:18880](http://localhost:18880) in your browser.
 
 ### Step 2: Configure Provider Keys
 
@@ -144,7 +144,7 @@ Now all OpenClaw requests will be routed to your configured provider!
 │                     └───────────────────────┘               │
 │                                                             │
 │  ┌──────────────────────────────────────────┐               │
-│  │  AgentGazer Dashboard :18800             │               │
+│  │  AgentGazer Dashboard :18880             │               │
 │  │  - Real-time metrics                     │               │
 │  │  - Model Override configuration          │               │
 │  │  - Alert management                      │               │
@@ -201,7 +201,7 @@ After integration, configure alerts for your OpenClaw agent.
 
 ```bash
 # Agent Down Alert
-curl -X POST http://localhost:18800/api/alerts \
+curl -X POST http://localhost:18880/api/alerts \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -212,7 +212,7 @@ curl -X POST http://localhost:18800/api/alerts \
   }'
 
 # Budget Alert
-curl -X POST http://localhost:18800/api/alerts \
+curl -X POST http://localhost:18880/api/alerts \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -377,7 +377,7 @@ This approach:
 
 - [ ] Install AgentGazer (`npm install -g @agentgazer/cli`)
 - [ ] Start AgentGazer (`agentgazer start`)
-- [ ] Open Dashboard ([http://localhost:18800](http://localhost:18800))
+- [ ] Open Dashboard ([http://localhost:18880](http://localhost:18880))
 - [ ] Add provider API keys (Providers page)
 - [ ] Go to OpenClaw page and click Apply Configuration
 - [ ] Restart OpenClaw (`openclaw restart`)

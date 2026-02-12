@@ -281,7 +281,7 @@ The Settings page allows you to configure server settings and default notificati
 
 | Setting | Description |
 |---------|-------------|
-| **Port** | Dashboard/server port (default: 18800) |
+| **Port** | Dashboard/server port (default: 18880) |
 | **Proxy Port** | LLM Proxy port (default: 18900) |
 | **Auto Open** | Auto-open browser on start |
 | **Retention Days** | Data retention period in days |

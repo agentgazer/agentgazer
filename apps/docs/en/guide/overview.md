@@ -43,7 +43,7 @@ Point your LLM client at the AgentGazer Proxy (`localhost:18900`). Zero code cha
 │                           │                                 │
 │                           ▼                                 │
 │  ┌─────────────────────────────────┐                        │
-│  │   Server (:18800) + Dashboard    │                        │
+│  │   Server (:18880) + Dashboard    │                        │
 │  │         SQLite DB               │                        │
 │  └─────────────────────────────────┘                        │
 └─────────────────────────────────────────────────────────────┘

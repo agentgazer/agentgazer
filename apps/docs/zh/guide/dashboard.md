@@ -281,7 +281,7 @@ Kill Switch 使用 SimHash 偵測 Agent 行為中的重複模式：
 
 | 設定 | 說明 |
 |------|------|
-| **Port** | 儀表板/伺服器連接埠（預設：18800） |
+| **Port** | 儀表板/伺服器連接埠（預設：18880） |
 | **Proxy Port** | LLM Proxy 連接埠（預設：18900） |
 | **Auto Open** | 啟動時自動開啟瀏覽器 |
 | **Retention Days** | 資料保留天數 |

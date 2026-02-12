@@ -279,7 +279,7 @@ async function followMode(port: number, flags: EventsFlags): Promise<void> {
 }
 
 export async function cmdEvents(flags: EventsFlags): Promise<void> {
-  const port = flags.port ? parseInt(flags.port, 10) : 18800;
+  const port = flags.port ? parseInt(flags.port, 10) : 18880;
   const outputFormat = flags.output ?? flags.o ?? "table";
   const isFollow = "follow" in flags || "f" in flags;
 

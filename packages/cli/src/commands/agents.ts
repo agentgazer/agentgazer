@@ -25,7 +25,7 @@ const colors = {
   gray: "\x1b[90m",
 };
 
-export async function cmdAgents(port: number = 18800): Promise<void> {
+export async function cmdAgents(port: number = 18880): Promise<void> {
   try {
     const resp = await apiGet<AgentsResponse>("/api/agents", port);
     const agents = resp.agents;

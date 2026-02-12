@@ -78,7 +78,7 @@ agentgazer start --retention-days 7
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--port` | `18800` | Express server and dashboard port |
+| `--port` | `18880` | Express server and dashboard port |
 | `--proxy-port` | `4000` | LLM Proxy port |
 | `--retention-days` | `30` | Event data retention period in days |
 | `--no-open` | `false` | Do not auto-open the browser on startup |
@@ -254,7 +254,7 @@ AgentGazer stores configuration in `~/.agentgazer/config.json`. You can set pers
 {
   "token": "your-auth-token",
   "server": {
-    "port": 18800,
+    "port": 18880,
     "proxyPort": 18900,
     "autoOpen": true
   },
@@ -287,7 +287,7 @@ AgentGazer stores configuration in `~/.agentgazer/config.json`. You can set pers
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
 | `token` | string | (generated) | Authentication token (auto-generated on first run) |
-| `server.port` | number | `18800` | Dashboard/server port |
+| `server.port` | number | `18880` | Dashboard/server port |
 | `server.proxyPort` | number | `18900` | LLM Proxy port |
 | `server.autoOpen` | boolean | `true` | Auto-open browser on `agentgazer start` |
 | `data.retentionDays` | number | `30` | Data retention period in days |

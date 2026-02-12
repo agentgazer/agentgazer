@@ -14,7 +14,7 @@ docker run -d \
   ghcr.io/agentgazer/agentgazer
 ```
 
-然後在瀏覽器開啟 http://localhost:18800。
+然後在瀏覽器開啟 http://localhost:18880。
 
 ## 使用 Docker Compose
 

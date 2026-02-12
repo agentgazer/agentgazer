@@ -53,7 +53,7 @@ const { server, shutdown } = startProxy({
   port: 4000,
   apiKey: "your-token",
   agentId: "proxy",
-  endpoint: "http://localhost:18800/api/events",
+  endpoint: "http://localhost:18880/api/events",
   providerKeys: {
     openai: "sk-...",
     anthropic: "sk-ant-...",

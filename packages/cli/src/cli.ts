@@ -225,7 +225,7 @@ Commands:
   help                        Show this help message
 
 Options (for start):
-  --port <number>            Server/dashboard port (default: 18800, or config.server.port)
+  --port <number>            Server/dashboard port (default: 18880, or config.server.port)
   --proxy-port <number>      LLM proxy port (default: 18900, or config.server.proxyPort)
   --retention-days <number>  Data retention in days (default: 30, or config.data.retentionDays)
   --no-open                  Don't auto-open browser (or set config.server.autoOpen: false)
@@ -400,7 +400,7 @@ async function cmdOnboard(): Promise<void> {
   Token:    ${saved.token}
   Config:   ${getConfigDir()}/config.json
   Database: ${getDbPath()}
-  Server:   http://localhost:18800
+  Server:   http://localhost:18880
   Proxy:    http://localhost:18900
 
   ───────────────────────────────────────
@@ -473,7 +473,7 @@ function cmdStatus(): void {
   Token:    ${config.token}
   Config:   ${getConfigDir()}/config.json
   Database: ${getDbPath()}
-  Server:   http://localhost:18800 (default)
+  Server:   http://localhost:18880 (default)
   Proxy:    http://localhost:18900 (default)
 `);
 }
@@ -530,7 +530,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
 
     const config = ensureConfig();
     // Use config values as defaults for daemon mode display
-    const serverPort = flags["port"] ? parseInt(flags["port"], 10) : (config.server?.port ?? 18800);
+    const serverPort = flags["port"] ? parseInt(flags["port"], 10) : (config.server?.port ?? 18880);
     const proxyPort = flags["proxy-port"] ? parseInt(flags["proxy-port"], 10) : (config.server?.proxyPort ?? 18900);
 
     console.log(`
@@ -557,7 +557,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   const config = ensureConfig();
 
   // Use config values as defaults, CLI flags override
-  const defaultPort = config.server?.port ?? 18800;
+  const defaultPort = config.server?.port ?? 18880;
   const defaultProxyPort = config.server?.proxyPort ?? 18900;
   const defaultRetentionDays = config.data?.retentionDays ?? 30;
   const defaultAutoOpen = config.server?.autoOpen ?? true;
@@ -902,7 +902,7 @@ async function cmdSyncPrices(flags: Record<string, string>): Promise<void> {
 }
 
 async function cmdDoctor(flags: Record<string, string>): Promise<void> {
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 18800;
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 18880;
   const proxyPort = flags["proxy-port"]
     ? parseInt(flags["proxy-port"], 10)
     : 18900;
@@ -1548,7 +1548,7 @@ async function cmdStop(): Promise<void> {
   const configDir = getConfigDir();
   const pidFile = path.join(configDir, "agentgazer.pid");
   const config = readConfig();
-  const port = config?.server?.port ?? 18800;
+  const port = config?.server?.port ?? 18880;
   const proxyPort = config?.server?.proxyPort ?? 18900;
 
   if (!fs.existsSync(pidFile)) {
@@ -1680,7 +1680,7 @@ async function main(): Promise<void> {
   const allArgs = process.argv.slice(3);
   const flags = parseFlags(allArgs);
   const positional = parsePositional(allArgs);
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 18800;
+  const port = flags["port"] ? parseInt(flags["port"], 10) : 18880;
 
   switch (subcommand) {
     case "onboard":

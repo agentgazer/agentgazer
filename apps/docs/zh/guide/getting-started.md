@@ -39,11 +39,11 @@ agentgazer onboard
 agentgazer start
 ```
 
-自動開啟儀表板 [http://localhost:18800](http://localhost:18800)。
+自動開啟儀表板 [http://localhost:18880](http://localhost:18880)。
 
 | 服務 | 連接埠 |
 |------|--------|
-| 伺服器 + 儀表板 | 18800 |
+| 伺服器 + 儀表板 | 18880 |
 | LLM Proxy | 18900 |
 
 ### 除錯模式

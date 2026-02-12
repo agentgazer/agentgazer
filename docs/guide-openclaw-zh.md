@@ -73,7 +73,7 @@ OpenClaw 作為一個自主運行的 AI Agent，會持續地向 LLM Provider 發
 agentgazer start
 ```
 
-在瀏覽器中開啟 [http://localhost:18800](http://localhost:18800)。
+在瀏覽器中開啟 [http://localhost:18880](http://localhost:18880)。
 
 ### 步驟 2：設定 Provider 金鑰
 
@@ -142,7 +142,7 @@ openclaw restart
 │                     └───────────────────────┘               │
 │                                                             │
 │  ┌──────────────────────────────────────────┐               │
-│  │  AgentGazer Dashboard :18800             │               │
+│  │  AgentGazer Dashboard :18880             │               │
 │  │  - 即時指標                                │               │
 │  │  - Model Override 設定                    │               │
 │  │  - 告警管理                                │               │
@@ -199,7 +199,7 @@ Proxy 只提取指標資料（Token 數量、模型名稱、延遲等）。**Pro
 
 ```bash
 # Agent Down 告警
-curl -X POST http://localhost:18800/api/alerts \
+curl -X POST http://localhost:18880/api/alerts \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -210,7 +210,7 @@ curl -X POST http://localhost:18800/api/alerts \
   }'
 
 # Budget 告警
-curl -X POST http://localhost:18800/api/alerts \
+curl -X POST http://localhost:18880/api/alerts \
   -H "Authorization: Bearer <your-token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -375,7 +375,7 @@ AgentGazer 使用內建的定價表。如果模型不在表中，成本會顯示
 
 - [ ] 安裝 AgentGazer（`npm install -g @agentgazer/cli`）
 - [ ] 啟動 AgentGazer（`agentgazer start`）
-- [ ] 開啟 Dashboard（[http://localhost:18800](http://localhost:18800)）
+- [ ] 開啟 Dashboard（[http://localhost:18880](http://localhost:18880)）
 - [ ] 新增 Provider API 金鑰（Providers 頁面）
 - [ ] 前往 OpenClaw 頁面並點擊 Apply Configuration
 - [ ] 重啟 OpenClaw（`openclaw restart`）

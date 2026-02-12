@@ -19,7 +19,7 @@ export interface ProviderConfig {
 }
 
 export interface ServerConfig {
-  /** Dashboard port (default: 18800) */
+  /** Dashboard port (default: 18880) */
   port?: number;
   /** LLM proxy port (default: 18900) */
   proxyPort?: number;
@@ -235,7 +235,7 @@ export function resetToken(): AgentGazerConfig {
 // ---------------------------------------------------------------------------
 
 export function getServerPort(config: AgentGazerConfig | null): number {
-  return config?.server?.port ?? 18800;
+  return config?.server?.port ?? 18880;
 }
 
 export function getProxyPort(config: AgentGazerConfig | null): number {

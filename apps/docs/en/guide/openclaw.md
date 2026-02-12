@@ -23,7 +23,7 @@ agentgazer start
 
 ### Step 2: Configure Providers
 
-1. Open Dashboard at [http://localhost:18800](http://localhost:18800)
+1. Open Dashboard at [http://localhost:18880](http://localhost:18880)
 2. Go to **Providers** page
 3. Add your LLM provider API keys (Anthropic, OpenAI, etc.)
 

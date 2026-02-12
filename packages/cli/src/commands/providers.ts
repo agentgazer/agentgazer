@@ -33,7 +33,7 @@ function formatTokens(n: number): string {
   return String(n);
 }
 
-export async function cmdProviders(port: number = 18800): Promise<void> {
+export async function cmdProviders(port: number = 18880): Promise<void> {
   try {
     const resp = await apiGet<ProvidersResponse>("/api/providers", port);
     const providers = resp.providers;

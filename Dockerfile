@@ -69,7 +69,7 @@ COPY --from=build /app/packages/shared/dist    packages/shared/dist
 COPY --from=build /app/apps/dashboard-local/dist apps/dashboard-local/dist
 
 # Dashboard/server port and LLM proxy port
-EXPOSE 18800
+EXPOSE 18880
 EXPOSE 18900
 
 CMD ["node", "packages/cli/dist/cli.js", "start", "--no-open"]

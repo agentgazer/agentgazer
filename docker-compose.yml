@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "18800:18800"
+      - "18880:18880"
       - "18900:18900"
     volumes:
       - agentgazer-data:/root/.agentgazer

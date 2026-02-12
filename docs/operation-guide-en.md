@@ -182,7 +182,7 @@ agentgazer start
 After startup, a browser window automatically opens to the dashboard:
 
 ```
-http://localhost:18800
+http://localhost:18880
 ```
 
 Default ports:
@@ -198,7 +198,7 @@ After startup, use the following methods to verify the system is running properl
 
 ```bash
 # Check server health
-curl http://localhost:18800/api/health
+curl http://localhost:18880/api/health
 
 # Check Proxy health
 curl http://localhost:18900/health
@@ -470,7 +470,7 @@ import { AgentGazer } from "@agentgazer/sdk";
 const at = AgentGazer.init({
   apiKey: "your-token",           // Required: Token generated during onboard
   agentId: "my-agent",            // Required: Unique identifier for this Agent
-  endpoint: "http://localhost:18800/api/events",  // Optional: Defaults to local server
+  endpoint: "http://localhost:18880/api/events",  // Optional: Defaults to local server
 });
 ```
 
@@ -570,7 +570,7 @@ import OpenAI from "openai";
 const at = AgentGazer.init({
   apiKey: process.env.AGENTGAZER_TOKEN!,
   agentId: "my-chatbot",
-  endpoint: "http://localhost:18800/api/events",
+  endpoint: "http://localhost:18880/api/events",
 });
 
 const openai = new OpenAI();
@@ -1042,7 +1042,7 @@ export SMTP_SECURE=false
 ### Events are not appearing in the dashboard
 
 1. **Verify the Token is correct**: Ensure the Token used by the SDK or Proxy matches the one in `~/.agentgazer/config.json`
-2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:18800/api/events`
+2. **Check endpoint configuration**: Confirm the endpoint points to `http://localhost:18880/api/events`
 3. **Ensure the buffer has been flushed**: Events may still be in the buffer. Call `at.shutdown()` to force a flush, or wait for the 5-second auto-flush cycle
 4. **Check console warnings**: SDK network errors do not throw exceptions but are logged as warnings in the console
 
@@ -1104,7 +1104,7 @@ agentgazer start
 - [ ] Note down the authentication Token
 - [ ] Use `agentgazer providers set` to configure LLM Provider API keys
 - [ ] Run `agentgazer start` to launch all services
-- [ ] Open `http://localhost:18800` in a browser to log into the dashboard
+- [ ] Open `http://localhost:18880` in a browser to log into the dashboard
 - [ ] Configure the Proxy in your AI Agent (point the base URL to `http://localhost:18900`) or integrate the SDK
 - [ ] Verify that event data appears correctly in the dashboard
 - [ ] Set up alert rules (agent_down / error_rate / budget)

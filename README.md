@@ -136,7 +136,7 @@ agentgazer uninstall        # Remove AgentGazer
 agentgazer start [options]
 
 Options:
-  --port <number>            Server/dashboard port (default: 18800)
+  --port <number>            Server/dashboard port (default: 18880)
   --proxy-port <number>      LLM proxy port (default: 18900)
   --retention-days <number>  Data retention period in days (default: 30)
   --no-open                  Don't auto-open browser
@@ -259,7 +259,7 @@ export SMTP_SECURE=false
 docker compose up -d
 ```
 
-This builds and runs AgentGazer with persistent storage. The dashboard is available at `http://localhost:18800` and the proxy at `http://localhost:18900`.
+This builds and runs AgentGazer with persistent storage. The dashboard is available at `http://localhost:18880` and the proxy at `http://localhost:18900`.
 
 ## Architecture
 
@@ -270,7 +270,7 @@ This builds and runs AgentGazer with persistent storage. The dashboard is availa
 │  ┌─────────────┐  ┌─────────────┐  ┌───────────┐  │
 │  │  Dashboard   │  │   Express   │  │   LLM     │  │
 │  │  (React)     │  │   Server    │  │   Proxy   │  │
-│  │  :18800      │  │  :18800/api │  │  :18900   │  │
+│  │  :18880      │  │  :18880/api │  │  :18900   │  │
 │  └──────┬───────┘  └──────┬──────┘  └─────┬─────┘  │
 │         │                 │               │        │
 │         │          ┌──────┴──────┐        │        │
