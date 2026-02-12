@@ -450,13 +450,6 @@ async function cmdOnboard(): Promise<void> {
   Setup complete. ${providerCount} provider(s) configured.
   ───────────────────────────────────────
 
-  Point your LLM client at the proxy:
-
-    export OPENAI_BASE_URL=http://localhost:18900/openai/v1
-    export ANTHROPIC_BASE_URL=http://localhost:18900/anthropic
-
-  API keys are auto-injected from your configured providers.
-
   Next: run "agentgazer start" to launch.
 `);
 
