@@ -29,6 +29,7 @@ import {
   getOAuthToken,
   removeOAuthToken,
   listOAuthProviders,
+  type SecretStore,
 } from "./secret-store.js";
 import {
   startOAuthFlow,
@@ -38,7 +39,8 @@ import {
 } from "./oauth.js";
 import { startServer } from "@agentgazer/server";
 import { startProxy } from "@agentgazer/proxy";
-import { KNOWN_PROVIDER_NAMES, PROVIDER_DISPLAY_NAMES, validateProviderKey, isOAuthProvider, OAUTH_CONFIG, type ProviderName } from "@agentgazer/shared";
+import { SELECTABLE_PROVIDER_NAMES, KNOWN_PROVIDER_NAMES, PROVIDER_DISPLAY_NAMES, validateProviderKey, isOAuthProvider, OAUTH_CONFIG, type ProviderName } from "@agentgazer/shared";
+import inquirer from "inquirer";
 
 // New command imports
 import { cmdAgents } from "./commands/agents.js";
@@ -300,7 +302,7 @@ Examples:
 // Subcommands
 // ---------------------------------------------------------------------------
 
-const KNOWN_PROVIDERS = KNOWN_PROVIDER_NAMES;
+const SELECTABLE_PROVIDERS = SELECTABLE_PROVIDER_NAMES;
 
 function ask(rl: readline.Interface, question: string): Promise<string> {
   return new Promise((resolve) => {
@@ -351,6 +353,43 @@ function askSecret(question: string): Promise<string> {
   });
 }
 
+/** Check if a provider has an API key configured in the secret store */
+async function isProviderConfigured(store: SecretStore, provider: string): Promise<boolean> {
+  try {
+    const key = await store.get(PROVIDER_SERVICE, provider);
+    return !!key;
+  } catch {
+    return false;
+  }
+}
+
+/** Build inquirer choices for provider selection */
+async function buildProviderChoices(store: SecretStore): Promise<{ name: string; value: string }[]> {
+  const choices: { name: string; value: string }[] = [];
+
+  for (const provider of SELECTABLE_PROVIDERS) {
+    const displayName = PROVIDER_DISPLAY_NAMES[provider] || provider;
+
+    if (isOAuthProvider(provider as ProviderName)) {
+      // OAuth providers need Dashboard configuration
+      choices.push({
+        name: `${displayName} (OAuth - configure in Dashboard)`,
+        value: provider,
+      });
+    } else {
+      // Check if already configured
+      const configured = await isProviderConfigured(store, provider);
+      const suffix = configured ? " ✓ configured" : "";
+      choices.push({
+        name: `${displayName}${suffix}`,
+        value: provider,
+      });
+    }
+  }
+
+  return choices;
+}
+
 async function cmdOnboard(): Promise<void> {
   const saved = ensureConfig();
 
@@ -370,15 +409,29 @@ async function cmdOnboard(): Promise<void> {
   const { store, backendName } = await detectSecretStore(getConfigDir());
   console.log(`  Secret backend: ${backendName}\n`);
 
+  // Build choices and show interactive selection
+  const choices = await buildProviderChoices(store);
+
+  const { selectedProviders } = await inquirer.prompt<{ selectedProviders: string[] }>([
+    {
+      type: "checkbox",
+      name: "selectedProviders",
+      message: "Select providers to configure (Space to select, Enter to confirm)",
+      choices,
+    },
+  ]);
+
+  // Filter out OAuth providers (they need Dashboard configuration)
+  const providersToConfig = selectedProviders.filter(
+    (p) => !isOAuthProvider(p as ProviderName)
+  );
+
   let providerCount = 0;
 
-  console.log("  Configure provider API keys (the proxy will inject these for you).");
-  const providerList = KNOWN_PROVIDERS.map(p => PROVIDER_DISPLAY_NAMES[p] || p).join(", ");
-  console.log(`  Available: ${providerList}\n`);
-
-  for (const provider of KNOWN_PROVIDERS) {
+  // Prompt for API keys only for selected non-OAuth providers
+  for (const provider of providersToConfig) {
     const displayName = PROVIDER_DISPLAY_NAMES[provider] || provider;
-    const key = await askSecret(`  API key for ${displayName} (Enter to skip): `);
+    const key = await askSecret(`  API key for ${displayName}: `);
     if (!key) continue;
 
     // Store API key in secret store
@@ -407,7 +460,7 @@ async function cmdOnboard(): Promise<void> {
   Next: run "agentgazer start" to launch.
 `);
 
-  // Exit explicitly since raw stdin mode keeps the event loop alive
+  // Exit explicitly since inquirer keeps the event loop alive
   process.exit(0);
 }
 
