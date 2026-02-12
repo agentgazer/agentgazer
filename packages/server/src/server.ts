@@ -20,13 +20,23 @@ import { createOverviewRouter } from "./routes/overview.js";
 import { createOpenclawRouter } from "./routes/openclaw.js";
 import { createSettingsRouter } from "./routes/settings.js";
 import { createOAuthRouter } from "./routes/oauth.js";
+import { createPayloadsRouter } from "./routes/payloads.js";
 import { startEvaluator } from "./alerts/evaluator.js";
+import { initPayloadStore, closePayloadStore, getPayloadStore } from "./payload-store.js";
 
 export interface SecretStore {
   get(service: string, account: string): Promise<string | null>;
   set(service: string, account: string, secret: string): Promise<void>;
   delete(service: string, account: string): Promise<void | boolean>;
   list(service: string): Promise<string[]>;
+}
+
+export interface PayloadOptions {
+  enabled: boolean;
+  dbPath: string;
+  retentionDays?: number;
+  flushInterval?: number;
+  flushBatchSize?: number;
 }
 
 export interface ServerOptions {
@@ -37,6 +47,7 @@ export interface ServerOptions {
   retentionDays?: number;
   secretStore?: SecretStore;
   configPath?: string;
+  payload?: PayloadOptions;
 }
 
 export function createServer(options: ServerOptions): { app: express.Express; db: ReturnType<typeof initDatabase> } {
@@ -76,6 +87,7 @@ export function createServer(options: ServerOptions): { app: express.Express; db
   if (options.secretStore) {
     app.use("/api/oauth", createOAuthRouter({ secretStore: options.secretStore }));
   }
+  app.use("/api/payloads", createPayloadsRouter());
 
   // Serve dashboard static files if a directory is provided
   if (options.dashboardDir) {
@@ -126,6 +138,39 @@ export async function startServer(
   retentionTimer = setInterval(runRetention, 24 * 60 * 60 * 1000);
   retentionTimer.unref();
 
+  // Initialize payload store if enabled
+  if (options.payload?.enabled) {
+    initPayloadStore({
+      dbPath: options.payload.dbPath,
+      flushInterval: options.payload.flushInterval,
+      flushBatchSize: options.payload.flushBatchSize,
+    });
+    log.info("Payload store initialized", { dbPath: options.payload.dbPath });
+  }
+
+  // Start payload retention cleanup
+  const payloadRetentionDays = options.payload?.retentionDays ?? 7;
+  let payloadRetentionTimer: ReturnType<typeof setInterval> | null = null;
+
+  function runPayloadRetention(): void {
+    const store = getPayloadStore();
+    if (!store) return;
+    try {
+      const deleted = store.cleanup(payloadRetentionDays);
+      if (deleted > 0) {
+        log.info("Payload retention cleanup complete", { deleted, retentionDays: payloadRetentionDays });
+      }
+    } catch (err) {
+      log.error("Payload retention cleanup failed", { err: String(err) });
+    }
+  }
+
+  if (options.payload?.enabled) {
+    runPayloadRetention();
+    payloadRetentionTimer = setInterval(runPayloadRetention, 24 * 60 * 60 * 1000);
+    payloadRetentionTimer.unref();
+  }
+
   // Start price sync (runs on startup and every 24h)
   let priceSyncTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -159,6 +204,8 @@ export async function startServer(
     if (retentionTimer) clearInterval(retentionTimer);
     if (retentionRetryTimer) clearTimeout(retentionRetryTimer);
     if (priceSyncTimer) clearInterval(priceSyncTimer);
+    if (payloadRetentionTimer) clearInterval(payloadRetentionTimer);
+    closePayloadStore();
     return new Promise((resolve, reject) => {
       const shutdownTimeout = setTimeout(() => {
         log.warn("Shutdown timed out, forcing close");

@@ -123,12 +123,22 @@ import {
   cleanupExpiredSessions,
   type StickySession,
 } from "./session-sticky.js";
+import { pushPayload, extractPayloads, type BufferedPayload } from "./payload-buffer.js";
 
 /** SecretStore interface for loading provider API keys and OAuth tokens */
 export interface SecretStore {
   get(service: string, account: string): Promise<string | null>;
   set(service: string, account: string, value: string): Promise<void>;
   list(service: string): Promise<string[]>;
+}
+
+export interface PayloadArchiveOptions {
+  /** Enable payload archiving to server */
+  enabled: boolean;
+  /** Server endpoint for payload archiving (e.g., http://localhost:18880/api/payloads) */
+  endpoint: string;
+  /** API token for authentication */
+  token: string;
 }
 
 export interface ProxyOptions {
@@ -145,6 +155,8 @@ export interface ProxyOptions {
   db?: Database.Database;
   /** Optional secret store for hot-reloading provider keys */
   secretStore?: SecretStore;
+  /** Optional payload archive settings */
+  payloadArchive?: PayloadArchiveOptions;
 }
 
 export interface ProxyServer {
@@ -1056,6 +1068,61 @@ function loadRateLimitsFromDb(db: Database.Database | undefined): Record<string,
   }
 }
 
+// ---------------------------------------------------------------------------
+// Payload Archive Functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Archive a single payload to the server (fire-and-forget).
+ */
+function archivePayload(
+  archiveOpts: PayloadArchiveOptions,
+  eventId: string,
+  agentId: string,
+  requestBody: string,
+  responseBody: string,
+): void {
+  const body = JSON.stringify({ eventId, agentId, requestBody, responseBody });
+  fetch(archiveOpts.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${archiveOpts.token}`,
+    },
+    body,
+  }).catch((err) => {
+    log.debug("Failed to archive payload", { err: String(err), eventId });
+  });
+}
+
+/**
+ * Archive evidence payloads for a kill switch event.
+ */
+async function archiveEvidence(
+  archiveOpts: PayloadArchiveOptions,
+  killSwitchEventId: string,
+  payloads: BufferedPayload[],
+): Promise<void> {
+  try {
+    const body = JSON.stringify({ killSwitchEventId, payloads });
+    const res = await fetch(`${archiveOpts.endpoint}/evidence`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${archiveOpts.token}`,
+      },
+      body,
+    });
+    if (!res.ok) {
+      log.warn("Failed to archive evidence", { status: res.status, killSwitchEventId });
+    } else {
+      log.info(`Archived ${payloads.length} evidence payloads for kill switch ${killSwitchEventId}`);
+    }
+  } catch (err) {
+    log.error("Failed to archive evidence", { err: String(err), killSwitchEventId });
+  }
+}
+
 export function startProxy(options: ProxyOptions): ProxyServer {
   const port = options.port ?? DEFAULT_PORT;
   const agentId = options.agentId;
@@ -1065,6 +1132,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   let providerKeys = options.providerKeys ?? {};
   const db = options.db;
   const secretStore = options.secretStore;
+  const payloadArchive = options.payloadArchive;
 
   // Initialize rate limiter - prefer database, fall back to options for backward compatibility/testing
   let initialRateLimits: Record<string, RateLimitConfig> = {};
@@ -1564,7 +1632,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
                   action: "deactivated",
                 },
               };
-              insertEvents(db, [killSwitchEvent]);
+              const [killSwitchEventId] = insertEvents(db, [killSwitchEvent]);
 
               // Fire kill_switch alert for Telegram/webhook/email notifications
               const killSwitchData: KillSwitchEventData = {
@@ -1575,6 +1643,17 @@ export function startProxy(options: ProxyOptions): ProxyServer {
                 details: loopCheck.details,
               };
               void fireKillSwitchAlert(db, killSwitchData);
+
+              // Extract payload buffer as evidence for analysis
+              const evidencePayloads = extractPayloads(effectiveAgentId);
+              if (evidencePayloads.length > 0) {
+                log.info(`[PROXY] Extracted ${evidencePayloads.length} payloads as kill switch evidence for agent "${effectiveAgentId}"`);
+
+                // Archive evidence to server if enabled
+                if (payloadArchive?.enabled && killSwitchEventId) {
+                  void archiveEvidence(payloadArchive, killSwitchEventId, evidencePayloads);
+                }
+              }
             } catch (err) {
               log.error("Failed to record kill_switch event", { err: String(err) });
             }
@@ -2376,6 +2455,30 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
+
+      // Push to payload buffer for kill switch evidence (streaming)
+      if (providerResponse.status >= 200 && providerResponse.status < 400) {
+        try {
+          const eventId = crypto.randomUUID();
+          const reqBody = modifiedRequestBody.toString("utf-8");
+          const resBody = fullBody.toString("utf-8");
+          const payload: BufferedPayload = {
+            eventId,
+            agentId: effectiveAgentId,
+            requestBody: reqBody,
+            responseBody: resBody,
+            timestamp: Date.now(),
+          };
+          pushPayload(effectiveAgentId, payload);
+
+          // Archive to server if enabled
+          if (payloadArchive?.enabled) {
+            archivePayload(payloadArchive, eventId, effectiveAgentId, reqBody, resBody);
+          }
+        } catch {
+          // Ignore payload buffer errors
+        }
+      }
     } else {
       // Non-streaming response
       let responseBodyBuffer: Buffer;
@@ -2457,6 +2560,30 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         extractAndQueueMetrics(parsingProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
+      }
+
+      // Push to payload buffer for kill switch evidence (non-streaming)
+      if (providerResponse.status >= 200 && providerResponse.status < 400) {
+        try {
+          const eventId = crypto.randomUUID();
+          const reqBody = modifiedRequestBody.toString("utf-8");
+          const resBody = responseBodyBuffer.toString("utf-8");
+          const payload: BufferedPayload = {
+            eventId,
+            agentId: effectiveAgentId,
+            requestBody: reqBody,
+            responseBody: resBody,
+            timestamp: Date.now(),
+          };
+          pushPayload(effectiveAgentId, payload);
+
+          // Archive to server if enabled
+          if (payloadArchive?.enabled) {
+            archivePayload(payloadArchive, eventId, effectiveAgentId, reqBody, resBody);
+          }
+        } catch {
+          // Ignore payload buffer errors
+        }
       }
     }
   }

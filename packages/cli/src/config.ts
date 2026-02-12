@@ -32,6 +32,13 @@ export interface DataConfig {
   retentionDays?: number;
 }
 
+export interface PayloadConfig {
+  /** Enable payload archiving (default: false) */
+  enabled?: boolean;
+  /** Payload retention period in days (default: 7) */
+  retentionDays?: number;
+}
+
 export interface TelegramDefaults {
   botToken?: string;
   chatId?: string;
@@ -65,6 +72,7 @@ export interface AgentGazerConfig {
   token: string;
   server?: ServerConfig;
   data?: DataConfig;
+  payload?: PayloadConfig;
   alerts?: AlertsConfig;
   providers?: Record<string, ProviderConfig>;
 }
@@ -72,6 +80,7 @@ export interface AgentGazerConfig {
 const CONFIG_DIR = path.join(os.homedir(), ".agentgazer");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 const DB_FILE = path.join(CONFIG_DIR, "data.db");
+const PAYLOAD_DB_FILE = path.join(CONFIG_DIR, "payloads.db");
 
 export function getConfigDir(): string {
   return CONFIG_DIR;
@@ -83,6 +92,10 @@ export function getConfigPath(): string {
 
 export function getDbPath(): string {
   return DB_FILE;
+}
+
+export function getPayloadDbPath(): string {
+  return PAYLOAD_DB_FILE;
 }
 
 function generateToken(): string {
@@ -129,6 +142,11 @@ function migrateConfig(parsed: Record<string, unknown>): { config: AgentGazerCon
   // Alerts config (new, no migration needed)
   if (parsed.alerts && typeof parsed.alerts === "object") {
     config.alerts = parsed.alerts as AlertsConfig;
+  }
+
+  // Payload config (new, no migration needed)
+  if (parsed.payload && typeof parsed.payload === "object") {
+    config.payload = parsed.payload as PayloadConfig;
   }
 
   // Providers
@@ -262,6 +280,32 @@ export function updateAlertDefaults(defaults: AlertDefaults): AgentGazerConfig {
   config.alerts.defaults = {
     ...config.alerts.defaults,
     ...defaults,
+  };
+  saveConfig(config);
+  return config;
+}
+
+// ---------------------------------------------------------------------------
+// Payload config helpers
+// ---------------------------------------------------------------------------
+
+export const DEFAULT_PAYLOAD_CONFIG: Required<PayloadConfig> = {
+  enabled: false,
+  retentionDays: 7,
+};
+
+export function getPayloadConfig(config: AgentGazerConfig | null): Required<PayloadConfig> {
+  return {
+    enabled: config?.payload?.enabled ?? DEFAULT_PAYLOAD_CONFIG.enabled,
+    retentionDays: config?.payload?.retentionDays ?? DEFAULT_PAYLOAD_CONFIG.retentionDays,
+  };
+}
+
+export function updatePayloadConfig(updates: Partial<PayloadConfig>): AgentGazerConfig {
+  const config = ensureConfig();
+  config.payload = {
+    ...config.payload,
+    ...updates,
   };
   saveConfig(config);
   return config;

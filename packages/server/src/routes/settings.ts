@@ -18,6 +18,10 @@ interface SettingsResponse {
   data?: {
     retentionDays?: number;
   };
+  payload?: {
+    enabled?: boolean;
+    retentionDays?: number;
+  };
   alerts?: {
     defaults?: {
       telegram?: {
@@ -44,6 +48,7 @@ interface ConfigFile {
   token: string;
   server?: SettingsResponse["server"];
   data?: SettingsResponse["data"];
+  payload?: SettingsResponse["payload"];
   alerts?: SettingsResponse["alerts"];
   providers?: Record<string, unknown>;
 }
@@ -97,6 +102,7 @@ export function createSettingsRouter(options: { configPath: string }): Router {
       const settings: SettingsResponse = {
         server: config.server,
         data: config.data,
+        payload: config.payload,
         alerts: config.alerts,
       };
 
@@ -129,6 +135,9 @@ export function createSettingsRouter(options: { configPath: string }): Router {
       if (updates.data) {
         config.data = deepMerge(config.data ?? {}, updates.data);
       }
+      if (updates.payload) {
+        config.payload = deepMerge(config.payload ?? {}, updates.payload);
+      }
       if (updates.alerts) {
         config.alerts = deepMerge(config.alerts ?? {}, updates.alerts);
       }
@@ -141,6 +150,7 @@ export function createSettingsRouter(options: { configPath: string }): Router {
       const settings: SettingsResponse = {
         server: config.server,
         data: config.data,
+        payload: config.payload,
         alerts: config.alerts,
       };
 

@@ -15,9 +15,11 @@ import {
   readConfig,
   resetToken,
   getDbPath,
+  getPayloadDbPath,
   getConfigDir,
   setProvider,
   saveConfig,
+  getPayloadConfig,
   type ProviderConfig,
 } from "./config.js";
 import {
@@ -561,6 +563,7 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
   const defaultProxyPort = config.server?.proxyPort ?? 18900;
   const defaultRetentionDays = config.data?.retentionDays ?? 30;
   const defaultAutoOpen = config.server?.autoOpen ?? true;
+  const payloadConfig = getPayloadConfig(config);
 
   const requestedServerPort = flags["port"] ? parseInt(flags["port"], 10) : defaultPort;
   const proxyPort = flags["proxy-port"]
@@ -649,6 +652,11 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     retentionDays,
     secretStore: store,
     configPath,
+    payload: payloadConfig.enabled ? {
+      enabled: true,
+      dbPath: getPayloadDbPath(),
+      retentionDays: payloadConfig.retentionDays,
+    } : undefined,
   });
   console.log(`  Secret backend: ${backendName}`);
 
@@ -670,6 +678,11 @@ async function cmdStart(flags: Record<string, string>): Promise<void> {
     providerKeys,
     db, // Rate limits are loaded from db
     secretStore: store, // For hot-reloading provider keys
+    payloadArchive: payloadConfig.enabled ? {
+      enabled: true,
+      endpoint: `http://localhost:${serverPort}/api/payloads`,
+      token: config.token,
+    } : undefined,
   });
 
   const modeLabel = verbose ? "(verbose)" : "";

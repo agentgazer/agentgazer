@@ -5,6 +5,13 @@ import ErrorBanner from "../components/ErrorBanner";
 
 /* ---------- Types ---------- */
 
+interface PayloadStats {
+  enabled: boolean;
+  archive: number;
+  evidence: number;
+  totalSize: number;
+}
+
 interface Settings {
   server?: {
     port?: number;
@@ -12,6 +19,10 @@ interface Settings {
     autoOpen?: boolean;
   };
   data?: {
+    retentionDays?: number;
+  };
+  payload?: {
+    enabled?: boolean;
     retentionDays?: number;
   };
   alerts?: {
@@ -50,6 +61,10 @@ export default function SettingsPage() {
   const [proxyPort, setProxyPort] = useState<number>(18900);
   const [autoOpen, setAutoOpen] = useState<boolean>(true);
   const [retentionDays, setRetentionDays] = useState<number>(30);
+  const [payloadEnabled, setPayloadEnabled] = useState<boolean>(false);
+  const [payloadRetentionDays, setPayloadRetentionDays] = useState<number>(7);
+  const [payloadStats, setPayloadStats] = useState<PayloadStats | null>(null);
+  const [clearingArchive, setClearingArchive] = useState(false);
   const [telegramBotToken, setTelegramBotToken] = useState<string>("");
   const [telegramChatId, setTelegramChatId] = useState<string>("");
   const [webhookUrl, setWebhookUrl] = useState<string>("");
@@ -67,11 +82,22 @@ export default function SettingsPage() {
       setError(null);
       const data = await api.get<Settings>("/api/settings");
 
+      // Fetch payload stats separately (non-critical, may fail if store not enabled)
+      let stats: PayloadStats = { enabled: false, archive: 0, evidence: 0, totalSize: 0 };
+      try {
+        stats = await api.get<PayloadStats>("/api/payloads/stats");
+      } catch {
+        // Ignore payload stats fetch errors
+      }
+
       // Initialize form state
       setPort(data.server?.port ?? 18880);
       setProxyPort(data.server?.proxyPort ?? 18900);
       setAutoOpen(data.server?.autoOpen ?? true);
       setRetentionDays(data.data?.retentionDays ?? 30);
+      setPayloadEnabled(data.payload?.enabled ?? false);
+      setPayloadRetentionDays(data.payload?.retentionDays ?? 7);
+      setPayloadStats(stats);
       setTelegramBotToken(data.alerts?.defaults?.telegram?.botToken ?? "");
       setTelegramChatId(data.alerts?.defaults?.telegram?.chatId ?? "");
       setWebhookUrl(data.alerts?.defaults?.webhook?.url ?? "");
@@ -113,6 +139,10 @@ export default function SettingsPage() {
         },
         data: {
           retentionDays,
+        },
+        payload: {
+          enabled: payloadEnabled,
+          retentionDays: payloadRetentionDays,
         },
         alerts: {
           defaults: {
@@ -237,6 +267,99 @@ export default function SettingsPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Events older than this will be automatically deleted.
             </p>
+          </div>
+        </div>
+
+        {/* Payload Storage Section */}
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-semibold mb-4">Payload Storage</h2>
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+              Warning: Payload storage saves full request/response bodies. This may include sensitive data like API keys, user content, or PII. Use with caution.
+            </p>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={payloadEnabled}
+                  onChange={(e) => setPayloadEnabled(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Enable payload archiving
+                </span>
+              </label>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                Save request and response bodies for later analysis. Requires restart to take effect.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Payload Retention Days
+              </label>
+              <input
+                type="number"
+                value={payloadRetentionDays}
+                onChange={(e) => setPayloadRetentionDays(parseInt(e.target.value, 10) || 7)}
+                min={1}
+                disabled={!payloadEnabled}
+                className="w-full max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+              />
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Archived payloads older than this will be automatically deleted.
+              </p>
+            </div>
+            {payloadStats && (
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Storage Statistics
+                </h3>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Archive:</span>{" "}
+                    <span className="font-medium">{(payloadStats.archive ?? 0).toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Evidence:</span>{" "}
+                    <span className="font-medium">{(payloadStats.evidence ?? 0).toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">Size:</span>{" "}
+                    <span className="font-medium">
+                      {(payloadStats.totalSize ?? 0) > 1024 * 1024
+                        ? `${((payloadStats.totalSize ?? 0) / (1024 * 1024)).toFixed(1)} MB`
+                        : (payloadStats.totalSize ?? 0) > 1024
+                        ? `${((payloadStats.totalSize ?? 0) / 1024).toFixed(1)} KB`
+                        : `${payloadStats.totalSize ?? 0} B`}
+                    </span>
+                  </div>
+                </div>
+                {(payloadStats.archive ?? 0) > 0 && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm("Are you sure you want to clear all archived payloads? This cannot be undone.")) return;
+                      setClearingArchive(true);
+                      try {
+                        await api.delete("/api/payloads/archive");
+                        const stats = await api.get<PayloadStats>("/api/payloads/stats");
+                        setPayloadStats(stats);
+                        setSuccess("Archive cleared successfully.");
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Failed to clear archive");
+                      } finally {
+                        setClearingArchive(false);
+                      }
+                    }}
+                    disabled={clearingArchive}
+                    className="mt-3 px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {clearingArchive ? "Clearing..." : "Clear Archive"}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
