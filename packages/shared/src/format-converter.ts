@@ -1289,6 +1289,7 @@ const CODEX_UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
   "$defs",
   "definitions",
   "examples",
+  "default",
   // Validation constraints that can cause 400 errors
   "minLength",
   "maxLength",
@@ -1305,6 +1306,33 @@ const CODEX_UNSUPPORTED_SCHEMA_KEYWORDS = new Set([
 ]);
 
 /**
+ * Check if a schema variant represents only null/undefined.
+ */
+function isNullOrUndefinedSchema(variant: unknown): boolean {
+  if (!variant || typeof variant !== "object" || Array.isArray(variant)) {
+    return false;
+  }
+  const record = variant as Record<string, unknown>;
+  // { const: null } or { const: undefined }
+  if ("const" in record && (record.const === null || record.const === undefined)) {
+    return true;
+  }
+  // { enum: [null] }
+  if (Array.isArray(record.enum) && record.enum.length === 1) {
+    return record.enum[0] === null || record.enum[0] === undefined;
+  }
+  // { type: "null" }
+  if (record.type === "null") {
+    return true;
+  }
+  // { type: ["null"] }
+  if (Array.isArray(record.type) && record.type.length === 1 && record.type[0] === "null") {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Clean JSON Schema for Codex API compatibility.
  * Removes unsupported keywords that cause validation errors.
  */
@@ -1319,6 +1347,10 @@ function cleanSchemaForCodex(schema: unknown): unknown {
   const obj = schema as Record<string, unknown>;
   const cleaned: Record<string, unknown> = {};
 
+  // Track if we have anyOf/oneOf for special handling
+  const hasAnyOf = "anyOf" in obj && Array.isArray(obj.anyOf);
+  const hasOneOf = "oneOf" in obj && Array.isArray(obj.oneOf);
+
   for (const [key, value] of Object.entries(obj)) {
     // Skip unsupported keywords
     if (CODEX_UNSUPPORTED_SCHEMA_KEYWORDS.has(key)) {
@@ -1331,6 +1363,11 @@ function cleanSchemaForCodex(schema: unknown): unknown {
       continue;
     }
 
+    // Skip type when anyOf/oneOf is present (type is implicit)
+    if (key === "type" && (hasAnyOf || hasOneOf)) {
+      continue;
+    }
+
     // Handle array types with null (e.g., ["string", "null"] -> "string")
     if (key === "type" && Array.isArray(value)) {
       const types = value.filter((t) => t !== "null");
@@ -1338,29 +1375,83 @@ function cleanSchemaForCodex(schema: unknown): unknown {
       continue;
     }
 
-    // Recursively clean nested objects
-    if (key === "properties" && value && typeof value === "object") {
+    // Recursively clean nested objects in properties
+    if (key === "properties" && value && typeof value === "object" && !Array.isArray(value)) {
       const props = value as Record<string, unknown>;
       cleaned[key] = Object.fromEntries(
         Object.entries(props).map(([k, v]) => [k, cleanSchemaForCodex(v)])
       );
-    } else if (key === "items") {
+      continue;
+    }
+
+    // Handle items (single schema or array of schemas)
+    if (key === "items") {
       if (Array.isArray(value)) {
         cleaned[key] = value.map(cleanSchemaForCodex);
-      } else if (typeof value === "object") {
+      } else if (value && typeof value === "object") {
         cleaned[key] = cleanSchemaForCodex(value);
       } else {
         cleaned[key] = value;
       }
-    } else if (key === "anyOf" || key === "oneOf" || key === "allOf") {
-      if (Array.isArray(value)) {
-        cleaned[key] = value.map(cleanSchemaForCodex);
-      } else {
-        cleaned[key] = value;
-      }
-    } else {
-      cleaned[key] = value;
+      continue;
     }
+
+    // Handle anyOf/oneOf with null variant stripping and simplification
+    if ((key === "anyOf" || key === "oneOf") && Array.isArray(value)) {
+      // Clean each variant first
+      const cleanedVariants = value.map(cleanSchemaForCodex);
+      // Strip null/undefined variants
+      const nonNullVariants = cleanedVariants.filter(
+        (variant) => !isNullOrUndefinedSchema(variant)
+      );
+
+      // If only one non-null variant remains, unwrap it
+      if (nonNullVariants.length === 1) {
+        const lone = nonNullVariants[0];
+        if (lone && typeof lone === "object" && !Array.isArray(lone)) {
+          // Merge with any description from the parent
+          const merged = { ...(lone as Record<string, unknown>) };
+          if (obj.description && !merged.description) {
+            merged.description = obj.description;
+          }
+          // Return the merged schema directly by setting all its keys
+          for (const [mKey, mValue] of Object.entries(merged)) {
+            cleaned[mKey] = mValue;
+          }
+          // Skip setting anyOf/oneOf since we've unwrapped
+          continue;
+        }
+      }
+
+      // Otherwise keep the cleaned variants
+      if (nonNullVariants.length > 0) {
+        cleaned[key] = nonNullVariants;
+      }
+      continue;
+    }
+
+    // Handle allOf
+    if (key === "allOf" && Array.isArray(value)) {
+      cleaned[key] = value.map(cleanSchemaForCodex);
+      continue;
+    }
+
+    // Handle other schema-like nested keys
+    if ((key === "not" || key === "if" || key === "then" || key === "else" ||
+         key === "contains" || key === "propertyNames" || key === "additionalItems") &&
+        value && typeof value === "object") {
+      cleaned[key] = cleanSchemaForCodex(value);
+      continue;
+    }
+
+    // For any other object value, recursively clean it (might be a nested schema)
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      cleaned[key] = cleanSchemaForCodex(value);
+      continue;
+    }
+
+    // Pass through primitives and arrays (non-schema arrays like enum values)
+    cleaned[key] = value;
   }
 
   return cleaned;
@@ -1500,7 +1591,8 @@ export interface CodexToOpenAIStreamState {
   outputTokens: number;
   sentFirstChunk: boolean;
   currentText: string;
-  // Track tool calls: call_id -> { index, id, name, arguments }
+  // Track tool calls: item_id -> { index, id (call_id for OpenAI), name, arguments }
+  // We use item_id as key because it's required in both output_item.added and function_call_arguments.delta
   toolCalls: Map<string, { index: number; id: string; name: string; arguments: string }>;
   toolCallIndex: number;
   finishReason: "stop" | "length" | "tool_calls" | null;
@@ -1565,11 +1657,13 @@ export function codexSseToOpenaiChunks(
         state.sentFirstChunk = true;
       }
       // Track tool call start
-      if (event.item?.type === "function_call" && event.item.call_id) {
+      // Use item.id as key (required) and call_id or item.id as the OpenAI tool call id
+      if (event.item?.type === "function_call" && event.item.id) {
         const tcIndex = state.toolCallIndex++;
-        state.toolCalls.set(event.item.call_id, {
+        const toolCallId = event.item.call_id || event.item.id;
+        state.toolCalls.set(event.item.id, {
           index: tcIndex,
-          id: event.item.call_id,
+          id: toolCallId,
           name: event.item.name || "",
           arguments: "",
         });
@@ -1577,7 +1671,7 @@ export function codexSseToOpenaiChunks(
         chunks.push(createChunk({
           tool_calls: [{
             index: tcIndex,
-            id: event.item.call_id,
+            id: toolCallId,
             type: "function",
             function: { name: event.item.name || "", arguments: "" },
           }],
@@ -1597,8 +1691,10 @@ export function codexSseToOpenaiChunks(
 
     case "response.function_call_arguments.delta":
       // Tool call arguments delta
-      if (event.call_id) {
-        const tc = state.toolCalls.get(event.call_id);
+      // Use item_id (required) to look up the tool call, fall back to call_id if needed
+      const lookupKey = event.item_id || event.call_id;
+      if (lookupKey) {
+        const tc = state.toolCalls.get(lookupKey);
         if (tc) {
           tc.arguments += event.delta;
           chunks.push(createChunk({

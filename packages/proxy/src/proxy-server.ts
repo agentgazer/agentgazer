@@ -147,6 +147,19 @@ const DEFAULT_PORT = 4000;
 const DEFAULT_ENDPOINT = "https://ingest.agentgazer.com/v1/events";
 const DEFAULT_FLUSH_INTERVAL = 5000;
 const DEFAULT_MAX_BUFFER_SIZE = 50;
+
+// OpenAI Codex models require the Responses API (/v1/responses) instead of Chat Completions API
+const OPENAI_RESPONSES_API_ENDPOINT = "https://api.openai.com/v1/responses";
+
+/**
+ * Detect if a model uses the OpenAI Responses API (Codex models)
+ * Codex models like gpt-5.2-codex require /v1/responses endpoint
+ */
+function isCodexModel(model: string | null): boolean {
+  if (!model) return false;
+  const lowerModel = model.toLowerCase();
+  return lowerModel.includes("codex");
+}
 const MAX_REQUEST_BODY_SIZE = 10 * 1024 * 1024; // 10 MB
 const MAX_SSE_BUFFER_SIZE = 50 * 1024 * 1024; // 50 MB
 const UPSTREAM_TIMEOUT_MS = 120_000; // 2 minutes
@@ -1552,6 +1565,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     let crossProviderOverride: { targetProvider: ProviderName; originalProvider: ProviderName } | null = null;
     let effectiveProvider = provider; // May change if cross-provider override
     let isStreaming = false;
+    let useCodexApi = false; // True when using OpenAI Codex models (need /v1/responses)
 
     try {
       let bodyJson = JSON.parse(requestBody.toString("utf-8"));
@@ -1741,9 +1755,25 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         }
       }
 
+      // Detect Codex models for OpenAI provider (not openai-oauth which already uses Codex API)
+      // Codex models like gpt-5.2-codex require /v1/responses endpoint instead of /v1/chat/completions
+      if (provider === "openai" && !crossProviderOverride && isCodexModel(actualModel)) {
+        useCodexApi = true;
+        log.info(`[PROXY] Detected Codex model "${actualModel}" - using Responses API`);
+
+        // Convert OpenAI Chat Completions format to Codex Responses API format
+        const codexRequest = openaiToCodex(bodyJson as OpenAIRequest);
+        bodyJson = codexRequest;
+        bodyModified = true;
+
+        // Update target URL to Responses API
+        targetUrl = OPENAI_RESPONSES_API_ENDPOINT;
+        log.info(`[PROXY] Redirecting to: ${targetUrl}`);
+      }
+
       // Normalize request body for provider compatibility
-      // Skip for openai-oauth (Codex) since it uses a completely different format
-      if (effectiveProvider !== "openai-oauth") {
+      // Skip for openai-oauth (Codex) and when using Codex API since it uses a completely different format
+      if (effectiveProvider !== "openai-oauth" && !useCodexApi) {
         const normalized = normalizeRequestBody(effectiveProvider, bodyJson, log);
         if (normalized.modified) {
           bodyJson = normalized.body;
@@ -1865,7 +1895,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
-    // Codex API requires special headers
+    // Codex API (via OpenAI OAuth) requires special headers
     if (effectiveProvider === "openai-oauth" && authKey) {
       forwardHeaders["OpenAI-Beta"] = "responses=experimental";
       forwardHeaders["originator"] = "pi";
@@ -1900,6 +1930,12 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       } catch (e) {
         log.warn(`[PROXY] Failed to decode JWT for chatgpt-account-id: ${e instanceof Error ? e.message : String(e)}`);
       }
+    }
+
+    // Codex API (via regular OpenAI API key) requires beta header
+    if (useCodexApi) {
+      forwardHeaders["OpenAI-Beta"] = "responses=experimental";
+      log.info(`[PROXY] Added OpenAI-Beta header for Codex Responses API`);
     }
 
     // Debug logging for request details (mask sensitive headers)
@@ -1943,7 +1979,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const contentType = providerResponse.headers.get("content-type") ?? "";
     // Codex may not return text/event-stream content-type, so also check if we requested streaming
     const isSSE = contentType.includes("text/event-stream") ||
-      (effectiveProvider === "openai-oauth" && isStreaming);
+      (effectiveProvider === "openai-oauth" && isStreaming) ||
+      (useCodexApi && isStreaming);
 
     if (isSSE && providerResponse.body) {
       // Determine stream conversion direction BEFORE setting headers
@@ -1952,7 +1989,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Case 2: Anthropic client → OpenAI-compatible target (convert OpenAI SSE → Anthropic SSE)
       const needsOpenaiToAnthropic = crossProviderOverride && crossProviderOverride.originalProvider === "anthropic" && effectiveProvider !== "anthropic";
       // Case 3: OpenAI-compatible client → Codex target (convert Codex SSE → OpenAI SSE)
-      const needsCodexToOpenai = crossProviderOverride && effectiveProvider === "openai-oauth" && crossProviderOverride.originalProvider !== "anthropic";
+      // This includes: (a) cross-provider override to openai-oauth, or (b) direct Codex model via OpenAI API
+      const needsCodexToOpenai = (crossProviderOverride && effectiveProvider === "openai-oauth" && crossProviderOverride.originalProvider !== "anthropic") ||
+        (useCodexApi && !crossProviderOverride);
       // Case 4: Anthropic client → Codex target (convert Codex SSE → OpenAI SSE → Anthropic SSE)
       const needsCodexToAnthropic = crossProviderOverride && effectiveProvider === "openai-oauth" && crossProviderOverride.originalProvider === "anthropic";
 
@@ -2289,7 +2328,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       try {
         // Use effective provider for parsing, original provider for event recording
-        extractStreamingMetrics(effectiveProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
+        // When using Codex API via regular OpenAI, parse as openai-oauth (Codex format)
+        const parsingProvider = useCodexApi ? "openai-oauth" as ProviderName : effectiveProvider;
+        extractStreamingMetrics(parsingProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
@@ -2369,7 +2410,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
       try {
         // Use effective provider for parsing, original provider for event recording
-        extractAndQueueMetrics(effectiveProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
+        // When using Codex API via regular OpenAI, parse as openai-oauth (Codex format)
+        const parsingProvider = useCodexApi ? "openai-oauth" as ProviderName : effectiveProvider;
+        extractAndQueueMetrics(parsingProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
