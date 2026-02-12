@@ -78,6 +78,58 @@ Score = similar_prompts × 1.0 + similar_responses × 2.0 + repeated_tool_calls 
 3. 記錄 `event_type: "kill_switch"` 事件
 4. Dashboard 顯示「被 Kill Switch 停用」標籤
 5. 發送告警通知（如果有設定）
+6. 封存證據 Payload 供分析使用
+
+## Incidents 頁面
+
+**Incidents** 頁面提供所有 Kill Switch 事件的詳細分析。
+
+### Incidents 列表
+
+點擊側邊欄的 **Incidents** 查看所有 Kill Switch 事件：
+
+| 欄位 | 說明 |
+|------|------|
+| **Time** | Kill Switch 觸發時間 |
+| **Agent** | 受影響的 Agent |
+| **Provider** | 使用中的 LLM Provider |
+| **Score** | 迴圈分數 vs 閾值（如「7.0/5」） |
+| **Window** | 使用的偵測視窗大小 |
+| **Signals** | 偵測訊號分解（P=Prompts、R=Responses、T=ToolCalls） |
+
+### Incident 詳情
+
+點擊「View Details」查看完整分析：
+
+#### 計分細節
+
+視覺化呈現迴圈分數的計算方式：
+
+```
+Loop Score: 7.0 / 5.0 (140%)
+
+[████████████████████████████░░░░░░|░░░░░░░░░░░░░░]
+0                              Threshold          2x
+```
+
+計分表格顯示各訊號的貢獻：
+
+| 訊號 | 數量 | 權重 | 分數 |
+|------|------|------|------|
+| 相似 Prompts | 3 | ×1.0 | 3.0 |
+| 相似 Responses | 2 | ×2.0 | 4.0 |
+| 重複 Tool Calls | 0 | ×1.5 | 0.0 |
+| **總計** | | | **7.0** |
+
+#### 證據 Payload
+
+可折疊的相似請求列表，這些請求觸發了 Kill Switch。每個 Payload 顯示：
+
+- **Request body** — 發送給 LLM 的 prompt
+- **Response body** — LLM 的回應
+- **字元數** — 各 Payload 的大小
+
+這些證據幫助你了解 Agent 在陷入迴圈時究竟在做什麼。
 
 ## 重新啟動
 

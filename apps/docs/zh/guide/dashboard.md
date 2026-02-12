@@ -17,6 +17,8 @@
 | **Agent Detail**（Agent 詳情） | 詳細統計、圖表、模型設定、政策控制 |
 | **Costs**（成本） | 按 Provider / Model 的成本分析與圖表 |
 | **Alerts**（告警） | 告警規則管理與告警歷史 |
+| **Events**（事件） | 全域事件日誌，支援篩選、搜尋和 Payload 檢視 |
+| **Incidents**（事件） | Kill Switch 分析，含計分細節和證據 |
 | **Providers**（Provider） | Provider 設定、API Key 管理與使用統計 |
 | **OpenClaw** | 一鍵整合 OpenClaw 個人 AI 助手 |
 | **Settings**（設定） | 伺服器設定、預設通知管道（Telegram、Email、Webhook） |
@@ -250,6 +252,10 @@ Kill Switch 使用 SimHash 偵測 Agent 行為中的重複模式：
 | **Model** | 請求的模型與實際使用的模型（若不同則顯示如「gpt-4 → gpt-4o-mini」） |
 | **Tokens** | Input / Output token 數量 |
 | **Cost** | 請求成本（USD） |
+| **Latency** | 回應時間（ms） |
+| **Payload** | 檢視 request/response body |
+
+點擊 Payload 按鈕可查看完整的 request 和 response body，包含字元數和格式化的 JSON。
 
 ### 阻擋事件（Blocked Events）
 
@@ -260,6 +266,56 @@ Kill Switch 使用 SimHash 偵測 Agent 行為中的重複模式：
   - `agent_deactivated` — Agent 已停用
   - `budget_exceeded` — 已達每日預算上限
   - `outside_allowed_hours` — 請求時間在允許區間外
+
+## Events（事件）
+
+Events 頁面顯示跨所有 Agent 的全域事件日誌。
+
+### 篩選器
+
+| 篩選器 | 說明 |
+|--------|------|
+| **Agent** | 依特定 Agent 篩選 |
+| **Type** | 事件類型（llm_call、completion、heartbeat、error、custom、blocked、kill_switch） |
+| **Provider** | 依 LLM Provider 篩選 |
+| **Time Range** | 1h、24h、7d、30d 或全部 |
+| **Search** | 在 model、provider 和 error messages 中搜尋 |
+
+### 事件欄位
+
+| 欄位 | 說明 |
+|------|------|
+| **Time** | 事件時間戳 |
+| **Agent** | Agent ID（點擊可查看 Agent 詳情） |
+| **Type** | 事件類型（kill_switch 事件連結到 Incidents 頁面） |
+| **Provider** | LLM Provider |
+| **Model** | 使用的模型 |
+| **Status** | HTTP 狀態碼（顏色標記） |
+| **Tokens In/Out** | Token 數量 |
+| **Cost** | 請求成本（USD） |
+| **Latency** | 回應時間（ms） |
+| **Payload** | 檢視 request/response body |
+
+### Payload 檢視器
+
+點擊 Payload 按鈕可查看任何事件的完整 request 和 response body：
+
+- **Request body** — 發送給 LLM 的完整 prompt（JSON 格式化）
+- **Response body** — LLM 的完整回應
+- **字元數** — 各 Payload 的大小
+- **事件中繼資料** — Event ID、KB 大小、時間戳
+
+::: tip Payload 儲存
+Payload 封存是可選的，可在 Settings 中設定。停用時，Payload 按鈕會顯示「Payload not found」。
+:::
+
+### 匯出
+
+點擊「Export CSV」可下載篩選後的事件為 CSV 檔案。
+
+## Incidents（事件分析）
+
+Incidents 頁面列出所有 Kill Switch 事件並提供詳細分析。詳見 [Kill Switch](/zh/guide/kill-switch#incidents-頁面)。
 
 ## 成本分析
 

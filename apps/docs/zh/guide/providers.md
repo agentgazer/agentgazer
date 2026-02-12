@@ -1,5 +1,60 @@
 # Provider 金鑰管理
 
+AgentGazer 支援兩種 LLM Provider 認證方式：
+
+- **API Key** — 傳統 API 金鑰認證（大多數 Provider）
+- **OAuth** — 瀏覽器登入訂閱服務（OpenAI Codex、智譜 Coding Plan）
+
+## 支援的 Provider
+
+| Provider | 認證方式 | 端點 |
+|----------|----------|------|
+| OpenAI | API Key | api.openai.com |
+| OpenAI Codex | **OAuth** | api.openai.com |
+| Anthropic | API Key | api.anthropic.com |
+| Google (Gemini) | API Key | generativelanguage.googleapis.com |
+| Mistral | API Key | api.mistral.ai |
+| Cohere | API Key | api.cohere.com |
+| DeepSeek | API Key | api.deepseek.com |
+| Moonshot | API Key | api.moonshot.cn |
+| 智譜 (GLM-4) | API Key | api.z.ai |
+| 智譜 Coding Plan | **OAuth** | api.z.ai |
+| MiniMax | API Key | api.minimax.chat |
+| 百川 | API Key | api.baichuan-ai.com |
+| 零一萬物 | API Key | api.lingyiwanwu.com |
+
+## OAuth 認證
+
+對於訂閱制的 Provider（OpenAI Codex、智譜 Coding Plan），使用 OAuth 登入：
+
+```bash
+# 透過瀏覽器登入（推薦）
+agentgazer login openai-oauth
+
+# 或使用設備碼流程（適用於無頭伺服器）
+agentgazer login openai-oauth --device
+
+# 檢查登入狀態
+agentgazer providers list
+
+# 登出
+agentgazer logout openai-oauth
+```
+
+### OAuth 運作原理
+
+1. **瀏覽器流程**：開啟瀏覽器前往 Provider 的登入頁面
+2. **PKCE 安全性**：使用 Proof Key for Code Exchange 確保 Token 取得的安全性
+3. **自動刷新**：Token 會在到期前自動刷新
+4. **安全儲存**：OAuth Token 與 API Key 儲存在同一個安全金鑰庫
+
+### 可用的 OAuth Provider
+
+| Provider | 指令 | 說明 |
+|----------|------|------|
+| OpenAI Codex | `agentgazer login openai-oauth` | OpenAI 訂閱（ChatGPT Plus/Pro） |
+| 智譜 Coding Plan | `agentgazer login zhipu-coding-plan` | 智譜 GLM 訂閱 |
+
 ## 作業系統層級安全儲存
 
 Provider 的 API Key **不會以明文形式**儲存。AgentGazer 使用作業系統層級的安全儲存後端：

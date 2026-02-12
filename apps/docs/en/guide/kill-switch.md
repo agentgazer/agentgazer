@@ -78,6 +78,58 @@ Configure Kill Switch in the Dashboard: **Agent Detail → Kill Switch Settings*
 3. Event is recorded with `event_type: "kill_switch"`
 4. Dashboard shows "Deactivated by Kill Switch" badge
 5. Alert notification is sent (if configured)
+6. Evidence payloads are archived for analysis
+
+## Incidents Page
+
+The **Incidents** page provides a detailed analysis of all Kill Switch events.
+
+### Incidents List
+
+Navigate to **Incidents** in the sidebar to see all Kill Switch events:
+
+| Column | Description |
+|--------|-------------|
+| **Time** | When the Kill Switch was triggered |
+| **Agent** | The affected agent |
+| **Provider** | LLM provider in use |
+| **Score** | Loop score vs threshold (e.g., "7.0/5") |
+| **Window** | Detection window size used |
+| **Signals** | Breakdown of detection signals (P=Prompts, R=Responses, T=ToolCalls) |
+
+### Incident Detail
+
+Click "View Details" to see the full analysis:
+
+#### Scoring Breakdown
+
+Visual breakdown of how the loop score was calculated:
+
+```
+Loop Score: 7.0 / 5.0 (140%)
+
+[████████████████████████████░░░░░░|░░░░░░░░░░░░░░]
+0                              Threshold          2x
+```
+
+The scoring table shows each signal's contribution:
+
+| Signal | Count | Weight | Score |
+|--------|-------|--------|-------|
+| Similar Prompts | 3 | ×1.0 | 3.0 |
+| Similar Responses | 2 | ×2.0 | 4.0 |
+| Repeated Tool Calls | 0 | ×1.5 | 0.0 |
+| **Total** | | | **7.0** |
+
+#### Evidence Payloads
+
+Collapsible list of the similar requests that triggered the Kill Switch. Each payload shows:
+
+- **Request body** — The prompt sent to the LLM
+- **Response body** — The LLM's response
+- **Character count** — Size of each payload
+
+This evidence helps you understand exactly what the agent was doing when it got stuck in a loop.
 
 ## Reactivation
 

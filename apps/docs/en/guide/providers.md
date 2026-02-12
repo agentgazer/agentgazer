@@ -1,5 +1,60 @@
 # Provider Key Management
 
+AgentGazer supports two authentication methods for LLM providers:
+
+- **API Key** — Traditional API key authentication (most providers)
+- **OAuth** — Browser-based login for subscription services (OpenAI Codex, Zhipu Coding Plan)
+
+## Supported Providers
+
+| Provider | Auth Method | Endpoint |
+|----------|-------------|----------|
+| OpenAI | API Key | api.openai.com |
+| OpenAI Codex | **OAuth** | api.openai.com |
+| Anthropic | API Key | api.anthropic.com |
+| Google (Gemini) | API Key | generativelanguage.googleapis.com |
+| Mistral | API Key | api.mistral.ai |
+| Cohere | API Key | api.cohere.com |
+| DeepSeek | API Key | api.deepseek.com |
+| Moonshot | API Key | api.moonshot.cn |
+| Zhipu (GLM-4) | API Key | api.z.ai |
+| Zhipu Coding Plan | **OAuth** | api.z.ai |
+| MiniMax | API Key | api.minimax.chat |
+| Baichuan | API Key | api.baichuan-ai.com |
+| Yi | API Key | api.lingyiwanwu.com |
+
+## OAuth Authentication
+
+For subscription-based providers (OpenAI Codex, Zhipu Coding Plan), use OAuth login:
+
+```bash
+# Login via browser (recommended)
+agentgazer login openai-oauth
+
+# Or use device code flow (for headless servers)
+agentgazer login openai-oauth --device
+
+# Check login status
+agentgazer providers list
+
+# Logout
+agentgazer logout openai-oauth
+```
+
+### How OAuth Works
+
+1. **Browser Flow**: Opens your browser to the provider's login page
+2. **PKCE Security**: Uses Proof Key for Code Exchange for secure token retrieval
+3. **Auto Refresh**: Tokens are automatically refreshed before expiry
+4. **Secure Storage**: OAuth tokens stored in the same secure keystore as API keys
+
+### Available OAuth Providers
+
+| Provider | Command | Description |
+|----------|---------|-------------|
+| OpenAI Codex | `agentgazer login openai-oauth` | OpenAI subscription (ChatGPT Plus/Pro) |
+| Zhipu Coding Plan | `agentgazer login zhipu-coding-plan` | Zhipu GLM subscription |
+
 ## OS-Level Secure Storage
 
 Provider API keys are **never stored in plaintext**. AgentGazer uses OS-level secure storage backends:

@@ -17,6 +17,8 @@ The dashboard uses **Token authentication**. After starting the service, enter y
 | **Agent Detail** | Detailed statistics, charts, model settings, and policy controls |
 | **Costs** | Cost analysis and charts by Provider / Model |
 | **Alerts** | Alert rule management and alert history |
+| **Events** | Global event log with filtering, search, and payload viewer |
+| **Incidents** | Kill Switch analysis with scoring breakdown and evidence |
 | **Providers** | Provider configuration, API key management, and usage statistics |
 | **OpenClaw** | One-click integration with OpenClaw personal AI assistant |
 | **Settings** | Server configuration, default notification channels (Telegram, Email, Webhook) |
@@ -250,6 +252,10 @@ Recent LLM calls with the following columns:
 | **Model** | Requested model and actual model (if different, shown as "gpt-4 → gpt-4o-mini") |
 | **Tokens** | Input / Output token count |
 | **Cost** | Request cost (USD) |
+| **Latency** | Response time (ms) |
+| **Payload** | View request/response body |
+
+Click the payload button to view the full request and response body, including character counts and formatted JSON.
 
 ### Blocked Events
 
@@ -260,6 +266,56 @@ When requests are blocked by policy, the dashboard shows:
   - `agent_deactivated` — Agent is inactive
   - `budget_exceeded` — Daily budget limit reached
   - `outside_allowed_hours` — Request outside allowed time window
+
+## Events
+
+The Events page shows a global log of all events across all agents.
+
+### Filters
+
+| Filter | Description |
+|--------|-------------|
+| **Agent** | Filter by specific agent |
+| **Type** | Event type (llm_call, completion, heartbeat, error, custom, blocked, kill_switch) |
+| **Provider** | Filter by LLM provider |
+| **Time Range** | 1h, 24h, 7d, 30d, or all time |
+| **Search** | Free-text search across model, provider, and error messages |
+
+### Event Columns
+
+| Column | Description |
+|--------|-------------|
+| **Time** | Event timestamp |
+| **Agent** | Agent ID (click to view agent detail) |
+| **Type** | Event type (kill_switch events link to Incidents page) |
+| **Provider** | LLM provider |
+| **Model** | Model used |
+| **Status** | HTTP status code (color-coded) |
+| **Tokens In/Out** | Token counts |
+| **Cost** | Request cost (USD) |
+| **Latency** | Response time (ms) |
+| **Payload** | View request/response body |
+
+### Payload Viewer
+
+Click the payload button to view the full request and response body for any event:
+
+- **Request body** — The complete prompt sent to the LLM (JSON formatted)
+- **Response body** — The LLM's complete response
+- **Character count** — Size of each payload
+- **Event metadata** — Event ID, size in KB, timestamp
+
+::: tip Payload Storage
+Payload archiving is optional and can be configured in Settings. When disabled, the payload button will show "Payload not found".
+:::
+
+### Export
+
+Click "Export CSV" to download filtered events as a CSV file.
+
+## Incidents
+
+The Incidents page lists all Kill Switch events with detailed analysis. See [Kill Switch](/en/guide/kill-switch#incidents-page) for details.
 
 ## Cost Analysis
 
