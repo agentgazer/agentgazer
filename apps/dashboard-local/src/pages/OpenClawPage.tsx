@@ -44,13 +44,18 @@ export default function OpenClawPage() {
   const [error, setError] = useState<string | null>(null);
   const [configSuccess, setConfigSuccess] = useState(false);
   const [proxyHost, setProxyHost] = useState("localhost:18900");
-  const [agentName, setAgentName] = useState<string>("openclaw");
+  // Generate unique agent name with timestamp base36 for multi-machine differentiation
+  const [agentName, setAgentName] = useState<string>(
+    () => `openclaw-${Date.now().toString(36)}`
+  );
   // OAuth state
   const [oauthLoading, setOauthLoading] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [oauthPolling, setOauthPolling] = useState(false);
   // Add provider modal state
   const [showAddProviderModal, setShowAddProviderModal] = useState(false);
+  // Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const loadData = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -77,7 +82,13 @@ export default function OpenClawPage() {
   const generatedConfig = generateOpenclawConfig(proxyHost, agentName);
   const primaryModel = "agentgazer/agentgazer-proxy";
 
-  async function handleApply() {
+  function handleApplyClick() {
+    // Show confirmation modal before applying
+    setShowConfirmModal(true);
+  }
+
+  async function handleConfirmApply() {
+    setShowConfirmModal(false);
     setApplying(true);
     setError(null);
     setConfigSuccess(false);
@@ -370,7 +381,7 @@ export default function OpenClawPage() {
             </p>
           </div>
           <button
-            onClick={handleApply}
+            onClick={handleApplyClick}
             disabled={applying || !isLoopback || !agentName}
             className={`rounded-md px-6 py-2 font-medium transition-colors ${
               isLoopback && agentName
@@ -412,6 +423,44 @@ export default function OpenClawPage() {
             loadData(false);
           }}
         />
+      )}
+
+      {/* Confirm Apply Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
+            <h2 className="mb-4 text-lg font-medium text-white">
+              Confirm Configuration
+            </h2>
+            <div className="mb-4 space-y-3 text-sm">
+              <div className="flex justify-between rounded bg-gray-800 p-3">
+                <span className="text-gray-400">Agent Name</span>
+                <span className="font-mono text-white">{agentName}</span>
+              </div>
+              <div className="flex justify-between rounded bg-gray-800 p-3">
+                <span className="text-gray-400">Proxy Host</span>
+                <span className="font-mono text-white">{proxyHost}</span>
+              </div>
+            </div>
+            <p className="mb-4 text-sm text-gray-400">
+              Remember this agent name to find your machine in the AgentGazer dashboard.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowConfirmModal(false)}
+                className="rounded-md px-4 py-2 text-sm text-gray-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmApply}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
