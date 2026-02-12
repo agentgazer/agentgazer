@@ -2,7 +2,7 @@ import * as http from "node:http";
 import * as path from "node:path";
 import express from "express";
 import cors from "cors";
-import { createLogger } from "@agentgazer/shared";
+import { createLogger, syncPrices, getSyncStatus } from "@agentgazer/shared";
 import { initDatabase, purgeOldData } from "./db.js";
 
 const log = createLogger("server");
@@ -126,6 +126,27 @@ export async function startServer(
   retentionTimer = setInterval(runRetention, 24 * 60 * 60 * 1000);
   retentionTimer.unref();
 
+  // Start price sync (runs on startup and every 24h)
+  let priceSyncTimer: ReturnType<typeof setInterval> | null = null;
+
+  async function runPriceSync(): Promise<void> {
+    try {
+      const result = await syncPrices();
+      if (result.success) {
+        log.info("Price sync complete", { modelsUpdated: result.modelsUpdated });
+      } else {
+        log.warn("Price sync failed", { error: result.error });
+      }
+    } catch (err) {
+      log.warn("Price sync error", { err: String(err) });
+    }
+  }
+
+  // Run initial sync (don't block startup)
+  runPriceSync();
+  priceSyncTimer = setInterval(runPriceSync, 24 * 60 * 60 * 1000);
+  priceSyncTimer.unref();
+
   const server = http.createServer(app);
 
   await new Promise<void>((resolve, reject) => {
@@ -137,6 +158,7 @@ export async function startServer(
     evaluator.stop();
     if (retentionTimer) clearInterval(retentionTimer);
     if (retentionRetryTimer) clearTimeout(retentionRetryTimer);
+    if (priceSyncTimer) clearInterval(priceSyncTimer);
     return new Promise((resolve, reject) => {
       const shutdownTimeout = setTimeout(() => {
         log.warn("Shutdown timed out, forcing close");

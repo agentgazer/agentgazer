@@ -18,6 +18,7 @@ export const AgentEventSchema = z.object({
   tokens_total: z.number().int().nonnegative().nullish(),
   cost_usd: z.number().nonnegative().nullish(),
   latency_ms: z.number().int().nonnegative().nullish(),
+  ttft_ms: z.number().int().nonnegative().nullish(), // Time to first token (streaming only)
   status_code: z.number().int().nullish(),
   error_message: z.string().nullish(),
   tags: z.record(z.unknown()).default({}),

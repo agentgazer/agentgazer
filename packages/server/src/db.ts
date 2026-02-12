@@ -81,12 +81,15 @@ function runMigrations(db: Database.Database): void {
     db.exec("ALTER TABLE alert_rules ADD COLUMN budget_period TEXT");
   }
 
-  // Migration: Add requested_model column to agent_events table
+  // Migration: Add requested_model and ttft_ms columns to agent_events table
   const eventCols = db.prepare("PRAGMA table_info(agent_events)").all() as { name: string }[];
   const eventColNames = eventCols.map((c) => c.name);
 
   if (!eventColNames.includes("requested_model")) {
     db.exec("ALTER TABLE agent_events ADD COLUMN requested_model TEXT");
+  }
+  if (!eventColNames.includes("ttft_ms")) {
+    db.exec("ALTER TABLE agent_events ADD COLUMN ttft_ms INTEGER");
   }
 
   // Migration: Add kill_switch columns to agents table
@@ -144,6 +147,7 @@ const SCHEMA = `
     tokens_total INTEGER,
     cost_usd REAL,
     latency_ms INTEGER,
+    ttft_ms INTEGER,
     status_code INTEGER,
     error_message TEXT,
     tags TEXT DEFAULT '{}',
@@ -267,6 +271,7 @@ export interface InsertEventRow {
   tokens_total?: number | null;
   cost_usd?: number | null;
   latency_ms?: number | null;
+  ttft_ms?: number | null;
   status_code?: number | null;
   error_message?: string | null;
   tags?: Record<string, unknown>;
@@ -285,12 +290,12 @@ export function insertEvents(
     INSERT INTO agent_events (
       id, agent_id, event_type, provider, model, requested_model,
       tokens_in, tokens_out, tokens_total, cost_usd,
-      latency_ms, status_code, error_message, tags,
+      latency_ms, ttft_ms, status_code, error_message, tags,
       source, timestamp, trace_id, span_id, parent_span_id
     ) VALUES (
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?,
-      ?, ?, ?, ?,
+      ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?
     )
   `);
@@ -312,6 +317,7 @@ export function insertEvents(
         e.tokens_total ?? null,
         e.cost_usd ?? null,
         e.latency_ms ?? null,
+        e.ttft_ms ?? null,
         e.status_code ?? null,
         e.error_message ?? null,
         JSON.stringify(e.tags ?? {}),

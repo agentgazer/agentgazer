@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import nodemailer from "nodemailer";
 import { createLogger } from "@agentgazer/shared";
+import { isAllowed, recordSuccess, recordFailure, getState } from "./circuit-breaker.js";
 
 const log = createLogger("evaluator");
 
@@ -125,13 +126,18 @@ const SQL_INSERT_HISTORY = `
 `;
 
 // ---------------------------------------------------------------------------
-// Webhook delivery
+// Webhook delivery (with circuit breaker)
 // ---------------------------------------------------------------------------
 
 function postWebhook(
   url: string,
   payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
 ): void {
+  // Check circuit breaker before attempting
+  if (!isAllowed(url)) {
+    log.warn("Webhook skipped - circuit open", { url, state: getState(url) });
+    return;
+  }
   // Fire initial attempt, then retry in the background without blocking.
   void postWebhookWithRetry(url, payload);
 }
@@ -149,7 +155,10 @@ async function postWebhookWithRetry(
         body: JSON.stringify(payload),
         signal: AbortSignal.timeout(10_000),
       });
-      if (res.ok) return;
+      if (res.ok) {
+        recordSuccess(url);
+        return;
+      }
       log.error(`Webhook POST returned ${res.status}`, { url, attempt: attempt + 1, maxAttempts: MAX_RETRIES + 1 });
     } catch (err) {
       log.error(`Webhook POST failed`, { url, attempt: attempt + 1, maxAttempts: MAX_RETRIES + 1, err: String(err) });
@@ -159,6 +168,8 @@ async function postWebhookWithRetry(
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }
+  // All retries exhausted - record failure for circuit breaker
+  recordFailure(url);
 }
 
 // ---------------------------------------------------------------------------

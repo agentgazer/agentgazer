@@ -20,6 +20,17 @@ export {
 } from "./pricing.js";
 
 export {
+  syncPrices,
+  getSyncedPricing,
+  getAllSyncedPrices,
+  getSyncStatus,
+  fetchModelsDevPricing,
+  parseModelsDevResponse,
+  type SyncResult,
+  type ModelsDevResponse,
+} from "./price-sync.js";
+
+export {
   detectProvider,
   detectProviderByHostname,
   getProviderBaseUrl,

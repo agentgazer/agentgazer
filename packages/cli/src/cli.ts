@@ -39,7 +39,7 @@ import {
 } from "./oauth.js";
 import { startServer } from "@agentgazer/server";
 import { startProxy } from "@agentgazer/proxy";
-import { SELECTABLE_PROVIDER_NAMES, KNOWN_PROVIDER_NAMES, PROVIDER_DISPLAY_NAMES, validateProviderKey, isOAuthProvider, OAUTH_CONFIG, type ProviderName } from "@agentgazer/shared";
+import { SELECTABLE_PROVIDER_NAMES, KNOWN_PROVIDER_NAMES, PROVIDER_DISPLAY_NAMES, validateProviderKey, isOAuthProvider, OAUTH_CONFIG, syncPrices, getSyncStatus, type ProviderName } from "@agentgazer/shared";
 import inquirer from "inquirer";
 
 // New command imports
@@ -219,6 +219,7 @@ Commands:
 
   version                     Show version
   update                      Update to latest version (preserves settings)
+  sync-prices                 Sync model prices from models.dev API
   doctor                      Check system health
   uninstall                   Remove AgentGazer data (interactive menu)
   help                        Show this help message
@@ -878,6 +879,26 @@ async function cmdUpdate(flags: Record<string, string>): Promise<void> {
 
     process.exit(1);
   }
+}
+
+async function cmdSyncPrices(flags: Record<string, string>): Promise<void> {
+  console.log("\n  Syncing prices from models.dev...\n");
+
+  const result = await syncPrices();
+
+  if (result.success) {
+    console.log(`  ✓ Synced ${result.modelsUpdated} model prices`);
+    console.log(`  Last sync: ${new Date(result.timestamp).toLocaleString()}`);
+  } else {
+    console.error(`  ✗ Sync failed: ${result.error}`);
+    process.exit(1);
+  }
+
+  // Show current status
+  const status = getSyncStatus();
+  console.log(`\n  Total models in sync cache: ${status.modelCount}`);
+  console.log("\n  Note: Synced prices are used as fallback when static prices are not found.");
+  console.log("  Static prices in the codebase take priority over synced prices.\n");
 }
 
 async function cmdDoctor(flags: Record<string, string>): Promise<void> {
@@ -1713,6 +1734,9 @@ async function main(): Promise<void> {
       break;
     case "update":
       await cmdUpdate(flags);
+      break;
+    case "sync-prices":
+      await cmdSyncPrices(flags);
       break;
     case "doctor":
       await cmdDoctor(flags);

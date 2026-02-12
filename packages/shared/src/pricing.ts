@@ -1,4 +1,5 @@
 import { isSubscriptionProvider, type ProviderName } from "./providers.js";
+import { getSyncedPricing } from "./price-sync.js";
 
 export interface ModelPricing {
   inputPerMToken: number;   // USD per 1M input tokens
@@ -117,7 +118,7 @@ export function normalizeModelName(model: string): string {
 }
 
 export function getModelPricing(model: string): ModelPricing | null {
-  // Try exact match first
+  // Try exact match first (static prices take priority)
   if (PRICING_TABLE[model]) return PRICING_TABLE[model];
   if (PRICING_TABLE[model.toLowerCase()]) return PRICING_TABLE[model.toLowerCase()];
 
@@ -125,6 +126,10 @@ export function getModelPricing(model: string): ModelPricing | null {
   const normalized = normalizeModelName(model);
   if (PRICING_TABLE[normalized]) return PRICING_TABLE[normalized];
   if (PRICING_TABLE[normalized.toLowerCase()]) return PRICING_TABLE[normalized.toLowerCase()];
+
+  // Fallback to synced prices from models.dev
+  const synced = getSyncedPricing(model) ?? getSyncedPricing(normalized);
+  if (synced) return synced;
 
   return null;
 }

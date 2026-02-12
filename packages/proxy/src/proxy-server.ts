@@ -114,6 +114,15 @@ const log = createLogger("proxy");
 import { EventBuffer } from "./event-buffer.js";
 import { RateLimiter, type RateLimitConfig } from "./rate-limiter.js";
 import { loopDetector, type KillSwitchConfig } from "./loop-detector.js";
+import {
+  setSticky,
+  getSticky,
+  clearSticky,
+  getAllSessions,
+  getSessionCount,
+  cleanupExpiredSessions,
+  type StickySession,
+} from "./session-sticky.js";
 
 /** SecretStore interface for loading provider API keys and OAuth tokens */
 export interface SecretStore {
@@ -1171,6 +1180,16 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     oauthRefreshTimer.unref();
   }
 
+  // Session sticky cleanup (runs every 5 minutes)
+  const SESSION_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+  const sessionCleanupTimer = setInterval(() => {
+    const cleaned = cleanupExpiredSessions();
+    if (cleaned > 0) {
+      log.debug(`[SESSION] Cleaned up ${cleaned} expired sessions, ${getSessionCount()} active`);
+    }
+  }, SESSION_CLEANUP_INTERVAL_MS);
+  sessionCleanupTimer.unref();
+
   const startTime = Date.now();
 
   const eventBuffer = new EventBuffer({
@@ -1319,6 +1338,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     requestedModel: string | null,
     actualModel: string | null,  // Model after override (for cost calculation)
     eventProvider?: ProviderName,  // For event recording (defaults to provider)
+    ttftMs?: number | null,  // Time to first token (streaming only)
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping streaming metric extraction");
@@ -1359,6 +1379,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       tokens_total: parsed.tokensTotal,
       cost_usd: costUsd,
       latency_ms: latencyMs,
+      ttft_ms: ttftMs ?? null,
       status_code: statusCode,
       source: "proxy",
       timestamp: new Date().toISOString(),
@@ -1366,6 +1387,11 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     };
 
     eventBuffer.add(event);
+
+    // Track session sticky for conversation continuity (only for successful requests)
+    if (statusCode >= 200 && statusCode < 300 && effectiveModel) {
+      setSticky(effectiveAgentId, effectiveModel, eventProvider ?? provider);
+    }
   }
 
   function extractAndQueueMetrics(
@@ -1432,6 +1458,11 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     };
 
     eventBuffer.add(event);
+
+    // Track session sticky for conversation continuity (only for successful requests)
+    if (statusCode >= 200 && statusCode < 300 && effectiveModel) {
+      setSticky(effectiveAgentId, effectiveModel, eventProvider ?? provider);
+    }
   }
 
   /**
@@ -2047,6 +2078,9 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Use StringDecoder to handle multi-byte UTF-8 characters split across chunks
       const utf8Decoder = new StringDecoder("utf8");
 
+      // Track time to first token (TTFT)
+      let firstChunkTime: number | null = null;
+
       if (needsCodexToOpenai) {
         codexStreamState = createCodexToOpenAIStreamState();
         log.info(`[PROXY] Converting Codex SSE stream → OpenAI format`);
@@ -2067,6 +2101,11 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           const { done, value } = await reader.read();
           if (done) break;
           const buf = Buffer.from(value);
+
+          // Track time to first token
+          if (firstChunkTime === null && buf.length > 0) {
+            firstChunkTime = Date.now();
+          }
 
           if (needsCodexToOpenai && codexStreamState) {
             // Transform Codex SSE to OpenAI SSE
@@ -2326,11 +2365,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       const latencyMs = Date.now() - requestStart;
       const fullBody = Buffer.concat(chunks);
 
+      // Calculate TTFT (time to first token)
+      const ttftMs = firstChunkTime !== null ? firstChunkTime - requestStart : null;
+
       try {
         // Use effective provider for parsing, original provider for event recording
         // When using Codex API via regular OpenAI, parse as openai-oauth (Codex format)
         const parsingProvider = useCodexApi ? "openai-oauth" as ProviderName : effectiveProvider;
-        extractStreamingMetrics(parsingProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
+        extractStreamingMetrics(parsingProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel, provider, ttftMs);
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
