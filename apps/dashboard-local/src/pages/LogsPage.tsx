@@ -285,7 +285,18 @@ export default function LogsPage() {
                         {event.agent_id}
                       </Link>
                     </td>
-                    <td className="px-3 py-2 text-gray-300">{event.event_type}</td>
+                    <td className="px-3 py-2 text-gray-300">
+                      {event.event_type === "kill_switch" ? (
+                        <Link
+                          to={`/incidents/${event.id}`}
+                          className="text-red-400 hover:text-red-300 underline"
+                        >
+                          {event.event_type}
+                        </Link>
+                      ) : (
+                        event.event_type
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-gray-400">{event.provider ?? "-"}</td>
                     <td className="px-3 py-2 text-gray-400 max-w-[150px] truncate">
                       {event.model ?? "-"}

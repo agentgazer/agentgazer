@@ -10,6 +10,8 @@ import ProviderDetailPage from "./pages/ProviderDetailPage";
 import CostsPage from "./pages/CostsPage";
 import AlertsPage from "./pages/AlertsPage";
 import LogsPage from "./pages/LogsPage";
+import IncidentPage from "./pages/IncidentPage";
+import IncidentsPage from "./pages/IncidentsPage";
 import OpenClawPage from "./pages/OpenClawPage";
 import SettingsPage from "./pages/SettingsPage";
 import { ConnectionProvider } from "./contexts/ConnectionContext";
@@ -29,6 +31,8 @@ export default function App() {
             <Route path="/costs" element={<CostsPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
             <Route path="/events" element={<LogsPage />} />
+            <Route path="/incidents" element={<IncidentsPage />} />
+            <Route path="/incidents/:eventId" element={<IncidentPage />} />
             <Route path="/openclaw" element={<OpenClawPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
