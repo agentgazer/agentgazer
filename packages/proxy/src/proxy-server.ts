@@ -1409,6 +1409,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     actualModel: string | null,  // Model after override (for cost calculation)
     eventProvider?: ProviderName,  // For event recording (defaults to provider)
     ttftMs?: number | null,  // Time to first token (streaming only)
+    eventId?: string,  // Pre-generated event ID for payload correlation
   ): void {
     if (provider === "unknown") {
       log.warn("Unrecognized provider - skipping streaming metric extraction");
@@ -1425,6 +1426,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     if (!parsed) {
       log.warn(`No parseable SSE data for provider: ${provider} — recording basic event`);
       const basicEvent: AgentEvent = {
+        id: eventId,
         agent_id: effectiveAgentId,
         event_type: "llm_call",
         provider: eventProvider ?? provider,
@@ -1458,6 +1460,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     }
 
     const event: AgentEvent = {
+      id: eventId,
       agent_id: effectiveAgentId,
       event_type: "llm_call",
       provider: eventProvider ?? provider,  // Use original provider for event
@@ -1492,6 +1495,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     requestedModel: string | null,
     actualModel: string | null,  // Model after override (for cost calculation)
     eventProvider?: ProviderName,  // For event recording (defaults to provider)
+    eventId?: string,  // Pre-generated event ID for payload correlation
   ): void {
     const responseText = responseBody.toString("utf-8");
 
@@ -1502,6 +1506,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     const recordBasicEvent = (reason: string): void => {
       log.warn(`${reason} — recording basic event`);
       const basicEvent: AgentEvent = {
+        id: eventId,
         agent_id: effectiveAgentId,
         event_type: "llm_call",
         provider: eventProvider ?? provider,
@@ -1554,6 +1559,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     }
 
     const event: AgentEvent = {
+      id: eventId,
       agent_id: effectiveAgentId,
       event_type: "llm_call",
       provider: eventProvider ?? provider,  // Use original provider for event
@@ -2492,11 +2498,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Calculate TTFT (time to first token)
       const ttftMs = firstChunkTime !== null ? firstChunkTime - requestStart : null;
 
+      // Generate eventId early for correlation between event and payload
+      const eventId = crypto.randomUUID();
+
       try {
         // Use effective provider for parsing, original provider for event recording
         // When using Codex API via regular OpenAI, parse as openai-oauth (Codex format)
         const parsingProvider = useCodexApi ? "openai-oauth" as ProviderName : effectiveProvider;
-        extractStreamingMetrics(parsingProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel, provider, ttftMs);
+        extractStreamingMetrics(parsingProvider, providerResponse.status, fullBody, latencyMs, effectiveAgentId, requestedModel, actualModel, provider, ttftMs, eventId);
       } catch (error) {
         log.error("Streaming metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
@@ -2504,7 +2513,6 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Push to payload buffer for kill switch evidence (streaming)
       if (providerResponse.status >= 200 && providerResponse.status < 400) {
         try {
-          const eventId = crypto.randomUUID();
           const reqBody = modifiedRequestBody.toString("utf-8");
           const resBody = fullBody.toString("utf-8");
           const payload: BufferedPayload = {
@@ -2598,11 +2606,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       res.writeHead(providerResponse.status, responseHeaders);
       res.end(finalResponseBody);
 
+      // Generate eventId early for correlation between event and payload
+      const eventId = crypto.randomUUID();
+
       try {
         // Use effective provider for parsing, original provider for event recording
         // When using Codex API via regular OpenAI, parse as openai-oauth (Codex format)
         const parsingProvider = useCodexApi ? "openai-oauth" as ProviderName : effectiveProvider;
-        extractAndQueueMetrics(parsingProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel, provider);
+        extractAndQueueMetrics(parsingProvider, providerResponse.status, responseBodyBuffer, latencyMs, effectiveAgentId, requestedModel, actualModel, provider, eventId);
       } catch (error) {
         log.error("Metric extraction error", { err: error instanceof Error ? error.message : String(error) });
       }
@@ -2610,7 +2621,6 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Push to payload buffer for kill switch evidence (non-streaming)
       if (providerResponse.status >= 200 && providerResponse.status < 400) {
         try {
-          const eventId = crypto.randomUUID();
           const reqBody = modifiedRequestBody.toString("utf-8");
           const resBody = responseBodyBuffer.toString("utf-8");
           const payload: BufferedPayload = {

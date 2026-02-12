@@ -261,6 +261,7 @@ export function upsertAgent(
 }
 
 export interface InsertEventRow {
+  id?: string;  // Optional: use provided ID or generate new one
   agent_id: string;
   event_type: string;
   provider?: string | null;
@@ -304,7 +305,7 @@ export function insertEvents(
 
   const insertAll = db.transaction(() => {
     for (const e of events) {
-      const id = randomUUID();
+      const id = e.id ?? randomUUID();
       stmt.run(
         id,
         e.agent_id,

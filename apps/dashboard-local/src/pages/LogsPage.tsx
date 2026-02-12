@@ -5,6 +5,25 @@ import { formatCost, formatTimestamp } from "../lib/format";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
 
+interface PayloadData {
+  id: string;
+  event_id: string;
+  agent_id: string;
+  request_body: string | null;
+  response_body: string | null;
+  size_bytes: number;
+  purpose: string;
+  created_at: string;
+}
+
+function formatJSON(str: string): string {
+  try {
+    return JSON.stringify(JSON.parse(str), null, 2);
+  } catch {
+    return str;
+  }
+}
+
 const EVENT_TYPES = [
   "llm_call",
   "completion",
@@ -57,6 +76,28 @@ export default function LogsPage() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Payload modal state
+  const [selectedPayload, setSelectedPayload] = useState<PayloadData | null>(null);
+  const [payloadLoading, setPayloadLoading] = useState<string | null>(null);
+  const [payloadError, setPayloadError] = useState<string | null>(null);
+
+  const loadPayload = useCallback(async (eventId: string) => {
+    setPayloadLoading(eventId);
+    setPayloadError(null);
+    try {
+      const payload = await api.get<PayloadData>(`/api/payloads/${eventId}`);
+      setSelectedPayload(payload);
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("404")) {
+        setPayloadError("Payload not found. Archive may be disabled or data expired.");
+      } else {
+        setPayloadError(err instanceof Error ? err.message : "Failed to load payload");
+      }
+    } finally {
+      setPayloadLoading(null);
+    }
+  }, []);
 
   // Filters
   const [agents, setAgents] = useState<string[]>([]);
@@ -216,13 +257,17 @@ export default function LogsPage() {
                 <th className="px-3 py-2">Provider</th>
                 <th className="px-3 py-2">Model</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-right">Tokens In</th>
+                <th className="px-3 py-2 text-right">Tokens Out</th>
                 <th className="px-3 py-2 text-right">Cost</th>
+                <th className="px-3 py-2 text-right">Latency</th>
+                <th className="px-3 py-2 text-center">Payload</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
               {events.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-8 text-center text-gray-500">
+                  <td colSpan={11} className="px-3 py-8 text-center text-gray-500">
                     No events found
                   </td>
                 </tr>
@@ -249,7 +294,35 @@ export default function LogsPage() {
                       {event.status_code ?? "-"}
                     </td>
                     <td className="px-3 py-2 text-right text-gray-300">
+                      {event.tokens_in?.toLocaleString() ?? "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300">
+                      {event.tokens_out?.toLocaleString() ?? "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300">
                       {event.cost_usd != null ? formatCost(event.cost_usd) : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300">
+                      {event.latency_ms != null ? `${event.latency_ms.toLocaleString()}ms` : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        onClick={() => loadPayload(event.id)}
+                        disabled={payloadLoading === event.id}
+                        className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-indigo-300 disabled:opacity-50"
+                        title="View payload"
+                      >
+                        {payloadLoading === event.id ? (
+                          <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        )}
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -283,6 +356,90 @@ export default function LogsPage() {
             >
               Next
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Payload Modal */}
+      {(selectedPayload || payloadError) && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          onClick={() => {
+            setSelectedPayload(null);
+            setPayloadError(null);
+          }}
+        >
+          <div
+            className="mx-4 max-h-[80vh] w-full max-w-4xl overflow-hidden rounded-lg border border-gray-700 bg-gray-800 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
+              <h3 className="text-sm font-semibold text-gray-200">
+                {payloadError ? "Error" : "Request / Response Payload"}
+              </h3>
+              <button
+                onClick={() => {
+                  setSelectedPayload(null);
+                  setPayloadError(null);
+                }}
+                className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="max-h-[calc(80vh-60px)] overflow-y-auto p-4">
+              {payloadError ? (
+                <div className="rounded bg-red-900/50 px-4 py-3 text-sm text-red-300">
+                  {payloadError}
+                </div>
+              ) : selectedPayload && (
+                <div className="space-y-4">
+                  {/* Meta info */}
+                  <div className="text-xs text-gray-500">
+                    Event ID: {selectedPayload.event_id} | Size: {(selectedPayload.size_bytes / 1024).toFixed(1)} KB | {selectedPayload.created_at}
+                  </div>
+
+                  {/* Request */}
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
+                      Request
+                      {selectedPayload.request_body && (
+                        <span className="ml-2 font-normal normal-case text-gray-500">
+                          ({selectedPayload.request_body.length.toLocaleString()} chars)
+                        </span>
+                      )}
+                    </h4>
+                    <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
+                      {selectedPayload.request_body
+                        ? formatJSON(selectedPayload.request_body)
+                        : "(No request body)"}
+                    </pre>
+                  </div>
+
+                  {/* Response */}
+                  <div>
+                    <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
+                      Response
+                      {selectedPayload.response_body && (
+                        <span className="ml-2 font-normal normal-case text-gray-500">
+                          ({selectedPayload.response_body.length.toLocaleString()} chars)
+                        </span>
+                      )}
+                    </h4>
+                    <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
+                      {selectedPayload.response_body
+                        ? formatJSON(selectedPayload.response_body)
+                        : "(No response body)"}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -20,6 +20,7 @@ function safeParseTags(tags: unknown): unknown {
 }
 
 interface RawEvent {
+  id?: unknown;
   agent_id?: unknown;
   event_type?: unknown;
   source?: unknown;
@@ -32,6 +33,7 @@ interface RawEvent {
   tokens_total?: unknown;
   cost_usd?: unknown;
   latency_ms?: unknown;
+  ttft_ms?: unknown;
   status_code?: unknown;
   error_message?: unknown;
   tags?: unknown;
@@ -79,6 +81,14 @@ function validateEvent(raw: RawEvent): ValidationResult {
     source: raw.source,
     timestamp: raw.timestamp,
   };
+
+  // Optional id (for payload correlation)
+  if (raw.id != null) {
+    if (typeof raw.id !== "string") {
+      return { valid: false, error: "id must be a string" };
+    }
+    event.id = raw.id;
+  }
 
   // Optional fields
   if (raw.provider != null) {
@@ -135,6 +145,13 @@ function validateEvent(raw: RawEvent): ValidationResult {
       return { valid: false, error: "latency_ms must be an integer" };
     }
     event.latency_ms = raw.latency_ms;
+  }
+
+  if (raw.ttft_ms != null) {
+    if (typeof raw.ttft_ms !== "number" || !Number.isInteger(raw.ttft_ms)) {
+      return { valid: false, error: "ttft_ms must be an integer" };
+    }
+    event.ttft_ms = raw.ttft_ms;
   }
 
   if (raw.status_code != null) {
