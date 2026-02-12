@@ -62,16 +62,8 @@ export default function IncidentPage() {
 
     try {
       // Load kill switch event details
-      const eventsResult = await api.get<{ events: EventRow[] }>(
-        `/api/events?limit=1&search=${encodeURIComponent(eventId)}`
-      );
+      const killSwitchEvent = await api.get<EventRow>(`/api/events/${eventId}`);
 
-      if (eventsResult.events.length === 0) {
-        setError("Kill switch event not found");
-        return;
-      }
-
-      const killSwitchEvent = eventsResult.events[0];
       if (killSwitchEvent.event_type !== "kill_switch") {
         setError("Event is not a kill switch event");
         return;
@@ -134,7 +126,9 @@ export default function IncidentPage() {
   const promptScore = similarPrompts * WEIGHTS.PROMPT_SIMILARITY;
   const responseScore = similarResponses * WEIGHTS.RESPONSE_SIMILARITY;
   const toolCallScore = repeatedToolCalls * WEIGHTS.TOOL_CALL_REPETITION;
-  const percentage = Math.min(100, (loopScore / threshold) * 100);
+  const percentage = (loopScore / threshold) * 100;
+  // Bar scale: 0-200%, threshold at 100% (50% of bar width)
+  const barWidth = Math.min(100, percentage / 2); // 200% = full bar
 
   return (
     <div className="space-y-6">
@@ -168,14 +162,29 @@ export default function IncidentPage() {
             <span className="text-gray-400">Loop Score</span>
             <span className="text-white font-medium">
               {loopScore.toFixed(1)} / {threshold.toFixed(1)}
-              <span className="text-gray-500 ml-2">({percentage.toFixed(0)}%)</span>
+              <span className={`ml-2 ${percentage > 100 ? "text-red-400" : "text-gray-500"}`}>
+                ({percentage.toFixed(0)}%)
+              </span>
             </span>
           </div>
-          <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+          <div className="relative h-3 bg-gray-700 rounded-full overflow-hidden">
+            {/* Progress fill */}
             <div
               className="h-full bg-gradient-to-r from-yellow-500 to-red-500 rounded-full transition-all"
-              style={{ width: `${percentage}%` }}
+              style={{ width: `${barWidth}%` }}
             />
+            {/* Threshold marker at 50% (= 100% of threshold) */}
+            <div
+              className="absolute top-0 bottom-0 w-0.5 bg-white/70"
+              style={{ left: "50%" }}
+              title={`Threshold: ${threshold}`}
+            />
+          </div>
+          {/* Scale labels */}
+          <div className="flex justify-between text-xs text-gray-500 mt-1">
+            <span>0</span>
+            <span>Threshold ({threshold})</span>
+            <span>2x</span>
           </div>
         </div>
 

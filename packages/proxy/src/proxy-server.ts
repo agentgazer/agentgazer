@@ -1677,6 +1677,8 @@ export function startProxy(options: ProxyOptions): ProxyServer {
                 timestamp: new Date().toISOString(),
                 tags: {
                   loop_score: loopCheck.score,
+                  threshold: killSwitchConfig.threshold,
+                  window_size: killSwitchConfig.windowSize,
                   similar_prompts: loopCheck.details.similarPrompts,
                   similar_responses: loopCheck.details.similarResponses,
                   repeated_tool_calls: loopCheck.details.repeatedToolCalls,

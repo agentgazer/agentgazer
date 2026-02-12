@@ -515,6 +515,14 @@ export function queryEvents(
 }
 
 /**
+ * Get a single event by ID.
+ */
+export function getEventById(db: Database.Database, eventId: string): EventRow | null {
+  const event = db.prepare("SELECT * FROM agent_events WHERE id = ?").get(eventId) as EventRow | undefined;
+  return event ?? null;
+}
+
+/**
  * Calculate an agent's total spending for today (server local time).
  */
 export function getDailySpend(db: Database.Database, agentId: string): number {

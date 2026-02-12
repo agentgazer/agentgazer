@@ -8,6 +8,7 @@ import ErrorBanner from "../components/ErrorBanner";
 interface KillSwitchTags {
   loop_score?: number;
   threshold?: number;
+  window_size?: number;
   similar_prompts?: number;
   similar_responses?: number;
   repeated_tool_calls?: number;
@@ -89,6 +90,7 @@ export default function IncidentsPage() {
                 <th className="px-4 py-3">Provider</th>
                 <th className="px-4 py-3">Model</th>
                 <th className="px-4 py-3 text-right">Score</th>
+                <th className="px-4 py-3 text-right">Window</th>
                 <th className="px-4 py-3 text-center">Signals</th>
                 <th className="px-4 py-3 text-center">Action</th>
               </tr>
@@ -102,6 +104,7 @@ export default function IncidentsPage() {
 
                 const loopScore = tags.loop_score ?? 0;
                 const threshold = tags.threshold ?? 10;
+                const windowSize = tags.window_size ?? 10;
                 const similarPrompts = tags.similar_prompts ?? 0;
                 const similarResponses = tags.similar_responses ?? 0;
                 const repeatedToolCalls = tags.repeated_tool_calls ?? 0;
@@ -130,6 +133,9 @@ export default function IncidentsPage() {
                         {loopScore.toFixed(1)}
                       </span>
                       <span className="text-gray-500">/{threshold}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-400">
+                      {windowSize}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2 text-xs">

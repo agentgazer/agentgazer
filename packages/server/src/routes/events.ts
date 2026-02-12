@@ -1,6 +1,6 @@
 import { Router } from "express";
 import type Database from "better-sqlite3";
-import { insertEvents, upsertAgent, queryEvents, getRecentEvents, type InsertEventRow } from "../db.js";
+import { insertEvents, upsertAgent, queryEvents, getRecentEvents, getEventById, type InsertEventRow } from "../db.js";
 import { rateLimitEvents } from "../middleware/rate-limit.js";
 import { createLogger } from "@agentgazer/shared";
 
@@ -404,6 +404,27 @@ router.get("/api/events/recent", (req, res) => {
 
   const events = getRecentEvents(db, Math.min(limit, 50));
   res.json({ events });
+});
+
+// GET /api/events/:eventId - Get single event by ID
+// Note: Must be defined after /api/events/recent to avoid matching "recent" as eventId
+router.get("/api/events/:eventId", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const { eventId } = req.params;
+
+  const event = getEventById(db, eventId);
+  if (!event) {
+    res.status(404).json({ error: "Event not found" });
+    return;
+  }
+
+  // Parse tags if it's a JSON string
+  const parsedEvent = {
+    ...event,
+    tags: safeParseTags(event.tags),
+  };
+
+  res.json(parsedEvent);
 });
 
 export default router;
