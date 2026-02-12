@@ -97,8 +97,8 @@ describe("getModelPricing", () => {
   it("returns pricing for mistral-large-latest", () => {
     const pricing = getModelPricing("mistral-large-latest");
     expect(pricing).toEqual({
-      inputPerMToken: 2.0,
-      outputPerMToken: 6.0,
+      inputPerMToken: 0.5,
+      outputPerMToken: 1.5,
     });
   });
 
@@ -279,12 +279,12 @@ describe("calculateCost", () => {
   });
 
   it("calculates cost for mistral-small-latest", () => {
-    // $0.06/1M in, $0.18/1M out
-    // 500000 in = 0.5 * 0.06 = 0.03
-    // 200000 out = 0.2 * 0.18 = 0.036
-    // total = 0.066
+    // $0.10/1M in, $0.30/1M out
+    // 500000 in = 0.5 * 0.10 = 0.05
+    // 200000 out = 0.2 * 0.30 = 0.06
+    // total = 0.11
     const cost = calculateCost("mistral-small-latest", 500_000, 200_000);
-    expect(cost).toBeCloseTo(0.066, 10);
+    expect(cost).toBeCloseTo(0.11, 10);
   });
 
   it("returns 0 for subscription provider (openai-oauth)", () => {

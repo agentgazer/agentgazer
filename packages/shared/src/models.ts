@@ -5,6 +5,8 @@
  */
 export const SELECTABLE_MODELS: Record<string, string[]> = {
   openai: [
+    // GPT-5.3
+    "gpt-5.3-codex",
     // GPT-5.2
     "gpt-5.2-pro",
     "gpt-5.2",
@@ -29,6 +31,7 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     // o-series
     "o3",
     "o3-mini",
+    "o3-pro",
     "o4-mini",
     "o1",
     "o1-pro",
@@ -43,10 +46,13 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "gpt-5-codex",
   ],
   anthropic: [
+    "claude-opus-4-6",
     "claude-opus-4-5-20251101",
     "claude-sonnet-4-5-20250929",
     "claude-sonnet-4-20250514",
+    "claude-3-7-sonnet-latest",
     "claude-haiku-4-5-20251001",
+    "claude-3-5-haiku-latest",
   ],
   google: [
     "gemini-3-pro-preview",
@@ -57,8 +63,11 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
   ],
   mistral: [
     "mistral-large-latest",
+    "mistral-medium-latest",
     "mistral-small-latest",
     "codestral-latest",
+    "magistral-medium-latest",
+    "magistral-small",
   ],
   deepseek: [
     "deepseek-chat",

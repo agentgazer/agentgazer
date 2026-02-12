@@ -16,32 +16,43 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "gpt-4.1-nano": { inputPerMToken: 0.10, outputPerMToken: 0.40 },
   // OpenAI - o-series
   "o1": { inputPerMToken: 15.00, outputPerMToken: 60.00 },
-  "o1-mini": { inputPerMToken: 3.00, outputPerMToken: 12.00 },
+  "o1-mini": { inputPerMToken: 1.10, outputPerMToken: 4.40 },
   "o1-pro": { inputPerMToken: 150.00, outputPerMToken: 600.00 },
   "o3": { inputPerMToken: 2.00, outputPerMToken: 8.00 },
   "o3-mini": { inputPerMToken: 1.10, outputPerMToken: 4.40 },
+  "o3-pro": { inputPerMToken: 20.00, outputPerMToken: 80.00 },
+  "o3-deep-research": { inputPerMToken: 10.00, outputPerMToken: 40.00 },
   "o4-mini": { inputPerMToken: 1.10, outputPerMToken: 4.40 },
+  "o4-mini-deep-research": { inputPerMToken: 2.00, outputPerMToken: 8.00 },
   // OpenAI - GPT-5
   "gpt-5": { inputPerMToken: 1.25, outputPerMToken: 10.00 },
-  "gpt-5-mini": { inputPerMToken: 0.50, outputPerMToken: 2.00 },
-  "gpt-5-nano": { inputPerMToken: 0.25, outputPerMToken: 1.00 },
+  "gpt-5-mini": { inputPerMToken: 0.25, outputPerMToken: 2.00 },
+  "gpt-5-nano": { inputPerMToken: 0.05, outputPerMToken: 0.40 },
   "gpt-5-pro": { inputPerMToken: 15.00, outputPerMToken: 120.00 },
   "gpt-5-codex": { inputPerMToken: 1.25, outputPerMToken: 10.00 },
   // OpenAI - GPT-5.1
   "gpt-5.1": { inputPerMToken: 1.25, outputPerMToken: 10.00 },
   "gpt-5.1-codex": { inputPerMToken: 1.25, outputPerMToken: 10.00 },
-  "gpt-5.1-codex-mini": { inputPerMToken: 0.50, outputPerMToken: 2.00 },
-  "gpt-5.1-codex-max": { inputPerMToken: 8.00, outputPerMToken: 32.00 },
+  "gpt-5.1-codex-mini": { inputPerMToken: 0.25, outputPerMToken: 2.00 },
+  "gpt-5.1-codex-max": { inputPerMToken: 1.25, outputPerMToken: 10.00 },
   // OpenAI - GPT-5.2
   "gpt-5.2": { inputPerMToken: 1.75, outputPerMToken: 14.00 },
   "gpt-5.2-pro": { inputPerMToken: 21.00, outputPerMToken: 168.00 },
   "gpt-5.2-codex": { inputPerMToken: 1.75, outputPerMToken: 14.00 },
+  // OpenAI - GPT-5.3
+  "gpt-5.3-codex": { inputPerMToken: 1.75, outputPerMToken: 14.00 },
+  // OpenAI - Codex
+  "codex-mini-latest": { inputPerMToken: 1.50, outputPerMToken: 6.00 },
 
   // Anthropic
+  "claude-opus-4-6": { inputPerMToken: 5.00, outputPerMToken: 25.00 },
   "claude-opus-4-5-20251101": { inputPerMToken: 5.00, outputPerMToken: 25.00 },
+  "claude-opus-4-1": { inputPerMToken: 15.00, outputPerMToken: 75.00 },
   "claude-sonnet-4-5-20250929": { inputPerMToken: 3.00, outputPerMToken: 15.00 },
   "claude-sonnet-4-20250514": { inputPerMToken: 3.00, outputPerMToken: 15.00 },
+  "claude-3-7-sonnet-latest": { inputPerMToken: 3.00, outputPerMToken: 15.00 },
   "claude-haiku-4-5-20251001": { inputPerMToken: 1.00, outputPerMToken: 5.00 },
+  "claude-3-5-haiku-latest": { inputPerMToken: 0.80, outputPerMToken: 4.00 },
 
   // Google
   "gemini-3-pro-preview": { inputPerMToken: 2.00, outputPerMToken: 12.00 },
@@ -51,12 +62,13 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "gemini-2.5-flash-lite": { inputPerMToken: 0.10, outputPerMToken: 0.40 },
 
   // Mistral
-  "mistral-large-latest": { inputPerMToken: 2.00, outputPerMToken: 6.00 },
-  "mistral-large-3": { inputPerMToken: 0.50, outputPerMToken: 1.50 },
-  "mistral-medium-3": { inputPerMToken: 0.40, outputPerMToken: 2.00 },
-  "mistral-small-latest": { inputPerMToken: 0.06, outputPerMToken: 0.18 },
-  "mistral-nemo": { inputPerMToken: 0.02, outputPerMToken: 0.04 },
+  "mistral-large-latest": { inputPerMToken: 0.50, outputPerMToken: 1.50 },
+  "mistral-medium-latest": { inputPerMToken: 0.40, outputPerMToken: 2.00 },
+  "mistral-small-latest": { inputPerMToken: 0.10, outputPerMToken: 0.30 },
+  "mistral-nemo": { inputPerMToken: 0.15, outputPerMToken: 0.15 },
   "codestral-latest": { inputPerMToken: 0.30, outputPerMToken: 0.90 },
+  "magistral-medium-latest": { inputPerMToken: 2.00, outputPerMToken: 5.00 },
+  "magistral-small": { inputPerMToken: 0.50, outputPerMToken: 1.50 },
 
   // DeepSeek (V3.2 unified pricing)
   "deepseek-chat": { inputPerMToken: 0.28, outputPerMToken: 0.42 },
@@ -218,15 +230,16 @@ export interface ProviderModel {
 
 const PROVIDER_MODELS: Record<string, string[]> = {
   openai: [
+    "gpt-5.3-codex",
     "gpt-5.2-pro", "gpt-5.2", "gpt-5.2-codex",
     "gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-mini", "gpt-5.1-codex-max",
     "gpt-5-pro", "gpt-5", "gpt-5-mini", "gpt-5-nano", "gpt-5-codex",
     "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini",
-    "o3", "o3-mini", "o4-mini", "o1", "o1-pro",
+    "o3", "o3-mini", "o3-pro", "o4-mini", "o1", "o1-pro",
   ],
-  anthropic: ["claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-haiku-4-5-20251001"],
+  anthropic: ["claude-opus-4-6", "claude-opus-4-5-20251101", "claude-sonnet-4-5-20250929", "claude-sonnet-4-20250514", "claude-3-7-sonnet-latest", "claude-haiku-4-5-20251001", "claude-3-5-haiku-latest"],
   google: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
-  mistral: ["mistral-large-latest", "mistral-large-3", "mistral-medium-3", "mistral-small-latest", "mistral-nemo", "codestral-latest"],
+  mistral: ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest", "mistral-nemo", "codestral-latest", "magistral-medium-latest", "magistral-small"],
   deepseek: ["deepseek-chat", "deepseek-reasoner"],
   moonshot: ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k", "kimi-k2.5", "kimi-k2-thinking"],
   zhipu: ["glm-4.7", "glm-4.7-flashx", "glm-4.7-flash", "glm-4.6", "glm-4.5", "glm-4.5-x", "glm-4.5-air", "glm-4.5-airx", "glm-4.5-flash"],
