@@ -1803,12 +1803,14 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       }
     }
 
+    // Generate eventId early for correlation: security_events, agent_events, event_payloads
+    const eventId = crypto.randomUUID();
+
     // Security request check (data masking + tool restrictions)
-    const requestId = crypto.randomUUID();
     const securityRequestResult = await securityFilter.checkRequest(
       effectiveAgentId,
       requestBody.toString("utf-8"),
-      requestId,
+      eventId,
     );
 
     if (!securityRequestResult.allowed) {
@@ -2606,9 +2608,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       // Calculate TTFT (time to first token)
       const ttftMs = firstChunkTime !== null ? firstChunkTime - requestStart : null;
 
-      // Generate eventId early for correlation between event and payload
-      const eventId = crypto.randomUUID();
-
+      // Use eventId from request scope for correlation with security_events
       try {
         // Use effective provider for parsing, original provider for event recording
         // When using Codex API via regular OpenAI, parse as openai-oauth (Codex format)
@@ -2716,7 +2716,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         const securityResponseResult = await securityFilter.checkResponse(
           effectiveAgentId,
           finalResponseBody.toString("utf-8"),
-          requestId,
+          eventId,
         );
 
         if (!securityResponseResult.allowed) {
@@ -2740,9 +2740,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       res.writeHead(providerResponse.status, responseHeaders);
       res.end(finalResponseBody);
 
-      // Generate eventId early for correlation between event and payload
-      const eventId = crypto.randomUUID();
-
+      // Use eventId from request scope for correlation with security_events
       try {
         // Use effective provider for parsing, original provider for event recording
         // When using Codex API via regular OpenAI, parse as openai-oauth (Codex format)
