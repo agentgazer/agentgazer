@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/proxy",
-  "version": "0.4.14",
+  "version": "0.5.0",
   "description": "AgentGazer proxy server for buffering and forwarding agent events",
   "license": "AGPL-3.0",
   "main": "./dist/index.js",
