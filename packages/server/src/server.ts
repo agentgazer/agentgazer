@@ -21,6 +21,7 @@ import { createOpenclawRouter } from "./routes/openclaw.js";
 import { createSettingsRouter } from "./routes/settings.js";
 import { createOAuthRouter } from "./routes/oauth.js";
 import { createPayloadsRouter } from "./routes/payloads.js";
+import securityRouter from "./routes/security.js";
 import { startEvaluator } from "./alerts/evaluator.js";
 import { initPayloadStore, closePayloadStore, getPayloadStore } from "./payload-store.js";
 
@@ -88,6 +89,7 @@ export function createServer(options: ServerOptions): { app: express.Express; db
     app.use("/api/oauth", createOAuthRouter({ secretStore: options.secretStore }));
   }
   app.use("/api/payloads", createPayloadsRouter());
+  app.use(securityRouter);
 
   // Serve dashboard static files if a directory is provided
   if (options.dashboardDir) {

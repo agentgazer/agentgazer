@@ -17,7 +17,7 @@ export interface EvaluatorOptions {
 interface AlertRuleRow {
   id: string;
   agent_id: string;
-  rule_type: "agent_down" | "error_rate" | "budget" | "kill_switch";
+  rule_type: "agent_down" | "error_rate" | "budget" | "kill_switch" | "security_event";
   config: string; // JSON text stored by SQLite
   enabled: number;
   notification_type: string;
@@ -76,6 +76,23 @@ interface KillSwitchConfig {
   // No config needed - triggers on any kill_switch event
 }
 
+interface SecurityEventConfig {
+  // Filter by event types (optional - if empty, all types trigger)
+  event_types?: ("prompt_injection" | "data_masked" | "tool_blocked")[];
+  // Filter by minimum severity (optional - defaults to all severities)
+  min_severity?: "info" | "warning" | "critical";
+}
+
+export interface SecurityEventData {
+  agent_id: string;
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  severity: "info" | "warning" | "critical";
+  action_taken: string;
+  rule_name?: string;
+  matched_pattern?: string;
+  snippet?: string;
+}
+
 export interface KillSwitchEventData {
   agent_id: string;
   score: number;
@@ -95,6 +112,8 @@ export interface KillSwitchEventData {
 const SQL_ENABLED_RULES = `SELECT * FROM alert_rules WHERE enabled = 1`;
 
 const SQL_KILL_SWITCH_RULES = `SELECT * FROM alert_rules WHERE enabled = 1 AND rule_type = 'kill_switch' AND agent_id = ?`;
+
+const SQL_SECURITY_EVENT_RULES = `SELECT * FROM alert_rules WHERE enabled = 1 AND rule_type = 'security_event' AND agent_id = ?`;
 
 const SQL_AGENT_BY_ID = `SELECT * FROM agents WHERE agent_id = ?`;
 
@@ -528,8 +547,8 @@ async function tick(db: Database.Database): Promise<void> {
 
   for (const rule of rules) {
     try {
-      // Skip kill_switch - handled separately via fireKillSwitchAlert()
-      if (rule.rule_type === "kill_switch") {
+      // Skip kill_switch and security_event - handled separately via event-driven functions
+      if (rule.rule_type === "kill_switch" || rule.rule_type === "security_event") {
         continue;
       }
 
@@ -682,6 +701,111 @@ export function resetKillSwitchAlerts(db: Database.Database, agentId: string): v
       }
 
       db.prepare(SQL_UPDATE_RULE_STATE).run("normal", null, rule.id);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Security Event Alert Handler
+// ---------------------------------------------------------------------------
+
+const SEVERITY_LEVELS = { info: 0, warning: 1, critical: 2 };
+
+/**
+ * Fire security_event alerts for an agent.
+ * Called immediately when a security event is logged.
+ */
+export async function fireSecurityAlert(
+  db: Database.Database,
+  data: SecurityEventData,
+): Promise<void> {
+  const rules = db.prepare(SQL_SECURITY_EVENT_RULES).all(data.agent_id) as AlertRuleRow[];
+
+  if (rules.length === 0) {
+    log.debug("No security_event alert rules for agent", { agentId: data.agent_id });
+    return;
+  }
+
+  const eventTypeLabel = data.event_type.replace(/_/g, " ");
+  const message = [
+    `Security event: ${eventTypeLabel}`,
+    `Agent: ${data.agent_id}`,
+    `Severity: ${data.severity}`,
+    `Action taken: ${data.action_taken}`,
+    data.rule_name ? `Rule: ${data.rule_name}` : null,
+    data.matched_pattern ? `Pattern: ${data.matched_pattern}` : null,
+    data.snippet ? `Snippet: ${data.snippet.slice(0, 100)}${data.snippet.length > 100 ? "..." : ""}` : null,
+  ].filter(Boolean).join("\n");
+
+  const now = new Date().toISOString();
+
+  for (const rule of rules) {
+    try {
+      // Parse config to check filters
+      let config: SecurityEventConfig = {};
+      try {
+        config = JSON.parse(rule.config);
+      } catch { /* use defaults */ }
+
+      // Filter by event type if configured
+      if (config.event_types && config.event_types.length > 0) {
+        if (!config.event_types.includes(data.event_type)) {
+          log.debug("Security alert skipped - event type not in filter", {
+            ruleId: rule.id,
+            eventType: data.event_type,
+            allowedTypes: config.event_types,
+          });
+          continue;
+        }
+      }
+
+      // Filter by minimum severity
+      if (config.min_severity) {
+        const eventLevel = SEVERITY_LEVELS[data.severity] ?? 0;
+        const minLevel = SEVERITY_LEVELS[config.min_severity] ?? 0;
+        if (eventLevel < minLevel) {
+          log.debug("Security alert skipped - severity below minimum", {
+            ruleId: rule.id,
+            severity: data.severity,
+            minSeverity: config.min_severity,
+          });
+          continue;
+        }
+      }
+
+      const currentState = rule.state || "normal";
+
+      // Check if we should send based on state and repeat settings
+      if (currentState === "fired" && !rule.repeat_enabled) {
+        log.debug("Security alert skipped (already fired, one-time)", { ruleId: rule.id });
+        continue;
+      }
+
+      if (currentState === "alerting" && rule.repeat_enabled) {
+        // Check repeat interval
+        const lastTriggered = rule.last_triggered_at ? new Date(rule.last_triggered_at).getTime() : 0;
+        const intervalMs = rule.repeat_interval_minutes * 60 * 1000;
+
+        if (Date.now() - lastTriggered < intervalMs) {
+          log.debug("Security alert skipped due to repeat interval", { ruleId: rule.id });
+          continue;
+        }
+      }
+
+      log.info(`Security alert fired`, {
+        ruleId: rule.id,
+        agentId: data.agent_id,
+        eventType: data.event_type,
+        severity: data.severity,
+      });
+
+      await deliverNotification(db, rule, message);
+
+      const newState = rule.repeat_enabled ? "alerting" : "fired";
+      db.prepare(SQL_UPDATE_RULE_STATE).run(newState, now, rule.id);
+
+    } catch (err) {
+      log.error("Error firing security_event alert", { ruleId: rule.id, err: String(err) });
     }
   }
 }

@@ -32,6 +32,7 @@ const EVENT_TYPES = [
   "custom",
   "blocked",
   "kill_switch",
+  "security_blocked",
 ];
 
 const TIME_RANGES = [
@@ -170,7 +171,15 @@ export default function LogsPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">Events</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-white">Events</h1>
+          <p className="mt-1 text-sm text-gray-400">
+            LLM calls and agent activity.{" "}
+            <Link to="/security" className="text-blue-400 hover:text-blue-300">
+              View Security Events →
+            </Link>
+          </p>
+        </div>
         <button
           onClick={handleExport}
           className="rounded bg-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-600"

@@ -87,6 +87,23 @@ export {
 } from "./normalize.js";
 
 export {
+  checkPromptInjection,
+  findSensitiveData,
+  maskSensitiveData,
+  checkToolCategory,
+  isToolAllowed,
+  isToolBlocked,
+  PROMPT_INJECTION_PATTERNS,
+  SENSITIVE_DATA_PATTERNS,
+  TOOL_CATEGORIES,
+  type PromptInjectionPattern,
+  type PromptInjectionMatch,
+  type SensitiveDataPattern,
+  type SensitiveDataMatch,
+  type ToolCategory,
+} from "./security-patterns.js";
+
+export {
   openaiToAnthropic,
   anthropicToOpenaiRequest,
   anthropicToOpenai,

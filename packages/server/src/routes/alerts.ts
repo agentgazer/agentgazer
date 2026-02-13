@@ -162,7 +162,7 @@ router.post("/api/alerts", (req, res) => {
     return;
   }
 
-  const validRuleTypes = new Set(["agent_down", "error_rate", "budget", "kill_switch"]);
+  const validRuleTypes = new Set(["agent_down", "error_rate", "budget", "kill_switch", "security_event"]);
   if (!validRuleTypes.has(body.rule_type)) {
     res.status(400).json({ error: `rule_type must be one of: ${[...validRuleTypes].join(", ")}` });
     return;

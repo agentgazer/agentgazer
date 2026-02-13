@@ -24,3 +24,19 @@ export type {
 // Re-export alert functions for kill switch handling
 export { fireKillSwitchAlert, resetKillSwitchAlerts } from "./alerts/evaluator.js";
 export type { KillSwitchEventData } from "./alerts/evaluator.js";
+
+// Re-export security config functions for proxy
+export {
+  getSecurityConfig,
+  upsertSecurityConfig,
+  insertSecurityEvent,
+  getSecurityEvents,
+  getSecurityEventById,
+} from "./db.js";
+export type {
+  SecurityConfig,
+  SecurityEventRow,
+  InsertSecurityEvent,
+  SecurityEventQueryOptions,
+  SecurityEventQueryResult,
+} from "./db.js";

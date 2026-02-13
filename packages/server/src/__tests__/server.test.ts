@@ -151,7 +151,7 @@ describe("Database initialization", () => {
 
     const names = tables.map((t) => t.name).sort();
     expect(names).toEqual(
-      ["agent_events", "agent_model_rules", "agent_rate_limits", "agents", "alert_history", "alert_rules", "provider_models", "provider_settings"].sort(),
+      ["agent_events", "agent_model_rules", "agent_rate_limits", "agents", "alert_history", "alert_rules", "provider_models", "provider_settings", "security_config", "security_events"].sort(),
     );
   });
 

@@ -9,6 +9,7 @@ import ProvidersPage from "./pages/ProvidersPage";
 import ProviderDetailPage from "./pages/ProviderDetailPage";
 import CostsPage from "./pages/CostsPage";
 import AlertsPage from "./pages/AlertsPage";
+import SecurityPage from "./pages/SecurityPage";
 import LogsPage from "./pages/LogsPage";
 import IncidentPage from "./pages/IncidentPage";
 import IncidentsPage from "./pages/IncidentsPage";
@@ -30,6 +31,7 @@ export default function App() {
             <Route path="/providers/:name" element={<ProviderDetailPage />} />
             <Route path="/costs" element={<CostsPage />} />
             <Route path="/alerts" element={<AlertsPage />} />
+            <Route path="/security" element={<SecurityPage />} />
             <Route path="/events" element={<LogsPage />} />
             <Route path="/incidents" element={<IncidentsPage />} />
             <Route path="/incidents/:eventId" element={<IncidentPage />} />

@@ -1,4 +1,5 @@
 import * as http from "node:http";
+import * as crypto from "node:crypto";
 import { StringDecoder } from "node:string_decoder";
 import {
   getProviderChatEndpoint,
@@ -53,11 +54,19 @@ import {
   getProviderSettings,
   updateAgentPolicy,
   fireKillSwitchAlert,
+  getSecurityConfig,
+  insertSecurityEvent,
   type AgentPolicy,
   type InsertEventRow,
   type ProviderSettingsRow,
   type KillSwitchEventData,
+  type SecurityConfig,
 } from "@agentgazer/server";
+import {
+  SecurityFilter,
+  clearSecurityConfigCache,
+  generateSecurityBlockedResponse,
+} from "./security-filter.js";
 import type Database from "better-sqlite3";
 
 // ---------------------------------------------------------------------------
@@ -1284,6 +1293,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
   });
   eventBuffer.start();
 
+  // Initialize security filter for request/response checks
+  const securityFilter = new SecurityFilter({
+    db,
+    serverEndpoint: endpoint.replace("/v1/events", ""), // Derive server endpoint
+    apiKey: options.apiKey,
+  });
+
   const server = http.createServer(
     (req: http.IncomingMessage, res: http.ServerResponse) => {
       void handleRequest(req, res);
@@ -1348,6 +1364,32 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         sendJson(res, 200, { success: true, provider: targetProvider });
       } else {
         log.info(`[PROXY] Cleared all provider policy caches`);
+        sendJson(res, 200, { success: true, all: true });
+      }
+      return;
+    }
+
+    // Internal endpoint: Clear security config cache
+    // POST /internal/security/clear-cache/:agentId
+    // POST /internal/security/clear-cache (clears all)
+    const clearSecurityCacheMatch = path.match(/^\/internal\/security\/clear-cache(?:\/([^/]+))?$/);
+    if (method === "POST" && clearSecurityCacheMatch) {
+      const targetAgentId = clearSecurityCacheMatch[1] ? decodeURIComponent(clearSecurityCacheMatch[1]) : undefined;
+
+      // Security: Only allow from localhost
+      const remoteAddr = req.socket.remoteAddress;
+      const isLocalhost = remoteAddr === "127.0.0.1" || remoteAddr === "::1" || remoteAddr === "::ffff:127.0.0.1";
+      if (!isLocalhost) {
+        sendJson(res, 403, { error: "This endpoint is only accessible from localhost" });
+        return;
+      }
+
+      clearSecurityConfigCache(targetAgentId);
+      if (targetAgentId) {
+        log.info(`[PROXY] Cleared security config cache for agent "${targetAgentId}"`);
+        sendJson(res, 200, { success: true, agent_id: targetAgentId });
+      } else {
+        log.info(`[PROXY] Cleared all security config caches`);
         sendJson(res, 200, { success: true, all: true });
       }
       return;
@@ -1759,6 +1801,30 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       } catch {
         // Not JSON body - skip loop detection
       }
+    }
+
+    // Security request check (data masking + tool restrictions)
+    const requestId = crypto.randomUUID();
+    const securityRequestResult = await securityFilter.checkRequest(
+      effectiveAgentId,
+      requestBody.toString("utf-8"),
+      requestId,
+    );
+
+    if (!securityRequestResult.allowed) {
+      log.info(`[PROXY] Request blocked by security: ${securityRequestResult.blockReason}`);
+      const blockedResponse = generateSecurityBlockedResponse(
+        securityRequestResult.blockReason || "Security policy violation",
+        provider,
+      );
+      sendJson(res, 200, blockedResponse);
+      return;
+    }
+
+    // Apply masked content if security filter modified the request
+    if (securityRequestResult.modifiedContent) {
+      requestBody = Buffer.from(securityRequestResult.modifiedContent, "utf-8");
+      log.debug(`[PROXY] Request content masked by security filter`);
     }
 
     // Model override and request normalization
@@ -2642,6 +2708,32 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           }
         } catch {
           log.debug(`[PROXY] Error response body: (binary, ${responseBodyBuffer.length} bytes)`);
+        }
+      }
+
+      // Security response check (prompt injection + data masking) - only for successful responses
+      if (providerResponse.status >= 200 && providerResponse.status < 400) {
+        const securityResponseResult = await securityFilter.checkResponse(
+          effectiveAgentId,
+          finalResponseBody.toString("utf-8"),
+          requestId,
+        );
+
+        if (!securityResponseResult.allowed) {
+          log.info(`[PROXY] Response blocked by security: ${securityResponseResult.blockReason}`);
+          const blockedResponse = generateSecurityBlockedResponse(
+            securityResponseResult.blockReason || "Security policy violation",
+            provider,
+          );
+          sendJson(res, 200, blockedResponse);
+          return;
+        }
+
+        // Apply masked content if security filter modified the response
+        if (securityResponseResult.modifiedContent) {
+          finalResponseBody = Buffer.from(securityResponseResult.modifiedContent, "utf-8");
+          responseHeaders["content-length"] = String(finalResponseBody.length);
+          log.debug(`[PROXY] Response content masked by security filter`);
         }
       }
 

@@ -114,6 +114,65 @@ function runMigrations(db: Database.Database): void {
   if (!modelRuleColNames.includes("target_provider")) {
     db.exec("ALTER TABLE agent_model_rules ADD COLUMN target_provider TEXT");
   }
+
+  // Migration: Add security_event to alert_rules CHECK constraint
+  // SQLite doesn't support ALTER CHECK, so we need to recreate the table
+  // Check if the constraint already includes 'security_event' by trying to insert and rolling back
+  try {
+    const testId = "test-migration-security-" + Date.now();
+    db.prepare(`
+      INSERT INTO alert_rules (id, agent_id, rule_type, config, enabled)
+      VALUES (?, 'test-agent', 'security_event', '{}', 0)
+    `).run(testId);
+    // If we get here, the constraint already includes security_event
+    db.prepare("DELETE FROM alert_rules WHERE id = ?").run(testId);
+  } catch {
+    // Constraint doesn't include security_event - need to recreate the table
+    db.exec(`
+      -- Create new table with updated constraint
+      CREATE TABLE alert_rules_new (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        agent_id TEXT NOT NULL,
+        rule_type TEXT NOT NULL CHECK (rule_type IN ('agent_down', 'error_rate', 'budget', 'kill_switch', 'security_event')),
+        config TEXT NOT NULL DEFAULT '{}',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        notification_type TEXT NOT NULL DEFAULT 'webhook',
+        webhook_url TEXT,
+        email TEXT,
+        smtp_config TEXT,
+        telegram_config TEXT,
+        repeat_enabled INTEGER NOT NULL DEFAULT 1,
+        repeat_interval_minutes INTEGER NOT NULL DEFAULT 15,
+        recovery_notify INTEGER NOT NULL DEFAULT 0,
+        state TEXT NOT NULL DEFAULT 'normal',
+        last_triggered_at TEXT,
+        budget_period TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      -- Copy data from old table
+      INSERT INTO alert_rules_new (
+        id, agent_id, rule_type, config, enabled, notification_type,
+        webhook_url, email, smtp_config, telegram_config,
+        repeat_enabled, repeat_interval_minutes, recovery_notify,
+        state, last_triggered_at, budget_period, created_at, updated_at
+      )
+      SELECT
+        id, agent_id, rule_type, config, enabled, notification_type,
+        webhook_url, email, smtp_config, telegram_config,
+        repeat_enabled, repeat_interval_minutes, recovery_notify,
+        state, last_triggered_at, budget_period, created_at, updated_at
+      FROM alert_rules;
+
+      -- Drop old table and rename new
+      DROP TABLE alert_rules;
+      ALTER TABLE alert_rules_new RENAME TO alert_rules;
+
+      -- Recreate index
+      CREATE INDEX IF NOT EXISTS idx_alert_rules_agent_id ON alert_rules(agent_id);
+    `);
+  }
 }
 
 const SCHEMA = `
@@ -167,7 +226,7 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS alert_rules (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     agent_id TEXT NOT NULL,
-    rule_type TEXT NOT NULL CHECK (rule_type IN ('agent_down', 'error_rate', 'budget', 'kill_switch')),
+    rule_type TEXT NOT NULL CHECK (rule_type IN ('agent_down', 'error_rate', 'budget', 'kill_switch', 'security_event')),
     config TEXT NOT NULL DEFAULT '{}',
     enabled INTEGER NOT NULL DEFAULT 1,
     notification_type TEXT NOT NULL DEFAULT 'webhook',
@@ -238,6 +297,51 @@ const SCHEMA = `
     rate_limit_window_seconds INTEGER,
     updated_at TEXT DEFAULT (datetime('now'))
   );
+
+  -- Security configuration per agent (NULL agent_id = global default)
+  CREATE TABLE IF NOT EXISTS security_config (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    agent_id TEXT UNIQUE,
+
+    -- Prompt Injection Detection
+    prompt_injection_action TEXT DEFAULT 'log',
+    prompt_injection_rules TEXT,
+    prompt_injection_custom TEXT,
+
+    -- Sensitive Data Masking
+    data_masking_replacement TEXT DEFAULT '[REDACTED]',
+    data_masking_rules TEXT,
+    data_masking_custom TEXT,
+
+    -- Tool Call Restrictions
+    tool_restrictions_action TEXT DEFAULT 'block',
+    tool_restrictions_rules TEXT,
+    tool_allowlist TEXT,
+    tool_blocklist TEXT,
+
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_security_config_agent ON security_config(agent_id);
+
+  -- Security events log
+  CREATE TABLE IF NOT EXISTS security_events (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    agent_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    action_taken TEXT NOT NULL,
+    rule_name TEXT,
+    matched_pattern TEXT,
+    snippet TEXT,
+    request_id TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_security_events_agent ON security_events(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_security_events_type ON security_events(event_type);
+  CREATE INDEX IF NOT EXISTS idx_security_events_created ON security_events(created_at);
 `;
 
 // ---------------------------------------------------------------------------
@@ -1476,4 +1580,397 @@ export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[
   // Sort all events by timestamp descending and limit
   events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   return events.slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Security Config
+// ---------------------------------------------------------------------------
+
+export interface SecurityConfig {
+  agent_id: string | null;  // null = global default
+  prompt_injection: {
+    action: "log" | "alert" | "block";
+    rules: {
+      ignore_instructions: boolean;
+      system_override: boolean;
+      role_hijacking: boolean;
+      jailbreak: boolean;
+    };
+    custom: Array<{ name: string; pattern: string }>;
+  };
+  data_masking: {
+    replacement: string;
+    rules: {
+      api_keys: boolean;
+      credit_cards: boolean;
+      personal_data: boolean;
+      crypto: boolean;
+      env_vars: boolean;
+    };
+    custom: Array<{ name: string; pattern: string }>;
+  };
+  tool_restrictions: {
+    action: "log" | "alert" | "block";
+    rules: {
+      max_per_request: number | null;
+      max_per_minute: number | null;
+      block_filesystem: boolean;
+      block_network: boolean;
+      block_code_execution: boolean;
+    };
+    allowlist: string[];
+    blocklist: string[];
+  };
+}
+
+const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
+  agent_id: null,
+  prompt_injection: {
+    action: "log",
+    rules: {
+      ignore_instructions: true,
+      system_override: true,
+      role_hijacking: true,
+      jailbreak: true,
+    },
+    custom: [],
+  },
+  data_masking: {
+    replacement: "[REDACTED]",
+    rules: {
+      api_keys: true,
+      credit_cards: true,
+      personal_data: true,
+      crypto: true,
+      env_vars: false,
+    },
+    custom: [],
+  },
+  tool_restrictions: {
+    action: "block",
+    rules: {
+      max_per_request: null,
+      max_per_minute: null,
+      block_filesystem: false,
+      block_network: false,
+      block_code_execution: false,
+    },
+    allowlist: [],
+    blocklist: [],
+  },
+};
+
+interface SecurityConfigRow {
+  id: string;
+  agent_id: string | null;
+  prompt_injection_action: string;
+  prompt_injection_rules: string | null;
+  prompt_injection_custom: string | null;
+  data_masking_replacement: string;
+  data_masking_rules: string | null;
+  data_masking_custom: string | null;
+  tool_restrictions_action: string;
+  tool_restrictions_rules: string | null;
+  tool_allowlist: string | null;
+  tool_blocklist: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function parseSecurityConfigRow(row: SecurityConfigRow): SecurityConfig {
+  const defaultConfig = DEFAULT_SECURITY_CONFIG;
+
+  return {
+    agent_id: row.agent_id,
+    prompt_injection: {
+      action: (row.prompt_injection_action as "log" | "alert" | "block") || "log",
+      rules: row.prompt_injection_rules
+        ? JSON.parse(row.prompt_injection_rules)
+        : defaultConfig.prompt_injection.rules,
+      custom: row.prompt_injection_custom
+        ? JSON.parse(row.prompt_injection_custom)
+        : [],
+    },
+    data_masking: {
+      replacement: row.data_masking_replacement || "[REDACTED]",
+      rules: row.data_masking_rules
+        ? JSON.parse(row.data_masking_rules)
+        : defaultConfig.data_masking.rules,
+      custom: row.data_masking_custom
+        ? JSON.parse(row.data_masking_custom)
+        : [],
+    },
+    tool_restrictions: {
+      action: (row.tool_restrictions_action as "log" | "alert" | "block") || "block",
+      rules: row.tool_restrictions_rules
+        ? JSON.parse(row.tool_restrictions_rules)
+        : defaultConfig.tool_restrictions.rules,
+      allowlist: row.tool_allowlist
+        ? JSON.parse(row.tool_allowlist)
+        : [],
+      blocklist: row.tool_blocklist
+        ? JSON.parse(row.tool_blocklist)
+        : [],
+    },
+  };
+}
+
+/**
+ * Get security config for an agent.
+ * Falls back to global config (agent_id = NULL) if no agent-specific config exists.
+ * Returns default config if neither exists.
+ */
+export function getSecurityConfig(
+  db: Database.Database,
+  agentId: string | null,
+): SecurityConfig {
+  // Try agent-specific config first
+  if (agentId) {
+    const agentRow = db.prepare(`
+      SELECT * FROM security_config WHERE agent_id = ?
+    `).get(agentId) as SecurityConfigRow | undefined;
+
+    if (agentRow) {
+      return parseSecurityConfigRow(agentRow);
+    }
+  }
+
+  // Fall back to global config
+  const globalRow = db.prepare(`
+    SELECT * FROM security_config WHERE agent_id IS NULL
+  `).get() as SecurityConfigRow | undefined;
+
+  if (globalRow) {
+    return parseSecurityConfigRow(globalRow);
+  }
+
+  // Return default config
+  return { ...DEFAULT_SECURITY_CONFIG, agent_id: agentId };
+}
+
+/**
+ * Create or update security config for an agent (or global if agentId is null).
+ */
+export function upsertSecurityConfig(
+  db: Database.Database,
+  config: SecurityConfig,
+): SecurityConfig {
+  const now = new Date().toISOString();
+  const id = randomUUID();
+
+  const promptInjectionRules = JSON.stringify(config.prompt_injection.rules);
+  const promptInjectionCustom = JSON.stringify(config.prompt_injection.custom);
+  const dataMaskingRules = JSON.stringify(config.data_masking.rules);
+  const dataMaskingCustom = JSON.stringify(config.data_masking.custom);
+  const toolRestrictionsRules = JSON.stringify(config.tool_restrictions.rules);
+  const toolAllowlist = JSON.stringify(config.tool_restrictions.allowlist);
+  const toolBlocklist = JSON.stringify(config.tool_restrictions.blocklist);
+
+  if (config.agent_id === null) {
+    // Global config - use IS NULL for matching
+    db.prepare(`
+      INSERT INTO security_config (
+        id, agent_id,
+        prompt_injection_action, prompt_injection_rules, prompt_injection_custom,
+        data_masking_replacement, data_masking_rules, data_masking_custom,
+        tool_restrictions_action, tool_restrictions_rules, tool_allowlist, tool_blocklist,
+        created_at, updated_at
+      ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(agent_id) DO UPDATE SET
+        prompt_injection_action = excluded.prompt_injection_action,
+        prompt_injection_rules = excluded.prompt_injection_rules,
+        prompt_injection_custom = excluded.prompt_injection_custom,
+        data_masking_replacement = excluded.data_masking_replacement,
+        data_masking_rules = excluded.data_masking_rules,
+        data_masking_custom = excluded.data_masking_custom,
+        tool_restrictions_action = excluded.tool_restrictions_action,
+        tool_restrictions_rules = excluded.tool_restrictions_rules,
+        tool_allowlist = excluded.tool_allowlist,
+        tool_blocklist = excluded.tool_blocklist,
+        updated_at = excluded.updated_at
+    `).run(
+      id,
+      config.prompt_injection.action,
+      promptInjectionRules,
+      promptInjectionCustom,
+      config.data_masking.replacement,
+      dataMaskingRules,
+      dataMaskingCustom,
+      config.tool_restrictions.action,
+      toolRestrictionsRules,
+      toolAllowlist,
+      toolBlocklist,
+      now,
+      now,
+    );
+  } else {
+    // Agent-specific config
+    db.prepare(`
+      INSERT INTO security_config (
+        id, agent_id,
+        prompt_injection_action, prompt_injection_rules, prompt_injection_custom,
+        data_masking_replacement, data_masking_rules, data_masking_custom,
+        tool_restrictions_action, tool_restrictions_rules, tool_allowlist, tool_blocklist,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(agent_id) DO UPDATE SET
+        prompt_injection_action = excluded.prompt_injection_action,
+        prompt_injection_rules = excluded.prompt_injection_rules,
+        prompt_injection_custom = excluded.prompt_injection_custom,
+        data_masking_replacement = excluded.data_masking_replacement,
+        data_masking_rules = excluded.data_masking_rules,
+        data_masking_custom = excluded.data_masking_custom,
+        tool_restrictions_action = excluded.tool_restrictions_action,
+        tool_restrictions_rules = excluded.tool_restrictions_rules,
+        tool_allowlist = excluded.tool_allowlist,
+        tool_blocklist = excluded.tool_blocklist,
+        updated_at = excluded.updated_at
+    `).run(
+      id,
+      config.agent_id,
+      config.prompt_injection.action,
+      promptInjectionRules,
+      promptInjectionCustom,
+      config.data_masking.replacement,
+      dataMaskingRules,
+      dataMaskingCustom,
+      config.tool_restrictions.action,
+      toolRestrictionsRules,
+      toolAllowlist,
+      toolBlocklist,
+      now,
+      now,
+    );
+  }
+
+  return getSecurityConfig(db, config.agent_id);
+}
+
+// ---------------------------------------------------------------------------
+// Security Events
+// ---------------------------------------------------------------------------
+
+export interface SecurityEventRow {
+  id: string;
+  agent_id: string;
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  severity: "info" | "warning" | "critical";
+  action_taken: "logged" | "alerted" | "blocked" | "masked";
+  rule_name: string | null;
+  matched_pattern: string | null;
+  snippet: string | null;
+  request_id: string | null;
+  created_at: string;
+}
+
+export interface InsertSecurityEvent {
+  agent_id: string;
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  severity: "info" | "warning" | "critical";
+  action_taken: "logged" | "alerted" | "blocked" | "masked";
+  rule_name?: string;
+  matched_pattern?: string;
+  snippet?: string;
+  request_id?: string;
+}
+
+/**
+ * Insert a security event into the log.
+ */
+export function insertSecurityEvent(
+  db: Database.Database,
+  event: InsertSecurityEvent,
+): string {
+  const id = randomUUID();
+
+  db.prepare(`
+    INSERT INTO security_events (
+      id, agent_id, event_type, severity, action_taken,
+      rule_name, matched_pattern, snippet, request_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id,
+    event.agent_id,
+    event.event_type,
+    event.severity,
+    event.action_taken,
+    event.rule_name ?? null,
+    event.matched_pattern ?? null,
+    event.snippet ?? null,
+    event.request_id ?? null,
+  );
+
+  return id;
+}
+
+export interface SecurityEventQueryOptions {
+  agent_id?: string;
+  event_type?: string;
+  severity?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface SecurityEventQueryResult {
+  events: SecurityEventRow[];
+  total: number;
+}
+
+/**
+ * Query security events with pagination and filters.
+ */
+export function getSecurityEvents(
+  db: Database.Database,
+  options: SecurityEventQueryOptions = {},
+): SecurityEventQueryResult {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (options.agent_id) {
+    conditions.push("agent_id = ?");
+    params.push(options.agent_id);
+  }
+  if (options.event_type) {
+    conditions.push("event_type = ?");
+    params.push(options.event_type);
+  }
+  if (options.severity) {
+    conditions.push("severity = ?");
+    params.push(options.severity);
+  }
+  if (options.from) {
+    conditions.push("created_at >= ?");
+    params.push(options.from);
+  }
+  if (options.to) {
+    conditions.push("created_at <= ?");
+    params.push(options.to);
+  }
+
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  // Get total count
+  const countSql = `SELECT COUNT(*) as total FROM security_events ${whereClause}`;
+  const countResult = db.prepare(countSql).get(...params) as { total: number };
+
+  // Get paginated results
+  const limit = options.limit ?? 50;
+  const offset = options.offset ?? 0;
+  const sql = `SELECT * FROM security_events ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+  const events = db.prepare(sql).all(...params, limit, offset) as SecurityEventRow[];
+
+  return { events, total: countResult.total };
+}
+
+/**
+ * Get a single security event by ID.
+ */
+export function getSecurityEventById(
+  db: Database.Database,
+  eventId: string,
+): SecurityEventRow | null {
+  const event = db.prepare("SELECT * FROM security_events WHERE id = ?").get(eventId) as SecurityEventRow | undefined;
+  return event ?? null;
 }

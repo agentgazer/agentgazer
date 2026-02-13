@@ -26,3 +26,10 @@ export {
   getBufferWindowSize,
   type BufferedPayload,
 } from "./payload-buffer.js";
+export {
+  SecurityFilter,
+  clearSecurityConfigCache,
+  generateSecurityBlockedResponse,
+  type SecurityCheckResult,
+  type SecurityEventData,
+} from "./security-filter.js";
