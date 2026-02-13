@@ -114,6 +114,7 @@ const TOOLTIP_CONTENT: Record<string, TooltipData> = {
     description: "Detects attempts to change the AI's role or identity to bypass restrictions.",
     examples: ["you are now a...", "pretend to be", "roleplay as"],
     docsAnchor: "#role-hijacking",
+    warning: "⚠️ OpenClaw users: This may conflict with OpenClaw's agent role assignment. Disable if using OpenClaw.",
   },
   jailbreak: {
     title: "Jailbreak Patterns",
@@ -180,6 +181,7 @@ interface TooltipData {
   description: string;
   examples: string[];
   docsAnchor: string;
+  warning?: string;
 }
 
 /* ---------- Component ---------- */
@@ -1086,6 +1088,11 @@ function InfoTooltip({ data }: { data: TooltipData }) {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+          {data.warning && (
+            <div className="mt-2 rounded bg-orange-900/50 px-2 py-1 text-xs text-orange-300">
+              {data.warning}
             </div>
           )}
           <div className="mt-2 text-xs text-blue-400">Click to view docs</div>
