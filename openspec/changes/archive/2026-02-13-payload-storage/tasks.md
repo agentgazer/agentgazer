@@ -42,4 +42,4 @@
 
 - [x] Update proxy to POST /api/payloads when archive enabled
 - [x] Update proxy to POST /api/payloads/evidence on kill switch
-- [ ] Add kill switch evidence view in dashboard (optional, can be future)
+- [x] Add kill switch evidence view in dashboard (implemented in Incidents page)
