@@ -335,6 +335,11 @@ export const SENSITIVE_DATA_PATTERNS: SensitiveDataPattern[] = [
     pattern: /\b0x[a-fA-F0-9]{64}\b/g,
   },
   {
+    name: "tron_address",
+    category: "crypto",
+    pattern: /\bT[1-9A-HJ-NP-Za-km-z]{33}\b/g,
+  },
+  {
     name: "solana_address",
     category: "crypto",
     pattern: /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/g,

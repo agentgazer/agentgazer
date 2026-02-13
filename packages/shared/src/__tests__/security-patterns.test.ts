@@ -129,6 +129,22 @@ describe("findSensitiveData", () => {
     expect(matches[0].pattern.category).toBe("crypto");
   });
 
+  it("detects Solana addresses", () => {
+    const content = "SOL: 7EcDhSYGxXyscszYEp35KHN8vvw3svAuLKTzXwCFLtV";
+    const matches = findSensitiveData(content);
+    expect(matches.length).toBeGreaterThan(0);
+    expect(matches[0].pattern.category).toBe("crypto");
+    expect(matches[0].pattern.name).toBe("solana_address");
+  });
+
+  it("detects TRON addresses", () => {
+    const content = "TRX: TJCnKsPa7y5okkXvQAidZBzqx3QyQ6sxMW";
+    const matches = findSensitiveData(content);
+    expect(matches.length).toBeGreaterThan(0);
+    expect(matches[0].pattern.category).toBe("crypto");
+    expect(matches[0].pattern.name).toBe("tron_address");
+  });
+
   it("detects emails as personal data", () => {
     const content = "Contact: john.doe@example.com";
     const matches = findSensitiveData(content);
