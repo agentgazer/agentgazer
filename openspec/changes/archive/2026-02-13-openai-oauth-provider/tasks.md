@@ -68,9 +68,9 @@
 
 ## 10. Testing
 
-- [ ] 10.1 Test CLI login flow with browser
-- [ ] 10.2 Test CLI login flow with device code
-- [ ] 10.3 Test token refresh mechanism
-- [ ] 10.4 Test proxy routing with OAuth token
-- [ ] 10.5 Test Dashboard OAuth flow
-- [ ] 10.6 Test OpenClaw template generation with OAuth
+- [x] 10.1 Test CLI login flow with browser
+- [x] 10.2 Test CLI login flow with device code
+- [x] 10.3 Test token refresh mechanism
+- [x] 10.4 Test proxy routing with OAuth token
+- [x] 10.5 Test Dashboard OAuth flow
+- [x] 10.6 Test OpenClaw template generation with OAuth
