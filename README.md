@@ -13,6 +13,7 @@ Most observability tools just **watch**. AgentGazer **controls**.
 | **Rate Limiting** | ❌ | ❌ | ❌ | ✅ |
 | **Model Override** | ❌ | ❌ | ❌ | ✅ |
 | **Kill Switch** | ❌ | ❌ | ❌ | ✅ |
+| **Security Shield** | ❌ | ❌ | ❌ | ✅ |
 | Self-hosted | ❌ | ✅ | ❌ | ✅ |
 | Zero SaaS cost | ❌ | ❌ | ❌ | ✅ |
 
@@ -76,6 +77,18 @@ Limit: 100 requests / 60 seconds
 ```
 
 Configure in the Dashboard or via API.
+
+### 🔒 Security Shield — Protect against prompt injection & data leaks
+
+Multi-layer defense for AI agents:
+
+- **Prompt Injection Detection** — Detects jailbreak attempts, role hijacking, system prompt overrides (English + Chinese patterns)
+- **Sensitive Data Masking** — Automatically redacts API keys, credit cards, crypto addresses, and personal data from requests
+- **Tool Call Restrictions** — Allowlist/blocklist specific tools, block dangerous categories (filesystem, network, code execution), rate limit tool usage
+
+Actions: `log` (record only), `alert` (notify + log), `block` (reject request).
+
+Configure globally or per-agent in the Dashboard.
 
 ## Quick start
 
