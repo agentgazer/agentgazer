@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
@@ -253,6 +254,7 @@ function AlertForm({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const [loadingDefaults, setLoadingDefaults] = useState(!initial); // Only load defaults for new alerts
@@ -398,7 +400,7 @@ function AlertForm({
   if (loadingDefaults) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-800 p-5">
-        <p className="text-sm text-gray-400">Loading defaults...</p>
+        <p className="text-sm text-gray-400">{t("alerts.loadingDefaults")}</p>
       </div>
     );
   }
@@ -409,7 +411,7 @@ function AlertForm({
       className="rounded-lg border border-gray-700 bg-gray-800 p-5"
     >
       <h3 className="text-sm font-semibold text-white">
-        {editId ? "Edit Alert Rule" : "New Alert Rule"}
+        {editId ? t("alerts.editRule") : t("alerts.newRule")}
       </h3>
 
       {error && (
@@ -422,10 +424,10 @@ function AlertForm({
         {/* Agent ID dropdown */}
         <div>
           <label className="block text-xs font-medium text-gray-400">
-            Agent
+            {t("alerts.agent")}
           </label>
           {loadingAgents ? (
-            <div className="mt-1 text-sm text-gray-500">Loading agents...</div>
+            <div className="mt-1 text-sm text-gray-500">{t("alerts.loadingAgents")}</div>
           ) : agents.length === 0 ? (
             <div className="mt-1">
               <input
@@ -438,7 +440,7 @@ function AlertForm({
                 placeholder="my-agent"
                 required
               />
-              <p className="mt-1 text-xs text-gray-500">No agents found. Enter agent ID manually.</p>
+              <p className="mt-1 text-xs text-gray-500">{t("alerts.noAgentsManual")}</p>
             </div>
           ) : (
             <select
@@ -449,7 +451,7 @@ function AlertForm({
               className={inputClass}
               required
             >
-              <option value="">Select an agent...</option>
+              <option value="">{t("alerts.selectAgent")}</option>
               {agents.map((agent) => (
                 <option key={agent.agent_id} value={agent.agent_id}>
                   {agent.agent_id}
@@ -462,7 +464,7 @@ function AlertForm({
         {/* Rule type */}
         <div>
           <label className="block text-xs font-medium text-gray-400">
-            Rule Type
+            {t("alerts.ruleType")}
           </label>
           <select
             value={form.rule_type}
@@ -471,10 +473,10 @@ function AlertForm({
             }
             className={inputClass}
           >
-            <option value="agent_down">Agent Inactive (no activity for X minutes)</option>
-            <option value="error_rate">Error Rate (% errors in time window)</option>
-            <option value="budget">Budget Exceeded (daily spend threshold)</option>
-            <option value="kill_switch">Kill Switch (notify when loop detected)</option>
+            <option value="agent_down">{t("alerts.agentInactive")}</option>
+            <option value="error_rate">{t("alerts.errorRateLabel")}</option>
+            <option value="budget">{t("alerts.budgetExceeded")}</option>
+            <option value="kill_switch">{t("alerts.killSwitchLoop")}</option>
           </select>
         </div>
       </div>
@@ -484,7 +486,7 @@ function AlertForm({
         {form.rule_type === "agent_down" && (
           <div>
             <label className="block text-xs font-medium text-gray-400">
-              Inactive Duration (minutes)
+              {t("alerts.inactiveDuration")}
             </label>
             <input
               type="number"
@@ -496,7 +498,7 @@ function AlertForm({
               className={inputClass}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Alert when agent has no activity for this many minutes
+              {t("alerts.inactiveDurationHelp")}
             </p>
           </div>
         )}
@@ -504,7 +506,7 @@ function AlertForm({
           <>
             <div>
               <label className="block text-xs font-medium text-gray-400">
-                Error Threshold (%)
+                {t("alerts.errorThreshold")}
               </label>
               <input
                 type="number"
@@ -520,7 +522,7 @@ function AlertForm({
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-400">
-                Time Window (minutes)
+                {t("alerts.timeWindow")}
               </label>
               <input
                 type="number"
@@ -537,7 +539,7 @@ function AlertForm({
         {form.rule_type === "budget" && (
           <div>
             <label className="block text-xs font-medium text-gray-400">
-              Daily Budget Threshold (USD)
+              {t("alerts.dailyBudget")}
             </label>
             <input
               type="number"
@@ -550,20 +552,19 @@ function AlertForm({
               className={inputClass}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Alert when daily spend exceeds this amount
+              {t("alerts.dailyBudgetHelp")}
             </p>
           </div>
         )}
         {form.rule_type === "kill_switch" && (
           <div className="sm:col-span-2">
             <div className="rounded-md border border-purple-700 bg-purple-900/20 p-4">
-              <p className="text-sm font-medium text-purple-300">Kill Switch Alert</p>
+              <p className="text-sm font-medium text-purple-300">{t("alerts.killSwitchAlert")}</p>
               <p className="mt-1 text-xs text-purple-300/80">
-                This alert fires automatically when the kill switch detects an agent stuck in an infinite loop.
-                Enable Kill Switch in the agent's detail page first, then create this alert rule to receive notifications.
+                {t("alerts.killSwitchAlertDesc")}
               </p>
               <p className="mt-2 text-xs text-gray-400">
-                No additional configuration required - the alert triggers on any loop detection event.
+                {t("alerts.noConfigNeeded")}
               </p>
             </div>
           </div>
@@ -572,10 +573,10 @@ function AlertForm({
 
       {/* Notification Type */}
       <div className="mt-6 border-t border-gray-700 pt-4">
-        <h4 className="text-sm font-medium text-white">Notification Settings</h4>
+        <h4 className="text-sm font-medium text-white">{t("alerts.notificationSettings")}</h4>
         <div className="mt-3">
           <label className="block text-xs font-medium text-gray-400">
-            Notification Method
+            {t("alerts.notificationMethod")}
           </label>
           <select
             value={form.notification_type}
@@ -598,7 +599,7 @@ function AlertForm({
         <div className="mt-4 space-y-3">
           <div>
             <label className="block text-xs font-medium text-gray-400">
-              Webhook URL
+              {t("alerts.webhookUrl")}
             </label>
             <input
               type="url"
@@ -612,7 +613,7 @@ function AlertForm({
             />
           </div>
           <div className="rounded-md bg-gray-900 p-3">
-            <p className="text-xs font-medium text-gray-400">Webhook Payload Format</p>
+            <p className="text-xs font-medium text-gray-400">{t("alerts.webhookPayload")}</p>
             <pre className="mt-2 overflow-x-auto text-xs text-gray-300">
 {`POST <your-webhook-url>
 Content-Type: application/json
@@ -633,7 +634,7 @@ Content-Type: application/json
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-medium text-gray-400">SMTP Host</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.smtpHost")}</label>
               <input
                 type="text"
                 value={form.smtp_config.host}
@@ -644,7 +645,7 @@ Content-Type: application/json
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-400">SMTP Port</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.smtpPort")}</label>
               <input
                 type="number"
                 value={form.smtp_config.port}
@@ -655,7 +656,7 @@ Content-Type: application/json
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-400">SMTP User</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.smtpUser")}</label>
               <input
                 type="text"
                 value={form.smtp_config.user}
@@ -665,7 +666,7 @@ Content-Type: application/json
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-400">SMTP Password</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.smtpPassword")}</label>
               <input
                 type="password"
                 value={form.smtp_config.pass}
@@ -675,7 +676,7 @@ Content-Type: application/json
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-400">From Address</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.fromAddress")}</label>
               <input
                 type="email"
                 value={form.smtp_config.from}
@@ -686,7 +687,7 @@ Content-Type: application/json
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-400">To Address</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.toAddress")}</label>
               <input
                 type="email"
                 value={form.smtp_config.to}
@@ -706,7 +707,7 @@ Content-Type: application/json
               className="h-4 w-4 rounded border-gray-600 bg-gray-900 text-blue-600 focus:ring-blue-500"
             />
             <label htmlFor="smtp-secure" className="text-xs text-gray-400">
-              Use TLS/SSL (secure connection)
+              {t("alerts.useTls")}
             </label>
           </div>
         </div>
@@ -717,7 +718,7 @@ Content-Type: application/json
         <div className="mt-4 space-y-3">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-medium text-gray-400">Bot Token</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.botToken")}</label>
               <input
                 type="text"
                 value={form.telegram_config.bot_token}
@@ -727,11 +728,11 @@ Content-Type: application/json
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                Get from @BotFather on Telegram
+                {t("alerts.botTokenHelp")}
               </p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-400">Chat ID</label>
+              <label className="block text-xs font-medium text-gray-400">{t("alerts.chatId")}</label>
               <input
                 type="text"
                 value={form.telegram_config.chat_id}
@@ -741,12 +742,12 @@ Content-Type: application/json
                 required
               />
               <p className="mt-1 text-xs text-gray-500">
-                User ID, group ID, or channel ID
+                {t("alerts.chatIdHelp")}
               </p>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-400">Message Template</label>
+            <label className="block text-xs font-medium text-gray-400">{t("alerts.messageTemplate")}</label>
             <textarea
               value={form.telegram_config.message_template}
               onChange={(e) => handleTelegramChange("message_template", e.target.value)}
@@ -754,7 +755,7 @@ Content-Type: application/json
               placeholder="[From AgentGazer] Alert: {rule_type} - Agent: {agent_id} - {message}"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Available variables: {"{agent_id}"}, {"{rule_type}"}, {"{message}"}, {"{timestamp}"}
+              {t("alerts.messageTemplateHelp")}
             </p>
           </div>
         </div>
@@ -767,14 +768,14 @@ Content-Type: application/json
           disabled={saving}
           className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
         >
-          {saving ? "Saving..." : "Save"}
+          {saving ? t("alerts.saving") : t("common.save")}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded-md bg-gray-700 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
         >
-          Cancel
+          {t("common.cancel")}
         </button>
       </div>
     </form>
@@ -784,6 +785,7 @@ Content-Type: application/json
 /* ---------- Main Page ---------- */
 
 export default function AlertsPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("rules");
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null);
@@ -846,7 +848,7 @@ export default function AlertsPage() {
   }
 
   async function handleDelete(rule: AlertRule) {
-    if (!confirm(`Delete alert rule for "${rule.agent_id}"?`)) return;
+    if (!confirm(t("alerts.deleteConfirm", { agent: rule.agent_id }))) return;
     setActionError(null);
     try {
       await api.del(`/api/alerts/${rule.id}`);
@@ -884,7 +886,7 @@ export default function AlertsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white">Alerts</h1>
+      <h1 className="text-2xl font-bold text-white">{t("alerts.title")}</h1>
 
       {/* Tabs */}
       <div className="mt-6 flex border-b border-gray-700">
@@ -896,7 +898,7 @@ export default function AlertsPage() {
               : "text-gray-400 hover:text-gray-200"
           }`}
         >
-          Rules
+          {t("alerts.rules")}
         </button>
         <button
           onClick={() => setTab("history")}
@@ -906,7 +908,7 @@ export default function AlertsPage() {
               : "text-gray-400 hover:text-gray-200"
           }`}
         >
-          History
+          {t("alerts.history")}
         </button>
       </div>
 
@@ -926,7 +928,7 @@ export default function AlertsPage() {
                 }}
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
               >
-                New Alert Rule
+                {t("alerts.newRule")}
               </button>
             )}
             <FilterDropdown
@@ -954,7 +956,7 @@ export default function AlertsPage() {
           {rulesData && rulesData.alerts.length === 0 && !showForm && (
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
               <p className="text-gray-400">
-                No alert rules configured. Create one to get started.
+                {t("alerts.noRules")}
               </p>
             </div>
           )}
@@ -1003,13 +1005,13 @@ export default function AlertsPage() {
                         onClick={() => handleEdit(rule)}
                         className="rounded-md bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
                       >
-                        Edit
+                        {t("common.edit")}
                       </button>
                       <button
                         onClick={() => handleDelete(rule)}
                         className="rounded-md bg-red-900/50 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-800 hover:text-red-200"
                       >
-                        Delete
+                        {t("common.delete")}
                       </button>
                     </div>
                   </div>
@@ -1044,7 +1046,7 @@ export default function AlertsPage() {
 
           {historyData && historyData.history.length === 0 && (
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
-              <p className="text-gray-400">No alert history yet.</p>
+              <p className="text-gray-400">{t("alerts.noHistory")}</p>
             </div>
           )}
 
@@ -1054,11 +1056,11 @@ export default function AlertsPage() {
                 <table className="w-full text-left text-sm">
                   <thead>
                     <tr className="bg-gray-800 text-xs uppercase text-gray-400">
-                      <th className="px-4 py-3 font-medium">Timestamp</th>
-                      <th className="px-4 py-3 font-medium">Agent</th>
-                      <th className="px-4 py-3 font-medium">Type</th>
-                      <th className="px-4 py-3 font-medium">Message</th>
-                      <th className="px-4 py-3 font-medium">Delivered Via</th>
+                      <th className="px-4 py-3 font-medium">{t("alerts.timestamp")}</th>
+                      <th className="px-4 py-3 font-medium">{t("alerts.agent")}</th>
+                      <th className="px-4 py-3 font-medium">{t("alerts.ruleType")}</th>
+                      <th className="px-4 py-3 font-medium">{t("alerts.message")}</th>
+                      <th className="px-4 py-3 font-medium">{t("alerts.deliveredVia")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">

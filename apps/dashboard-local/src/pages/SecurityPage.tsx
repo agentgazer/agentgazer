@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -93,100 +94,23 @@ interface AgentsResponse {
 
 type Tab = "config" | "events";
 
-/* ---------- Tooltip Content ---------- */
+/* ---------- Tooltip Keys ---------- */
 
-const TOOLTIP_CONTENT: Record<string, TooltipData> = {
+// Maps rule keys to their i18n tooltip keys and docs anchors
+const TOOLTIP_KEYS: Record<string, { i18nKey: string; docsAnchor: string }> = {
   // Prompt Injection
-  ignore_instructions: {
-    title: "Ignore Previous Instructions",
-    description: "Detects attempts to make the AI ignore its original instructions or rules.",
-    examples: ["ignore all previous instructions", "forget your rules", "disregard prior context"],
-    docsAnchor: "#ignore-instructions",
-  },
-  system_override: {
-    title: "System Prompt Override",
-    description: "Detects attempts to override or replace the system prompt with new instructions.",
-    examples: ["new system prompt:", "enable developer mode", "override system message"],
-    docsAnchor: "#system-override",
-  },
-  role_hijacking: {
-    title: "Role Hijacking",
-    description: "Detects attempts to change the AI's role or identity to bypass restrictions.",
-    examples: ["you are now a...", "pretend to be", "roleplay as"],
-    docsAnchor: "#role-hijacking",
-    warning: "⚠️ OpenClaw users: This may conflict with OpenClaw's agent role assignment. Disable if using OpenClaw.",
-  },
-  jailbreak: {
-    title: "Jailbreak Patterns",
-    description: "Detects known jailbreak techniques like DAN prompts and restriction bypasses.",
-    examples: ["DAN mode", "bypass safety filters", "remove restrictions"],
-    docsAnchor: "#jailbreak",
-  },
-
-  // Data Masking
-  api_keys: {
-    title: "API Keys",
-    description: "Masks API keys from major providers to prevent accidental exposure.",
-    examples: ["sk-...", "anthropic-...", "AIza..."],
-    docsAnchor: "#api-keys",
-  },
-  credit_cards: {
-    title: "Credit Card Numbers",
-    description: "Masks credit card numbers in common formats (Visa, Mastercard, Amex, etc.).",
-    examples: ["4111-1111-1111-1111", "5500 0000 0000 0004"],
-    docsAnchor: "#credit-cards",
-  },
-  personal_data: {
-    title: "Personal Data",
-    description: "Masks personally identifiable information like SSN, email addresses, and phone numbers.",
-    examples: ["123-45-6789", "user@email.com", "+1-555-123-4567"],
-    docsAnchor: "#personal-data",
-  },
-  crypto: {
-    title: "Crypto Wallets & Keys",
-    description: "Masks cryptocurrency wallet addresses and private keys.",
-    examples: ["0x742d35Cc...", "bc1q...", "5HueCG..."],
-    docsAnchor: "#crypto",
-  },
-  env_vars: {
-    title: "Environment Variables",
-    description: "Masks environment variable patterns that may contain secrets.",
-    examples: ["DATABASE_URL=...", "SECRET_KEY=...", "API_TOKEN=..."],
-    docsAnchor: "#env-vars",
-  },
-
-  // Tool Restrictions
-  block_filesystem: {
-    title: "Block Filesystem Tools",
-    description: "Blocks tools that read, write, or delete files on the filesystem.",
-    examples: ["read_file", "write_file", "delete_file", "list_directory"],
-    docsAnchor: "#filesystem",
-  },
-  block_network: {
-    title: "Block Network Tools",
-    description: "Blocks tools that make network requests or access external services.",
-    examples: ["http_request", "fetch_url", "curl", "wget"],
-    docsAnchor: "#network",
-  },
-  block_code_execution: {
-    title: "Block Code Execution",
-    description: "Blocks tools that execute arbitrary code or shell commands.",
-    examples: ["execute_code", "run_command", "eval", "exec"],
-    docsAnchor: "#code-execution",
-  },
+  ignore_instructions: { i18nKey: "security.tooltips.ignoreInstructions", docsAnchor: "#ignore-instructions" },
+  system_override: { i18nKey: "security.tooltips.systemOverride", docsAnchor: "#system-override" },
+  role_hijacking: { i18nKey: "security.tooltips.roleHijacking", docsAnchor: "#role-hijacking" },
+  jailbreak: { i18nKey: "security.tooltips.jailbreak", docsAnchor: "#jailbreak" },
+  // Data Masking - no tooltips needed, simple labels
+  // Tool Restrictions - no tooltips needed, simple labels
 };
-
-interface TooltipData {
-  title: string;
-  description: string;
-  examples: string[];
-  docsAnchor: string;
-  warning?: string;
-}
 
 /* ---------- Component ---------- */
 
 export default function SecurityPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("config");
   const [agents, setAgents] = useState<AgentOption[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null); // null = ALL
@@ -286,14 +210,14 @@ export default function SecurityPage() {
       setSelectedPayload(payload);
     } catch (err) {
       if (err instanceof Error && err.message.includes("404")) {
-        setPayloadError("Payload not found. Enable payload archiving in proxy settings to store request/response bodies.");
+        setPayloadError(t("security.payload.notFound"));
       } else {
         setPayloadError(err instanceof Error ? err.message : "Failed to load payload");
       }
     } finally {
       setPayloadLoading(null);
     }
-  }, []);
+  }, [t]);
 
   // Toggle helpers with auto-save
   const togglePromptInjectionRule = (key: keyof PromptInjectionRules) => {
@@ -420,9 +344,9 @@ export default function SecurityPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Security</h1>
+          <h1 className="text-2xl font-semibold text-white">{t("security.title")}</h1>
           <p className="mt-1 text-sm text-gray-400">
-            Configure security rules for prompt injection detection, data masking, and tool restrictions
+            {t("security.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -433,7 +357,7 @@ export default function SecurityPage() {
             }
             className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
           >
-            <option value="ALL">All Agents (Global)</option>
+            <option value="ALL">{t("security.allAgentsGlobal")}</option>
             {agents.map((a) => (
               <option key={a.agent_id} value={a.agent_id}>
                 {a.agent_id}
@@ -456,7 +380,7 @@ export default function SecurityPage() {
                 : "border-transparent text-gray-400 hover:border-gray-600 hover:text-gray-300"
             }`}
           >
-            Configuration
+            {t("security.configuration")}
           </button>
           <button
             onClick={() => setTab("events")}
@@ -466,7 +390,7 @@ export default function SecurityPage() {
                 : "border-transparent text-gray-400 hover:border-gray-600 hover:text-gray-300"
             }`}
           >
-            Security Events
+            {t("security.securityEvents")}
           </button>
         </nav>
       </div>
@@ -480,10 +404,10 @@ export default function SecurityPage() {
                 <span className="text-2xl">🛡️</span>
                 <div>
                   <h2 className="text-lg font-medium text-white">
-                    Prompt Injection Detection
+                    {t("security.promptInjection.title")}
                   </h2>
                   <p className="text-sm text-gray-400">
-                    Detect attempts to override system instructions
+                    {t("security.promptInjection.subtitle")}
                   </p>
                 </div>
               </div>
@@ -503,9 +427,9 @@ export default function SecurityPage() {
                   }}
                   className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
                 >
-                  <option value="log">Log</option>
-                  <option value="alert">Alert</option>
-                  <option value="block">Block</option>
+                  <option value="log">{t("security.actions.log")}</option>
+                  <option value="alert">{t("security.actions.alert")}</option>
+                  <option value="block">{t("security.actions.block")}</option>
                 </select>
                 <ParentToggle
                   state={getPromptInjectionToggleState()}
@@ -515,29 +439,29 @@ export default function SecurityPage() {
             </div>
             <div className="mt-4 space-y-3 pl-10">
               <ToggleRow
-                label="Ignore previous instructions"
+                label={t("security.promptInjection.ignoreInstructions")}
                 checked={config.prompt_injection.rules.ignore_instructions}
                 onChange={() => togglePromptInjectionRule("ignore_instructions")}
-                tooltip={TOOLTIP_CONTENT.ignore_instructions}
+                tooltipKey="ignore_instructions"
               />
               <ToggleRow
-                label="System prompt override"
+                label={t("security.promptInjection.systemOverride")}
                 checked={config.prompt_injection.rules.system_override}
                 onChange={() => togglePromptInjectionRule("system_override")}
-                tooltip={TOOLTIP_CONTENT.system_override}
+                tooltipKey="system_override"
               />
               <ToggleRow
-                label="Role hijacking"
+                label={t("security.promptInjection.roleHijacking")}
                 checked={config.prompt_injection.rules.role_hijacking}
                 onChange={() => togglePromptInjectionRule("role_hijacking")}
-                tooltip={TOOLTIP_CONTENT.role_hijacking}
-                warning="[OpenClaw users: keep OFF]"
+                tooltipKey="role_hijacking"
+                warning={t("security.promptInjection.openclawWarning")}
               />
               <ToggleRow
-                label="Jailbreak patterns"
+                label={t("security.promptInjection.jailbreak")}
                 checked={config.prompt_injection.rules.jailbreak}
                 onChange={() => togglePromptInjectionRule("jailbreak")}
-                tooltip={TOOLTIP_CONTENT.jailbreak}
+                tooltipKey="jailbreak"
               />
               <CustomPatternEditor
                 patterns={config.prompt_injection.custom}
@@ -552,7 +476,7 @@ export default function SecurityPage() {
                   setConfig(newConfig);
                   void saveConfig(newConfig);
                 }}
-                title="Custom Detection Patterns"
+                title={t("security.customPatterns.title")}
               />
             </div>
           </div>
@@ -564,10 +488,10 @@ export default function SecurityPage() {
                 <span className="text-2xl">🔒</span>
                 <div>
                   <h2 className="text-lg font-medium text-white">
-                    Sensitive Data Masking
+                    {t("security.dataMasking.title")}
                   </h2>
                   <p className="text-sm text-gray-400">
-                    Automatically mask sensitive data in requests and responses
+                    {t("security.dataMasking.subtitle")}
                   </p>
                 </div>
               </div>
@@ -604,34 +528,29 @@ export default function SecurityPage() {
             </div>
             <div className="mt-4 space-y-3 pl-10">
               <ToggleRow
-                label="API Keys"
+                label={t("security.dataMasking.apiKeys")}
                 checked={config.data_masking.rules.api_keys}
                 onChange={() => toggleDataMaskingRule("api_keys")}
-                tooltip={TOOLTIP_CONTENT.api_keys}
               />
               <ToggleRow
-                label="Credit Card Numbers"
+                label={t("security.dataMasking.creditCards")}
                 checked={config.data_masking.rules.credit_cards}
                 onChange={() => toggleDataMaskingRule("credit_cards")}
-                tooltip={TOOLTIP_CONTENT.credit_cards}
               />
               <ToggleRow
-                label="Personal Data (SSN, Email, Phone)"
+                label={t("security.dataMasking.personalData")}
                 checked={config.data_masking.rules.personal_data}
                 onChange={() => toggleDataMaskingRule("personal_data")}
-                tooltip={TOOLTIP_CONTENT.personal_data}
               />
               <ToggleRow
-                label="Crypto Wallets & Keys"
+                label={t("security.dataMasking.cryptoWallets")}
                 checked={config.data_masking.rules.crypto}
                 onChange={() => toggleDataMaskingRule("crypto")}
-                tooltip={TOOLTIP_CONTENT.crypto}
               />
               <ToggleRow
-                label="Environment Variables"
+                label={t("security.dataMasking.envVars")}
                 checked={config.data_masking.rules.env_vars}
                 onChange={() => toggleDataMaskingRule("env_vars")}
-                tooltip={TOOLTIP_CONTENT.env_vars}
               />
               <CustomPatternEditor
                 patterns={config.data_masking.custom}
@@ -646,7 +565,7 @@ export default function SecurityPage() {
                   setConfig(newConfig);
                   void saveConfig(newConfig);
                 }}
-                title="Custom Masking Patterns"
+                title={t("security.customPatterns.maskingTitle")}
               />
             </div>
           </div>
@@ -658,10 +577,10 @@ export default function SecurityPage() {
                 <span className="text-2xl">🔧</span>
                 <div>
                   <h2 className="text-lg font-medium text-white">
-                    Tool Call Restrictions
+                    {t("security.toolRestrictions.title")}
                   </h2>
                   <p className="text-sm text-gray-400">
-                    Limit and control tool usage by agents
+                    {t("security.toolRestrictions.subtitle")}
                   </p>
                 </div>
               </div>
@@ -680,32 +599,29 @@ export default function SecurityPage() {
                 }}
                 className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
               >
-                <option value="log">Log</option>
-                <option value="alert">Alert</option>
-                <option value="block">Block</option>
+                <option value="log">{t("security.actions.log")}</option>
+                <option value="alert">{t("security.actions.alert")}</option>
+                <option value="block">{t("security.actions.block")}</option>
               </select>
             </div>
             <div className="mt-4 space-y-3 pl-10">
               <ToggleRow
-                label="Block filesystem tools"
+                label={t("security.toolRestrictions.blockFilesystem")}
                 checked={config.tool_restrictions.rules.block_filesystem}
                 onChange={() => toggleToolRestrictionsRule("block_filesystem")}
-                tooltip={TOOLTIP_CONTENT.block_filesystem}
               />
               <ToggleRow
-                label="Block network tools"
+                label={t("security.toolRestrictions.blockNetwork")}
                 checked={config.tool_restrictions.rules.block_network}
                 onChange={() => toggleToolRestrictionsRule("block_network")}
-                tooltip={TOOLTIP_CONTENT.block_network}
               />
               <ToggleRow
-                label="Block code execution"
+                label={t("security.toolRestrictions.blockCodeExecution")}
                 checked={config.tool_restrictions.rules.block_code_execution}
                 onChange={() => toggleToolRestrictionsRule("block_code_execution")}
-                tooltip={TOOLTIP_CONTENT.block_code_execution}
               />
               <div className="flex items-center gap-4">
-                <label className="text-sm text-gray-300">Max calls per request:</label>
+                <label className="text-sm text-gray-300">{t("security.toolRestrictions.maxPerRequest")}</label>
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
@@ -722,7 +638,7 @@ export default function SecurityPage() {
                         },
                       })
                     }
-                    placeholder="No limit"
+                    placeholder={t("security.toolRestrictions.noLimit")}
                     className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
                   />
                   <button
@@ -730,12 +646,12 @@ export default function SecurityPage() {
                     disabled={saving}
                     className="rounded-md bg-gray-700 px-2 py-1.5 text-xs text-gray-300 hover:bg-gray-600 disabled:opacity-50"
                   >
-                    Save
+                    {t("common.save")}
                   </button>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <label className="text-sm text-gray-300">Max calls per minute:</label>
+                <label className="text-sm text-gray-300">{t("security.toolRestrictions.maxPerMinute")}</label>
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
@@ -752,7 +668,7 @@ export default function SecurityPage() {
                         },
                       })
                     }
-                    placeholder="No limit"
+                    placeholder={t("security.toolRestrictions.noLimit")}
                     className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
                   />
                   <button
@@ -760,7 +676,7 @@ export default function SecurityPage() {
                     disabled={saving}
                     className="rounded-md bg-gray-700 px-2 py-1.5 text-xs text-gray-300 hover:bg-gray-600 disabled:opacity-50"
                   >
-                    Save
+                    {t("common.save")}
                   </button>
                 </div>
               </div>
@@ -777,7 +693,7 @@ export default function SecurityPage() {
                   setConfig(newConfig);
                   void saveConfig(newConfig);
                 }}
-                title="Allowlist (only these tools allowed)"
+                title={t("security.toolRestrictions.allowlist")}
                 placeholder="tool_name"
               />
               <StringListEditor
@@ -793,7 +709,7 @@ export default function SecurityPage() {
                   setConfig(newConfig);
                   void saveConfig(newConfig);
                 }}
-                title="Blocklist (these tools blocked)"
+                title={t("security.toolRestrictions.blocklist")}
                 placeholder="tool_name"
               />
             </div>
@@ -810,17 +726,17 @@ export default function SecurityPage() {
               onChange={(e) => setEventTypeFilter(e.target.value)}
               className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
             >
-              <option value="all">All Types</option>
-              <option value="prompt_injection">Prompt Injection</option>
-              <option value="data_masked">Data Masked</option>
-              <option value="tool_blocked">Tool Blocked</option>
+              <option value="all">{t("common.allTypes")}</option>
+              <option value="prompt_injection">{t("security.events.promptInjection")}</option>
+              <option value="data_masked">{t("security.events.dataMasked")}</option>
+              <option value="tool_blocked">{t("security.events.toolBlocked")}</option>
             </select>
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
               className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white"
             >
-              <option value="all">All Severities</option>
+              <option value="all">{t("common.allSeverities")}</option>
               <option value="info">Info</option>
               <option value="warning">Warning</option>
               <option value="critical">Critical</option>
@@ -829,7 +745,7 @@ export default function SecurityPage() {
               onClick={loadEvents}
               className="rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white hover:bg-gray-700"
             >
-              Refresh
+              {t("common.refresh")}
             </button>
           </div>
 
@@ -839,25 +755,25 @@ export default function SecurityPage() {
               <thead className="bg-gray-900">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">
-                    Time
+                    {t("security.events.time")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">
-                    Agent
+                    {t("security.events.agent")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">
-                    Type
+                    {t("security.events.type")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">
-                    Severity
+                    {t("security.events.severity")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">
-                    Action
+                    {t("security.events.action")}
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium uppercase text-gray-400">
-                    Rule
+                    {t("security.events.rule")}
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium uppercase text-gray-400">
-                    Payload
+                    {t("security.events.payload")}
                   </th>
                 </tr>
               </thead>
@@ -868,7 +784,7 @@ export default function SecurityPage() {
                       colSpan={7}
                       className="px-4 py-8 text-center text-sm text-gray-500"
                     >
-                      No security events found
+                      {t("security.events.noEvents")}
                     </td>
                   </tr>
                 ) : (
@@ -898,7 +814,7 @@ export default function SecurityPage() {
                             onClick={() => loadPayload(event.request_id!)}
                             disabled={payloadLoading === event.request_id}
                             className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-indigo-300 disabled:opacity-50"
-                            title="View payload"
+                            title={t("security.events.viewPayload")}
                           >
                             {payloadLoading === event.request_id ? (
                               <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -924,7 +840,7 @@ export default function SecurityPage() {
           </div>
 
           <div className="text-sm text-gray-500">
-            Showing {events.length} of {eventsTotal} events
+            {t("security.events.showingOf", { count: events.length, total: eventsTotal })}
           </div>
         </div>
       )}
@@ -945,7 +861,7 @@ export default function SecurityPage() {
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
               <h3 className="text-sm font-semibold text-gray-200">
-                {payloadError ? "Error" : "Request / Response Payload"}
+                {payloadError ? t("security.payload.error") : t("security.payload.title")}
               </h3>
               <button
                 onClick={() => {
@@ -970,40 +886,40 @@ export default function SecurityPage() {
                 <div className="space-y-4">
                   {/* Meta info */}
                   <div className="text-xs text-gray-500">
-                    Event ID: {selectedPayload.event_id} | Size: {(selectedPayload.size_bytes / 1024).toFixed(1)} KB | {selectedPayload.created_at}
+                    {t("security.payload.eventId")}: {selectedPayload.event_id} | {t("security.payload.size")}: {(selectedPayload.size_bytes / 1024).toFixed(1)} KB | {selectedPayload.created_at}
                   </div>
 
                   {/* Request */}
                   <div>
                     <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      Request
+                      {t("security.payload.request")}
                       {selectedPayload.request_body && (
                         <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.request_body.length.toLocaleString()} chars)
+                          ({selectedPayload.request_body.length.toLocaleString()} {t("security.payload.chars")})
                         </span>
                       )}
                     </h4>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.request_body
                         ? formatJSON(selectedPayload.request_body)
-                        : "(No request body)"}
+                        : t("security.payload.noRequestBody")}
                     </pre>
                   </div>
 
                   {/* Response */}
                   <div>
                     <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      Response
+                      {t("security.payload.response")}
                       {selectedPayload.response_body && (
                         <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.response_body.length.toLocaleString()} chars)
+                          ({selectedPayload.response_body.length.toLocaleString()} {t("security.payload.chars")})
                         </span>
                       )}
                     </h4>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.response_body
                         ? formatJSON(selectedPayload.response_body)
-                        : "(No response body)"}
+                        : t("security.payload.noResponseBody")}
                     </pre>
                   </div>
                 </div>
@@ -1059,31 +975,40 @@ function ParentToggle({
   );
 }
 
-function InfoTooltip({ data }: { data: TooltipData }) {
+function InfoTooltip({ tooltipKey, docsAnchor }: { tooltipKey: string; docsAnchor: string }) {
+  const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+
+  const title = t(`${tooltipKey}.title`);
+  const description = t(`${tooltipKey}.description`);
+  const examples = t(`${tooltipKey}.examples`, { returnObjects: true }) as string[];
+  const warning = t(`${tooltipKey}.warning`, { defaultValue: "" });
+
+  // Use current language for docs URL
+  const lang = i18n.language === "en" ? "en" : "zh";
 
   return (
     <span className="relative inline-block">
       <a
-        href={`https://www.agentgazer.com/en/guide/security${data.docsAnchor}`}
+        href={`https://www.agentgazer.com/${lang}/guide/security${docsAnchor}`}
         target="_blank"
         rel="noopener noreferrer"
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gray-700 text-[10px] text-gray-400 hover:bg-blue-600 hover:text-white"
-        aria-label={`Info about ${data.title} - click to view docs`}
+        aria-label={title}
       >
         ?
       </a>
       {isOpen && (
         <div className="pointer-events-none absolute left-0 top-6 z-50 w-72 rounded-lg border border-gray-700 bg-gray-800 p-3 shadow-xl">
-          <div className="text-sm font-medium text-white">{data.title}</div>
-          <p className="mt-1 text-xs text-gray-400">{data.description}</p>
-          {data.examples.length > 0 && (
+          <div className="text-sm font-medium text-white">{title}</div>
+          <p className="mt-1 text-xs text-gray-400">{description}</p>
+          {examples && examples.length > 0 && (
             <div className="mt-2">
               <div className="text-xs font-medium text-gray-500">Examples:</div>
               <ul className="mt-1 space-y-0.5">
-                {data.examples.map((ex, i) => (
+                {examples.map((ex, i) => (
                   <li key={i} className="text-xs text-gray-400">
                     <code className="rounded bg-gray-900 px-1 py-0.5 text-gray-300">{ex}</code>
                   </li>
@@ -1091,12 +1016,11 @@ function InfoTooltip({ data }: { data: TooltipData }) {
               </ul>
             </div>
           )}
-          {data.warning && (
+          {warning && (
             <div className="mt-2 rounded bg-orange-900/50 px-2 py-1 text-xs text-orange-300">
-              {data.warning}
+              {warning}
             </div>
           )}
-          <div className="mt-2 text-xs text-blue-400">Click to view docs</div>
         </div>
       )}
     </span>
@@ -1107,20 +1031,22 @@ function ToggleRow({
   label,
   checked,
   onChange,
-  tooltip,
+  tooltipKey,
   warning,
 }: {
   label: string;
   checked: boolean;
   onChange: () => void;
-  tooltip?: TooltipData;
+  tooltipKey?: string;
   warning?: string;
 }) {
   return (
     <label className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 hover:bg-gray-800">
       <span className="flex items-center gap-2 text-sm text-gray-300">
         {label}
-        {tooltip && <InfoTooltip data={tooltip} />}
+        {tooltipKey && TOOLTIP_KEYS[tooltipKey] && (
+          <InfoTooltip tooltipKey={TOOLTIP_KEYS[tooltipKey].i18nKey} docsAnchor={TOOLTIP_KEYS[tooltipKey].docsAnchor} />
+        )}
         {warning && <span className="text-xs text-orange-400">{warning}</span>}
       </span>
       <button
@@ -1140,15 +1066,16 @@ function ToggleRow({
 }
 
 function EventTypeBadge({ type }: { type: string }) {
+  const { t } = useTranslation();
   const colors: Record<string, string> = {
     prompt_injection: "bg-red-900 text-red-200",
     data_masked: "bg-blue-900 text-blue-200",
     tool_blocked: "bg-yellow-900 text-yellow-200",
   };
-  const labels: Record<string, string> = {
-    prompt_injection: "Injection",
-    data_masked: "Masked",
-    tool_blocked: "Tool Block",
+  const labelKeys: Record<string, string> = {
+    prompt_injection: "security.events.promptInjection",
+    data_masked: "security.events.dataMasked",
+    tool_blocked: "security.events.toolBlocked",
   };
   return (
     <span
@@ -1156,7 +1083,7 @@ function EventTypeBadge({ type }: { type: string }) {
         colors[type] || "bg-gray-700 text-gray-300"
       }`}
     >
-      {labels[type] || type}
+      {labelKeys[type] ? t(labelKeys[type]) : type}
     </span>
   );
 }
@@ -1189,6 +1116,7 @@ function CustomPatternEditor({
   onChange: (patterns: CustomPattern[]) => void;
   title: string;
 }) {
+  const { t } = useTranslation();
   const [isAdding, setIsAdding] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
@@ -1207,15 +1135,15 @@ function CustomPatternEditor({
   const handleAdd = () => {
     setError(null);
     if (!newName.trim()) {
-      setError("Name is required");
+      setError(t("security.customPatterns.nameRequired"));
       return;
     }
     if (!newPattern.trim()) {
-      setError("Pattern is required");
+      setError(t("security.customPatterns.patternRequired"));
       return;
     }
     if (!validatePattern(newPattern)) {
-      setError("Invalid regex pattern");
+      setError(t("security.customPatterns.invalidRegex"));
       return;
     }
     onChange([...patterns, { name: newName.trim(), pattern: newPattern.trim() }]);
@@ -1227,15 +1155,15 @@ function CustomPatternEditor({
   const handleSaveEdit = (index: number) => {
     setError(null);
     if (!newName.trim()) {
-      setError("Name is required");
+      setError(t("security.customPatterns.nameRequired"));
       return;
     }
     if (!newPattern.trim()) {
-      setError("Pattern is required");
+      setError(t("security.customPatterns.patternRequired"));
       return;
     }
     if (!validatePattern(newPattern)) {
-      setError("Invalid regex pattern");
+      setError(t("security.customPatterns.invalidRegex"));
       return;
     }
     const updated = [...patterns];
@@ -1283,7 +1211,7 @@ function CustomPatternEditor({
             onClick={startAdd}
             className="text-xs text-blue-400 hover:text-blue-300"
           >
-            + Add Pattern
+            {t("security.customPatterns.addPattern")}
           </button>
         )}
       </div>
@@ -1304,14 +1232,14 @@ function CustomPatternEditor({
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Pattern name"
+                  placeholder={t("security.customPatterns.patternName")}
                   className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1 text-sm text-white"
                 />
                 <input
                   type="text"
                   value={newPattern}
                   onChange={(e) => setNewPattern(e.target.value)}
-                  placeholder="Regex pattern"
+                  placeholder={t("security.customPatterns.regexPattern")}
                   className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1 text-sm text-white font-mono"
                 />
                 <div className="flex gap-2">
@@ -1319,13 +1247,13 @@ function CustomPatternEditor({
                     onClick={() => handleSaveEdit(index)}
                     className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
                   >
-                    Save
+                    {t("common.save")}
                   </button>
                   <button
                     onClick={cancelEdit}
                     className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
                   >
-                    Cancel
+                    {t("common.cancel")}
                   </button>
                 </div>
               </div>
@@ -1342,13 +1270,13 @@ function CustomPatternEditor({
                     onClick={() => startEdit(index)}
                     className="text-xs text-gray-400 hover:text-white"
                   >
-                    Edit
+                    {t("common.edit")}
                   </button>
                   <button
                     onClick={() => handleDelete(index)}
                     className="text-xs text-red-400 hover:text-red-300"
                   >
-                    Delete
+                    {t("common.delete")}
                   </button>
                 </div>
               </div>
@@ -1364,14 +1292,14 @@ function CustomPatternEditor({
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Pattern name"
+            placeholder={t("security.customPatterns.patternName")}
             className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1 text-sm text-white"
           />
           <input
             type="text"
             value={newPattern}
             onChange={(e) => setNewPattern(e.target.value)}
-            placeholder="Regex pattern (e.g., secret_\w+)"
+            placeholder={t("security.customPatterns.regexPattern")}
             className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1 text-sm text-white font-mono"
           />
           <div className="flex gap-2">
@@ -1379,20 +1307,20 @@ function CustomPatternEditor({
               onClick={handleAdd}
               className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700"
             >
-              Add
+              {t("security.customPatterns.add")}
             </button>
             <button
               onClick={cancelEdit}
               className="rounded bg-gray-700 px-2 py-1 text-xs text-gray-300 hover:bg-gray-600"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
         </div>
       )}
 
       {patterns.length === 0 && !isAdding && (
-        <p className="text-xs text-gray-500">No custom patterns configured</p>
+        <p className="text-xs text-gray-500">{t("security.customPatterns.noPatterns")}</p>
       )}
     </div>
   );

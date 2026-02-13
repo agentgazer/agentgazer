@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
@@ -50,6 +51,7 @@ interface Settings {
 /* ---------- Component ---------- */
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -173,9 +175,9 @@ export default function SettingsPage() {
         (initialPorts.proxyPort !== undefined && initialPorts.proxyPort !== proxyPort);
 
       if (portsChanged) {
-        setSuccess("Settings saved. Restart required for port changes to take effect.");
+        setSuccess(t("settings.savedRestartRequired"));
       } else {
-        setSuccess("Settings saved successfully.");
+        setSuccess(t("settings.saved"));
       }
 
       // Update initial ports
@@ -197,7 +199,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+      <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
 
       {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
 
@@ -210,11 +212,11 @@ export default function SettingsPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         {/* Server Section */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">Server</h2>
+          <h2 className="text-lg font-semibold mb-4">{t("settings.server")}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Dashboard Port
+                {t("settings.dashboardPort")}
               </label>
               <input
                 type="number"
@@ -225,7 +227,7 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Proxy Port
+                {t("settings.proxyPort")}
               </label>
               <input
                 type="number"
@@ -243,7 +245,7 @@ export default function SettingsPage() {
                   className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Auto-open browser on start
+                  {t("settings.autoOpen")}
                 </span>
               </label>
             </div>
@@ -252,10 +254,10 @@ export default function SettingsPage() {
 
         {/* Data Section */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">Data</h2>
+          <h2 className="text-lg font-semibold mb-4">{t("settings.data")}</h2>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Retention Days
+              {t("settings.retentionDays")}
             </label>
             <input
               type="number"
@@ -265,17 +267,17 @@ export default function SettingsPage() {
               className="w-full max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             />
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Events older than this will be automatically deleted.
+              {t("settings.retentionHelp")}
             </p>
           </div>
         </div>
 
         {/* Payload Storage Section */}
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold mb-4">Payload Storage</h2>
+          <h2 className="text-lg font-semibold mb-4">{t("settings.payloadStorage")}</h2>
           <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mb-4">
             <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              Warning: Payload storage saves full request/response bodies. This may include sensitive data like API keys, user content, or PII. Use with caution.
+              {t("settings.payloadWarning")}
             </p>
           </div>
           <div className="space-y-4">
@@ -288,16 +290,16 @@ export default function SettingsPage() {
                   className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
-                  Enable payload archiving
+                  {t("settings.enableArchiving")}
                 </span>
               </label>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 ml-6">
-                Save request and response bodies for later analysis. Requires restart to take effect.
+                {t("settings.archivingHelp")}
               </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Payload Retention Days
+                {t("settings.payloadRetention")}
               </label>
               <input
                 type="number"
@@ -308,25 +310,25 @@ export default function SettingsPage() {
                 className="w-full max-w-xs px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
               />
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                Archived payloads older than this will be automatically deleted.
+                {t("settings.payloadRetentionHelp")}
               </p>
             </div>
             {payloadStats && (
               <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Storage Statistics
+                  {t("settings.storageStats")}
                 </h3>
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Archive:</span>{" "}
+                    <span className="text-gray-500 dark:text-gray-400">{t("settings.archive")}:</span>{" "}
                     <span className="font-medium">{(payloadStats.archive ?? 0).toLocaleString()}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Evidence:</span>{" "}
+                    <span className="text-gray-500 dark:text-gray-400">{t("settings.evidence")}:</span>{" "}
                     <span className="font-medium">{(payloadStats.evidence ?? 0).toLocaleString()}</span>
                   </div>
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400">Size:</span>{" "}
+                    <span className="text-gray-500 dark:text-gray-400">{t("settings.size")}:</span>{" "}
                     <span className="font-medium">
                       {(payloadStats.totalSize ?? 0) > 1024 * 1024
                         ? `${((payloadStats.totalSize ?? 0) / (1024 * 1024)).toFixed(1)} MB`
@@ -339,13 +341,13 @@ export default function SettingsPage() {
                 {(payloadStats.archive ?? 0) > 0 && (
                   <button
                     onClick={async () => {
-                      if (!confirm("Are you sure you want to clear all archived payloads? This cannot be undone.")) return;
+                      if (!confirm(t("settings.clearConfirm"))) return;
                       setClearingArchive(true);
                       try {
                         await api.delete("/api/payloads/archive");
                         const stats = await api.get<PayloadStats>("/api/payloads/stats");
                         setPayloadStats(stats);
-                        setSuccess("Archive cleared successfully.");
+                        setSuccess(t("settings.saved"));
                       } catch (err) {
                         setError(err instanceof Error ? err.message : "Failed to clear archive");
                       } finally {
@@ -355,7 +357,7 @@ export default function SettingsPage() {
                     disabled={clearingArchive}
                     className="mt-3 px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
                   >
-                    {clearingArchive ? "Clearing..." : "Clear Archive"}
+                    {clearingArchive ? t("settings.clearing") : t("settings.clearArchive")}
                   </button>
                 )}
               </div>
@@ -365,21 +367,21 @@ export default function SettingsPage() {
 
         {/* Alert Defaults Section */}
         <div className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Alert Defaults</h2>
+          <h2 className="text-lg font-semibold mb-4">{t("settings.alertDefaults")}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            These values will be used as defaults when creating new alerts.
+            {t("settings.alertDefaultsHelp")}
           </p>
 
           <div className="space-y-6">
             {/* Telegram */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Telegram
+                {t("settings.telegram")}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Bot Token
+                    {t("alerts.botToken")}
                   </label>
                   <input
                     type="text"
@@ -391,7 +393,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Chat ID
+                    {t("alerts.chatId")}
                   </label>
                   <input
                     type="text"
@@ -407,11 +409,11 @@ export default function SettingsPage() {
             {/* Webhook */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Webhook
+                {t("settings.webhook")}
               </h3>
               <div>
                 <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                  Default URL
+                  {t("settings.defaultUrl")}
                 </label>
                 <input
                   type="url"
@@ -426,12 +428,12 @@ export default function SettingsPage() {
             {/* Email SMTP */}
             <div>
               <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email (SMTP)
+                {t("settings.emailSmtp")}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    SMTP Host
+                    {t("alerts.smtpHost")}
                   </label>
                   <input
                     type="text"
@@ -443,7 +445,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Port
+                    {t("alerts.smtpPort")}
                   </label>
                   <input
                     type="number"
@@ -455,7 +457,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Username
+                    {t("settings.username")}
                   </label>
                   <input
                     type="text"
@@ -467,7 +469,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    Password
+                    {t("settings.password")}
                   </label>
                   <input
                     type="password"
@@ -479,7 +481,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    From Address
+                    {t("alerts.fromAddress")}
                   </label>
                   <input
                     type="email"
@@ -491,7 +493,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">
-                    To Address
+                    {t("alerts.toAddress")}
                   </label>
                   <input
                     type="email"
@@ -510,7 +512,7 @@ export default function SettingsPage() {
                       className="w-4 h-4 rounded border-gray-300 dark:border-gray-600"
                     />
                     <span className="text-sm text-gray-700 dark:text-gray-300">
-                      Use TLS/SSL (port 465)
+                      {t("settings.useTlsSsl")}
                     </span>
                   </label>
                 </div>
@@ -527,13 +529,13 @@ export default function SettingsPage() {
           disabled={saving}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? "Saving..." : "Save Settings"}
+          {saving ? t("settings.saving") : t("settings.saveSettings")}
         </button>
       </div>
 
       {/* Config file path */}
       <div className="text-sm text-gray-500 dark:text-gray-400">
-        Config file: ~/.agentgazer/config.json
+        {t("settings.configFile")}
       </div>
     </div>
   );

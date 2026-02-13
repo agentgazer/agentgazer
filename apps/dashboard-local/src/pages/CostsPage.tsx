@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { formatCost, formatNumber } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
@@ -35,6 +36,7 @@ interface OverviewResponse {
 }
 
 export default function CostsPage() {
+  const { t } = useTranslation();
   const [range, setRange] = useState<Range>("24h");
   const [modelFilter, setModelFilter] = useState("");
 
@@ -56,7 +58,7 @@ export default function CostsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white">Costs</h1>
+      <h1 className="text-2xl font-bold text-white">{t("costs.title")}</h1>
 
       {error && (
         <div className="mt-4">
@@ -76,7 +78,7 @@ export default function CostsPage() {
             value={modelFilter}
             onChange={setModelFilter}
             options={modelOptions}
-            label="Models"
+            label={t("costs.model")}
           />
         )}
       </div>
@@ -86,25 +88,25 @@ export default function CostsPage() {
           {/* KPI Cards */}
           <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
-              <p className="text-xs text-gray-400">Total Cost</p>
+              <p className="text-xs text-gray-400">{t("costs.totalCost")}</p>
               <p className="mt-1 text-2xl font-bold text-white">
                 {formatCost(data.total_cost)}
               </p>
             </div>
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
-              <p className="text-xs text-gray-400">Avg Cost / Request</p>
+              <p className="text-xs text-gray-400">{t("costs.avgCostPerRequest")}</p>
               <p className="mt-1 text-2xl font-bold text-white">
                 {formatCost(data.avg_cost_per_request)}
               </p>
             </div>
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
-              <p className="text-xs text-gray-400">Total Tokens</p>
+              <p className="text-xs text-gray-400">{t("costs.totalTokens")}</p>
               <p className="mt-1 text-2xl font-bold text-white">
                 {formatNumber(data.total_tokens)}
               </p>
             </div>
             <div className="rounded-lg border border-gray-700 bg-gray-800 px-4 py-3">
-              <p className="text-xs text-gray-400">Active Models</p>
+              <p className="text-xs text-gray-400">{t("costs.activeModels")}</p>
               <p className="mt-1 text-2xl font-bold text-white">
                 {data.active_models}
               </p>
@@ -114,7 +116,7 @@ export default function CostsPage() {
           {/* Cost Trend Chart */}
           <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 p-4">
             <h2 className="mb-4 text-sm font-semibold text-gray-300">
-              Cost Trend
+              {t("costs.costTrend")}
             </h2>
             <CostAreaChart series={data.cost_series} range={range} />
           </div>
@@ -123,15 +125,15 @@ export default function CostsPage() {
           {data.cost_by_model.length > 0 && (
             <div className="mt-8 overflow-hidden rounded-lg border border-gray-700">
               <h2 className="bg-gray-800 px-4 py-3 text-sm font-semibold text-gray-300">
-                Cost by Model
+                {t("costs.costByModel")}
               </h2>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="bg-gray-800 text-xs uppercase text-gray-400">
-                    <th className="px-4 py-3 font-medium">Model</th>
-                    <th className="px-4 py-3 font-medium">Provider</th>
-                    <th className="px-4 py-3 font-medium text-right">Cost</th>
-                    <th className="px-4 py-3 font-medium text-right">Requests</th>
+                    <th className="px-4 py-3 font-medium">{t("costs.model")}</th>
+                    <th className="px-4 py-3 font-medium">{t("costs.provider")}</th>
+                    <th className="px-4 py-3 font-medium text-right">{t("costs.cost")}</th>
+                    <th className="px-4 py-3 font-medium text-right">{t("costs.requests")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
@@ -161,7 +163,7 @@ export default function CostsPage() {
 
           {data.cost_by_model.length === 0 && (
             <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
-              <p className="text-gray-400">No cost data available for this period.</p>
+              <p className="text-gray-400">{t("costs.noData")}</p>
             </div>
           )}
         </>

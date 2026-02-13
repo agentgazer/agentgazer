@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, setToken } from "../lib/api";
 
 export default function LoginPage() {
@@ -7,6 +8,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -30,11 +32,11 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm rounded-lg border border-gray-800 bg-gray-900 p-8 shadow-xl"
       >
-        <h1 className="text-2xl font-bold text-gray-100">AgentGazer</h1>
-        <p className="mt-1 text-sm text-gray-400">Enter your token to continue</p>
+        <h1 className="text-2xl font-bold text-gray-100">{t("login.title")}</h1>
+        <p className="mt-1 text-sm text-gray-400">{t("login.subtitle")}</p>
 
         <label htmlFor="token" className="mt-6 block text-sm font-medium text-gray-300">
-          Token
+          {t("login.tokenLabel")}
         </label>
         <input
           id="token"
@@ -42,19 +44,19 @@ export default function LoginPage() {
           value={token}
           onChange={(e) => setTokenValue(e.target.value)}
           className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 font-mono text-sm text-gray-100 placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          placeholder="paste token here"
+          placeholder={t("login.tokenPlaceholder")}
           autoFocus
           required
         />
 
-        {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+        {error && <p className="mt-2 text-sm text-red-400">{t("login.invalidToken")}</p>}
 
         <button
           type="submit"
           disabled={loading}
           className="mt-6 w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50"
         >
-          {loading ? "Verifying..." : "Login"}
+          {loading ? t("login.verifying") : t("login.submit")}
         </button>
       </form>
     </div>

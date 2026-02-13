@@ -10,8 +10,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "i18next": "^25.8.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-i18next": "^16.5.4",
     "react-router-dom": "^7.1.0",
     "recharts": "^2.15.0"
   },

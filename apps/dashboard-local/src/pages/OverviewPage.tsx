@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { overviewApi, type OverviewData, type RecentEvent } from "../lib/api";
 import { formatCost } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
@@ -22,6 +23,7 @@ function formatTokens(tokens: number): string {
 }
 
 export default function OverviewPage() {
+  const { t } = useTranslation();
   const overviewFetcher = useCallback(() => overviewApi.getData(), []);
   const eventsFetcher = useCallback(
     () => overviewApi.getRecentEvents(10),
@@ -68,37 +70,37 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-white">Overview</h1>
+      <h1 className="text-2xl font-bold text-white">{t("overview.title")}</h1>
 
       {/* Error banners */}
       {overviewError && (
-        <ErrorBanner message={`Overview: ${overviewError}`} />
+        <ErrorBanner message={`${t("overview.title")}: ${overviewError}`} />
       )}
       {eventsError && (
-        <ErrorBanner message={`Events: ${eventsError}`} />
+        <ErrorBanner message={`${t("nav.events")}: ${eventsError}`} />
       )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <SummaryCard
-          title="Active Agents"
+          title={t("overview.activeAgents")}
           value={overview?.active_agents.toString() ?? "0"}
         />
         <SummaryCard
-          title="Today's Cost"
+          title={t("overview.todaysCost")}
           value={formatCost(overview?.today_cost ?? 0)}
-          trend={{ value: costTrend, label: "vs yesterday" }}
+          trend={{ value: costTrend, label: t("overview.vsYesterday") }}
         />
         <SummaryCard
-          title="Requests (24h)"
+          title={t("overview.requests24h")}
           value={(overview?.today_requests ?? 0).toLocaleString()}
-          trend={{ value: requestsTrend, label: "vs yesterday" }}
+          trend={{ value: requestsTrend, label: t("overview.vsYesterday") }}
         />
         <SummaryCard
-          title="Error Rate"
+          title={t("overview.errorRate")}
           value={`${(overview?.error_rate ?? 0).toFixed(1)}%`}
           warning={(overview?.error_rate ?? 0) > 5}
-          warningText="Above 5% threshold"
+          warningText={t("overview.aboveThreshold")}
         />
       </div>
 
@@ -108,13 +110,13 @@ export default function OverviewPage() {
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-medium uppercase tracking-wide text-gray-400">
-              Recent Events
+              {t("overview.recentEvents")}
             </h3>
             <Link
               to="/events"
               className="text-xs text-blue-400 hover:text-blue-300"
             >
-              View All
+              {t("common.viewAll")}
             </Link>
           </div>
           {eventsLoading && !eventsData ? (
@@ -130,16 +132,16 @@ export default function OverviewPage() {
         <div className="space-y-6">
           <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
             <TopRankingChart
-              title="Top Agents (by cost)"
+              title={t("overview.topAgentsByCost")}
               items={topAgentsItems}
-              emptyText="No agent data"
+              emptyText={t("overview.noAgentData")}
             />
           </div>
           <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
             <TopRankingChart
-              title="Top Models (by tokens)"
+              title={t("overview.topModelsByTokens")}
               items={topModelsItems}
-              emptyText="No model data"
+              emptyText={t("overview.noModelData")}
             />
           </div>
         </div>
@@ -149,7 +151,7 @@ export default function OverviewPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <TrendChart
-            title="Cost Trend (7 days)"
+            title={t("overview.costTrend7d")}
             data={overview?.cost_trend ?? []}
             color="#10b981"
             formatValue={(v) => formatCost(v)}
@@ -157,7 +159,7 @@ export default function OverviewPage() {
         </div>
         <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
           <TrendChart
-            title="Requests Trend (7 days)"
+            title={t("overview.requestsTrend7d")}
             data={overview?.requests_trend ?? []}
             color="#3b82f6"
             formatValue={(v) => v.toLocaleString()}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { eventsApi, api, type EventRow, type EventsQueryParams } from "../lib/api";
 import { formatCost, formatTimestamp } from "../lib/format";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -72,6 +73,7 @@ function getStatusColor(statusCode: number | null, eventType: string): string {
 const PAGE_SIZE = 50;
 
 export default function LogsPage() {
+  const { t } = useTranslation();
   const [events, setEvents] = useState<EventRow[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -172,11 +174,11 @@ export default function LogsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Events</h1>
+          <h1 className="text-2xl font-bold text-white">{t("events.title")}</h1>
           <p className="mt-1 text-sm text-gray-400">
-            LLM calls and agent activity.{" "}
+            {t("events.subtitle")}{" "}
             <Link to="/security" className="text-blue-400 hover:text-blue-300">
-              View Security Events →
+              {t("events.viewSecurityEvents")} →
             </Link>
           </p>
         </div>
@@ -184,7 +186,7 @@ export default function LogsPage() {
           onClick={handleExport}
           className="rounded bg-gray-700 px-3 py-1.5 text-sm text-white hover:bg-gray-600"
         >
-          Export CSV
+          {t("common.export")}
         </button>
       </div>
 
@@ -260,24 +262,24 @@ export default function LogsPage() {
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-800 text-gray-400 uppercase text-xs">
               <tr>
-                <th className="px-3 py-2">Time</th>
-                <th className="px-3 py-2">Agent</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Provider</th>
-                <th className="px-3 py-2">Model</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2 text-right">Tokens In</th>
-                <th className="px-3 py-2 text-right">Tokens Out</th>
-                <th className="px-3 py-2 text-right">Cost</th>
-                <th className="px-3 py-2 text-right">Latency</th>
-                <th className="px-3 py-2 text-center">Payload</th>
+                <th className="px-3 py-2">{t("events.time")}</th>
+                <th className="px-3 py-2">{t("events.agent")}</th>
+                <th className="px-3 py-2">{t("events.type")}</th>
+                <th className="px-3 py-2">{t("events.provider")}</th>
+                <th className="px-3 py-2">{t("events.model")}</th>
+                <th className="px-3 py-2">{t("events.status")}</th>
+                <th className="px-3 py-2 text-right">{t("events.tokensIn")}</th>
+                <th className="px-3 py-2 text-right">{t("events.tokensOut")}</th>
+                <th className="px-3 py-2 text-right">{t("events.cost")}</th>
+                <th className="px-3 py-2 text-right">{t("events.latency")}</th>
+                <th className="px-3 py-2 text-center">{t("events.payload")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
               {events.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="px-3 py-8 text-center text-gray-500">
-                    No events found
+                    {t("events.noEvents")}
                   </td>
                 </tr>
               ) : (
@@ -356,7 +358,7 @@ export default function LogsPage() {
       {total > PAGE_SIZE && (
         <div className="flex items-center justify-between text-sm text-gray-400">
           <span>
-            Showing {offset + 1}-{Math.min(offset + PAGE_SIZE, total)} of {total.toLocaleString()}
+            {t("common.showing", { start: offset + 1, end: Math.min(offset + PAGE_SIZE, total), total: total.toLocaleString() })}
           </span>
           <div className="flex gap-2">
             <button
@@ -364,17 +366,17 @@ export default function LogsPage() {
               disabled={offset === 0}
               className="rounded bg-gray-700 px-3 py-1 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Previous
+              {t("common.previous")}
             </button>
             <span className="px-2 py-1">
-              Page {currentPage} of {totalPages}
+              {t("common.page", { current: currentPage, total: totalPages })}
             </span>
             <button
               onClick={() => setOffset(offset + PAGE_SIZE)}
               disabled={offset + PAGE_SIZE >= total}
               className="rounded bg-gray-700 px-3 py-1 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Next
+              {t("common.next")}
             </button>
           </div>
         </div>

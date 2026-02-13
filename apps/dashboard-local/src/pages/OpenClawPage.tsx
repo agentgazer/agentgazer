@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import {
   providerApi,
   openclawApi,
@@ -35,6 +36,7 @@ function generateOpenclawConfig(
 }
 
 export default function OpenClawPage() {
+  const { t } = useTranslation();
   const { isLoopback } = useConnection();
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [currentConfig, setCurrentConfig] =
@@ -175,9 +177,9 @@ export default function OpenClawPage() {
     <div className="mx-auto max-w-4xl">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">OpenClaw Integration</h1>
+        <h1 className="text-2xl font-bold text-white">{t("openclaw.title")}</h1>
         <p className="text-sm text-gray-400">
-          Configure OpenClaw to route LLM requests through AgentGazer proxy
+          {t("openclaw.subtitle")}
         </p>
       </div>
 
@@ -189,13 +191,13 @@ export default function OpenClawPage() {
 
       {!isLoopback && (
         <div className="mb-4 rounded-lg border border-yellow-800 bg-yellow-900/20 p-4 text-yellow-300">
-          Configuration is only available from localhost for security.
+          {t("openclaw.localhostOnly")}
         </div>
       )}
 
       {/* Prerequisites */}
       <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <h2 className="mb-2 font-medium text-white">Prerequisites</h2>
+        <h2 className="mb-2 font-medium text-white">{t("openclaw.prerequisites")}</h2>
         <ul className="space-y-3 text-sm text-gray-400">
           {/* API Key Providers */}
           <li className="flex items-center justify-between">
@@ -207,8 +209,8 @@ export default function OpenClawPage() {
               )}
               <span>
                 {configuredProviders.filter(p => p.authType !== "oauth").length > 0
-                  ? `${configuredProviders.filter(p => p.authType !== "oauth").length} API key provider(s): ${configuredProviders.filter(p => p.authType !== "oauth").map((p) => p.name).join(", ")}`
-                  : "No API key providers configured"}
+                  ? t("openclaw.apiKeyProviders", { count: configuredProviders.filter(p => p.authType !== "oauth").length, providers: configuredProviders.filter(p => p.authType !== "oauth").map((p) => p.name).join(", ") })
+                  : t("openclaw.noApiKeyProviders")}
               </span>
             </div>
             <button
@@ -216,7 +218,7 @@ export default function OpenClawPage() {
               disabled={!isLoopback}
               className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              Add Provider
+              {t("openclaw.addProvider")}
             </button>
           </li>
 
@@ -230,8 +232,8 @@ export default function OpenClawPage() {
               )}
               <span>
                 {isOAuthLoggedIn
-                  ? "OpenAI Codex (OAuth) logged in"
-                  : "OpenAI Codex (subscription, $0 cost)"}
+                  ? t("openclaw.oauthLoggedIn")
+                  : t("openclaw.oauthNotLoggedIn")}
               </span>
               {isOAuthLoggedIn && (
                 <span className="rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-400">
@@ -246,7 +248,7 @@ export default function OpenClawPage() {
                   disabled={oauthLoading || !isLoopback}
                   className="rounded bg-gray-600 px-3 py-1 text-xs font-medium text-white hover:bg-gray-500 disabled:opacity-50"
                 >
-                  Logout
+                  {t("openclaw.logout")}
                 </button>
               ) : (
                 <button
@@ -256,9 +258,9 @@ export default function OpenClawPage() {
                 >
                   {oauthLoading
                     ? oauthPolling
-                      ? "Waiting..."
-                      : "Loading..."
-                    : "Login OpenAI Codex"}
+                      ? t("openclaw.waiting")
+                      : t("common.loading")
+                    : t("openclaw.loginCodex")}
                 </button>
               )}
             </div>
@@ -268,7 +270,7 @@ export default function OpenClawPage() {
           )}
           {oauthPolling && (
             <li className="text-yellow-400 text-xs pl-6">
-              Complete authorization in the browser window, then wait...
+              {t("openclaw.completeAuth")}
             </li>
           )}
 
@@ -276,7 +278,7 @@ export default function OpenClawPage() {
           <li className="flex items-center gap-2">
             <span className="text-gray-500">○</span>
             <span>
-              OpenClaw installed (
+              {t("openclaw.openclawInstalled")} (
               <a
                 href="https://openclaw.ai"
                 target="_blank"
@@ -293,18 +295,18 @@ export default function OpenClawPage() {
 
       {/* Current Config */}
       <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <h2 className="mb-2 font-medium text-white">Current OpenClaw Config</h2>
-        <p className="mb-2 text-xs text-gray-500">~/.openclaw/openclaw.json</p>
+        <h2 className="mb-2 font-medium text-white">{t("openclaw.currentConfig")}</h2>
+        <p className="mb-2 text-xs text-gray-500">{t("openclaw.configPath")}</p>
         {!currentConfig?.exists ? (
           <p className="text-sm text-gray-500">
-            No OpenClaw config file found. A new one will be created.
+            {t("openclaw.noConfigFile")}
           </p>
         ) : currentConfig.parseError ? (
           <div className="text-sm text-yellow-400">
-            <p>Config file exists but has invalid JSON.</p>
+            <p>{t("openclaw.invalidJson")}</p>
             <details className="mt-2">
               <summary className="cursor-pointer text-gray-500">
-                Show raw content
+                {t("openclaw.showRaw")}
               </summary>
               <pre className="mt-2 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-400">
                 {currentConfig.raw}
@@ -317,7 +319,7 @@ export default function OpenClawPage() {
           </pre>
         ) : (
           <p className="text-sm text-gray-500">
-            Config exists but has no &quot;models&quot; key.
+            {t("openclaw.noModelsKey")}
           </p>
         )}
       </div>
@@ -325,17 +327,16 @@ export default function OpenClawPage() {
       {/* Generated Config */}
       <div className="mb-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
         <h2 className="mb-2 font-medium text-white">
-          Generated Configuration
+          {t("openclaw.generatedConfig")}
         </h2>
         <p className="mb-3 text-sm text-gray-400">
-          This configuration will route your OpenClaw LLM requests through
-          AgentGazer proxy.
+          {t("openclaw.generatedConfigDesc")}
         </p>
 
         {/* Proxy Host Input */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-300">
-            Proxy Host
+            {t("openclaw.proxyHost")}
           </label>
           <input
             type="text"
@@ -345,14 +346,14 @@ export default function OpenClawPage() {
             className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
           />
           <p className="mt-1 text-xs text-gray-500">
-            AgentGazer proxy address (use internal IP for network access, e.g., 192.168.1.100:18900)
+            {t("openclaw.proxyHostHelp")}
           </p>
         </div>
 
         {/* Agent Name Input */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-300">
-            Agent Name
+            {t("openclaw.agentName")}
           </label>
           <input
             type="text"
@@ -362,7 +363,7 @@ export default function OpenClawPage() {
             className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
           />
           <p className="mt-1 text-xs text-gray-500">
-            Name used to identify this agent in AgentGazer dashboard
+            {t("openclaw.agentNameHelp")}
           </p>
         </div>
 
@@ -375,9 +376,9 @@ export default function OpenClawPage() {
       <div className="mt-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-medium text-white">Apply Configuration</h3>
+            <h3 className="font-medium text-white">{t("openclaw.applyConfig")}</h3>
             <p className="text-sm text-gray-400">
-              Sets up AgentGazer proxy provider and default model ({primaryModel}).
+              {t("openclaw.applyConfigDesc", { model: primaryModel })}
             </p>
           </div>
           <button
@@ -389,28 +390,24 @@ export default function OpenClawPage() {
                 : "cursor-not-allowed bg-gray-700 text-gray-500"
             }`}
           >
-            {applying ? "Applying..." : "Apply Configuration"}
+            {applying ? t("openclaw.applying") : t("openclaw.applyButton")}
           </button>
         </div>
         {configSuccess && (
           <div className="mt-3 rounded-md border border-green-800 bg-green-900/20 p-2 text-center text-sm text-green-300">
-            Configuration applied successfully! Please restart OpenClaw to load the new settings.
+            {t("openclaw.configSuccess")}
           </div>
         )}
       </div>
 
       {/* Instructions */}
       <div className="mt-6 rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <h2 className="mb-2 font-medium text-white">After Applying</h2>
+        <h2 className="mb-2 font-medium text-white">{t("openclaw.afterApplying")}</h2>
         <ol className="list-inside list-decimal space-y-2 text-sm text-gray-400">
-          <li>Restart OpenClaw to load the new configuration</li>
-          <li>
-            Send a test message through OpenClaw (Discord, Telegram, etc.)
-          </li>
-          <li>Check the Agents page to see your OpenClaw agent appear</li>
-          <li>
-            Go to <span className="text-white">Agents → {agentName || "openclaw"} → Model Settings</span> and configure the <span className="text-white">agentgazer</span> provider with your desired model and target provider
-          </li>
+          <li>{t("openclaw.step1")}</li>
+          <li>{t("openclaw.step2")}</li>
+          <li>{t("openclaw.step3")}</li>
+          <li>{t("openclaw.step4", { agent: agentName || "openclaw" })}</li>
         </ol>
       </div>
 
@@ -430,33 +427,33 @@ export default function OpenClawPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
             <h2 className="mb-4 text-lg font-medium text-white">
-              Confirm Configuration
+              {t("openclaw.confirmTitle")}
             </h2>
             <div className="mb-4 space-y-3 text-sm">
               <div className="flex justify-between rounded bg-gray-800 p-3">
-                <span className="text-gray-400">Agent Name</span>
+                <span className="text-gray-400">{t("openclaw.agentName")}</span>
                 <span className="font-mono text-white">{agentName}</span>
               </div>
               <div className="flex justify-between rounded bg-gray-800 p-3">
-                <span className="text-gray-400">Proxy Host</span>
+                <span className="text-gray-400">{t("openclaw.proxyHost")}</span>
                 <span className="font-mono text-white">{proxyHost}</span>
               </div>
             </div>
             <p className="mb-4 text-sm text-gray-400">
-              Remember this agent name to find your machine in the AgentGazer dashboard.
+              {t("openclaw.rememberAgent")}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowConfirmModal(false)}
                 className="rounded-md px-4 py-2 text-sm text-gray-400 hover:text-white"
               >
-                Cancel
+                {t("common.cancel")}
               </button>
               <button
                 onClick={handleConfirmApply}
                 className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
               >
-                Apply
+                {t("openclaw.apply")}
               </button>
             </div>
           </div>
@@ -485,6 +482,7 @@ function AddProviderModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { t } = useTranslation();
   const [selectedProvider, setSelectedProvider] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -532,7 +530,7 @@ function AddProviderModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-white">Add Provider</h2>
+          <h2 className="text-lg font-medium text-white">{t("openclaw.addProviderTitle")}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <svg
               className="h-5 w-5"
@@ -553,7 +551,7 @@ function AddProviderModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300">
-              Provider
+              {t("openclaw.provider")}
             </label>
             <select
               value={selectedProvider}
@@ -561,7 +559,7 @@ function AddProviderModal({
               className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
               required
             >
-              <option value="">Select a provider...</option>
+              <option value="">{t("openclaw.selectProvider")}</option>
               {providers.map((p) => (
                 <option key={p} value={p}>
                   {PROVIDER_LABELS[p] || p.charAt(0).toUpperCase() + p.slice(1)}
@@ -572,7 +570,7 @@ function AddProviderModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300">
-              API Key
+              {t("openclaw.apiKey")}
             </label>
             <input
               type="password"
@@ -599,8 +597,8 @@ function AddProviderModal({
               }`}
             >
               {validationResult.validated
-                ? "API key validated successfully! Provider saved."
-                : `Provider saved, but validation failed: ${validationResult.error}`}
+                ? t("openclaw.validationSuccess")
+                : t("openclaw.validationFailed", { error: validationResult.error })}
             </div>
           )}
 
@@ -610,14 +608,14 @@ function AddProviderModal({
               onClick={onClose}
               className="rounded-md px-4 py-2 text-sm text-gray-400 hover:text-white"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={loading || !selectedProvider || !apiKey}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? "Testing..." : "Test & Save"}
+              {loading ? t("openclaw.testing") : t("openclaw.testAndSave")}
             </button>
           </div>
         </form>

@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { relativeTime, formatCost } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
@@ -33,6 +34,7 @@ interface AgentsResponse {
 const PAGE_SIZE = 20;
 
 export default function AgentsPage() {
+  const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [togglingAgent, setTogglingAgent] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function AgentsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-white">Agents</h1>
+      <h1 className="text-2xl font-bold text-white">{t("agents.title")}</h1>
 
       {error && (
         <div className="mt-4">
@@ -86,14 +88,14 @@ export default function AgentsPage() {
           <SearchInput
             value={search}
             onChange={handleSearchChange}
-            placeholder="Search agents..."
+            placeholder={t("agents.searchPlaceholder")}
           />
         </div>
       </div>
 
       {data && data.agents.length === 0 && (
         <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
-          <p className="text-gray-400">No agents found.</p>
+          <p className="text-gray-400">{t("agents.noAgents")}</p>
         </div>
       )}
 
@@ -103,13 +105,13 @@ export default function AgentsPage() {
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className="bg-gray-800 text-xs uppercase text-gray-400">
-                  <th className="px-4 py-3 font-medium">Agent ID</th>
-                  <th className="px-4 py-3 font-medium text-center">Active</th>
-                  <th className="px-4 py-3 font-medium">Providers</th>
-                  <th className="px-4 py-3 font-medium">Last Activity</th>
-                  <th className="px-4 py-3 font-medium text-right">Tokens</th>
-                  <th className="px-4 py-3 font-medium text-right">Total Cost</th>
-                  <th className="px-4 py-3 font-medium text-right">Today</th>
+                  <th className="px-4 py-3 font-medium">{t("agents.agentId")}</th>
+                  <th className="px-4 py-3 font-medium text-center">{t("agents.active")}</th>
+                  <th className="px-4 py-3 font-medium">{t("nav.providers")}</th>
+                  <th className="px-4 py-3 font-medium">{t("agents.lastActivity")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("agents.tokens")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("agents.totalCost")}</th>
+                  <th className="px-4 py-3 font-medium text-right">{t("agents.today")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
@@ -132,9 +134,9 @@ export default function AgentsPage() {
                           {agent.kill_switch_enabled === 1 && (
                             <span
                               className="inline-flex items-center rounded-full bg-red-900/50 px-2 py-0.5 text-xs font-medium text-red-400"
-                              title="Kill switch enabled for loop detection"
+                              title={t("agents.killSwitchEnabled")}
                             >
-                              Kill Switch
+                              {t("agents.killSwitch")}
                             </span>
                           )}
                         </div>
@@ -159,12 +161,12 @@ export default function AgentsPage() {
                           {!agent.active && agent.deactivated_by === "kill_switch" && (
                             <span
                               className="inline-flex items-center gap-1 rounded-full bg-red-900/70 px-2 py-0.5 text-xs font-medium text-red-300"
-                              title="Deactivated by Kill Switch due to loop detection"
+                              title={t("agents.deactivatedByKillSwitch")}
                             >
                               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                               </svg>
-                              Kill Switch
+                              {t("agents.killSwitch")}
                             </span>
                           )}
                         </div>
