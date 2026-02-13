@@ -117,6 +117,102 @@ export const PROMPT_INJECTION_PATTERNS: PromptInjectionPattern[] = [
     pattern: /disable\s+(safety|content)\s+(filters?|checks?)|turn\s+off\s+(safety|moderation)/i,
     severity: "critical",
   },
+
+  // ---------------------------------------------------------------------------
+  // Chinese (中文) Patterns
+  // ---------------------------------------------------------------------------
+
+  // Ignore Instructions (忽略指令)
+  {
+    name: "ignore_previous_zh",
+    category: "ignore_instructions",
+    pattern: /(忽略|無視|忘記|不要理會|跳過).{0,10}(之前|先前|以上|前面|原本|原來).{0,10}(指令|規則|指示|提示|設定)/,
+    severity: "critical",
+  },
+  {
+    name: "forget_rules_zh",
+    category: "ignore_instructions",
+    pattern: /(忘記|忘掉|拋棄|丟掉).{0,10}(你的|原本的|系統的).{0,10}(規則|指令|設定|限制)/,
+    severity: "critical",
+  },
+  {
+    name: "do_not_follow_zh",
+    category: "ignore_instructions",
+    pattern: /(不要|不用|不必|別).{0,5}(遵守|遵循|聽從|按照).{0,10}(指令|規則|指示)/,
+    severity: "critical",
+  },
+
+  // System Override (系統覆蓋)
+  {
+    name: "new_system_prompt_zh",
+    category: "system_override",
+    pattern: /(新的|替換|覆蓋|更改|修改).{0,10}(系統|system).{0,5}(提示|指令|設定|prompt)/,
+    severity: "critical",
+  },
+  {
+    name: "developer_mode_zh",
+    category: "system_override",
+    pattern: /(開啟|啟用|進入|切換到).{0,10}(開發者|開發人員|管理員|root|admin|debug).{0,5}(模式|權限)/,
+    severity: "critical",
+  },
+  {
+    name: "system_colon_zh",
+    category: "system_override",
+    pattern: /^(系統|System)\s*[:：]/im,
+    severity: "warning",
+  },
+
+  // Role Hijacking (角色劫持)
+  {
+    name: "you_are_now_zh",
+    category: "role_hijacking",
+    pattern: /(你現在是|從現在起你是|你的身份是|你要扮演|你要假裝是)/,
+    severity: "critical",
+  },
+  {
+    name: "pretend_to_be_zh",
+    category: "role_hijacking",
+    pattern: /(假裝|假設|模擬|扮演|裝作).{0,5}(你是|自己是|成為)/,
+    severity: "critical",
+  },
+  {
+    name: "roleplay_zh",
+    category: "role_hijacking",
+    pattern: /(角色扮演|roleplay|cosplay).{0,10}(成為|作為|扮演)/,
+    severity: "warning",
+  },
+  {
+    name: "identity_change_zh",
+    category: "role_hijacking",
+    pattern: /(改變|切換|轉換).{0,5}(你的|自己的).{0,5}(身份|角色|人格|人設)/,
+    severity: "critical",
+  },
+
+  // Jailbreak (越獄)
+  {
+    name: "jailbreak_zh",
+    category: "jailbreak",
+    pattern: /(越獄|破解|解鎖|突破).{0,10}(限制|封鎖|安全|保護)/,
+    severity: "critical",
+  },
+  {
+    name: "no_restrictions_zh",
+    category: "jailbreak",
+    pattern: /(沒有|不受|移除|去除|取消).{0,10}(限制|約束|規則|束縛|安全)/,
+    severity: "critical",
+  },
+  {
+    name: "bypass_safety_zh",
+    category: "jailbreak",
+    pattern: /(繞過|跳過|忽略|關閉|停用).{0,10}(安全|內容|審查|過濾).{0,5}(機制|檢查|系統|功能)/,
+    severity: "critical",
+  },
+  {
+    name: "unrestricted_zh",
+    category: "jailbreak",
+    pattern: /(無限制|不設限|完全自由|任意回答|什麼都可以)/,
+    severity: "warning",
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -475,14 +571,14 @@ export function findSensitiveData(
 /**
  * Mask sensitive data in content.
  * @param content The content to mask
- * @param replacement The replacement text (default: "[REDACTED]")
+ * @param replacement The replacement text (default: "[AgentGazer Redacted]")
  * @param enabledCategories Which categories to mask
  * @param customPatterns Additional custom patterns to mask
  * @returns Object with masked content and list of matches
  */
 export function maskSensitiveData(
   content: string,
-  replacement = "[REDACTED]",
+  replacement = "[AgentGazer Redacted]",
   enabledCategories?: {
     api_keys?: boolean;
     credit_cards?: boolean;

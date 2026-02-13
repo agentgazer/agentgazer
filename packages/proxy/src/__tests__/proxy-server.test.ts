@@ -1496,6 +1496,34 @@ describe("Proxy Server Integration", () => {
         rate_limit_max_requests INTEGER,
         rate_limit_window_seconds INTEGER
       );
+      CREATE TABLE security_config (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT UNIQUE,
+        prompt_injection_action TEXT DEFAULT 'log',
+        prompt_injection_rules TEXT,
+        prompt_injection_custom TEXT,
+        data_masking_replacement TEXT DEFAULT '[REDACTED]',
+        data_masking_rules TEXT,
+        data_masking_custom TEXT,
+        tool_restrictions_action TEXT DEFAULT 'block',
+        tool_restrictions_rules TEXT,
+        tool_allowlist TEXT,
+        tool_blocklist TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+      CREATE TABLE security_events (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        severity TEXT NOT NULL,
+        action_taken TEXT NOT NULL,
+        rule_name TEXT,
+        matched_pattern TEXT,
+        snippet TEXT,
+        request_id TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      );
     `);
     db.prepare("INSERT INTO agents (id, agent_id, name) VALUES (?, ?, ?)").run(`id-${agentId}`, agentId, "Test Agent");
     return db;

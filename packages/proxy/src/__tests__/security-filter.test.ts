@@ -417,11 +417,15 @@ describe("SecurityFilter", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Response Checking - Data Masking
+  // Response Checking - Data Masking (intentionally disabled)
   // ---------------------------------------------------------------------------
 
   describe("checkResponse - data masking", () => {
-    it("masks sensitive data in response", async () => {
+    // Data masking is intentionally NOT applied to responses.
+    // Rationale: If sensitive data appears in an LLM response, it's either
+    // fictional or already leaked - masking it provides no real protection.
+
+    it("does NOT mask sensitive data in response (intentional)", async () => {
       const response = {
         choices: [
           {
@@ -435,14 +439,12 @@ describe("SecurityFilter", () => {
 
       const result = await filter.checkResponse("test-agent", JSON.stringify(response));
 
-      expect(result.events.some(e => e.event_type === "data_masked")).toBe(true);
-      expect(result.modifiedContent).toBeDefined();
-
-      const modified = JSON.parse(result.modifiedContent!);
-      expect(modified.choices[0].message.content).toContain("[REDACTED]");
+      // Response data masking is disabled - no mask events should be generated
+      expect(result.events.some(e => e.event_type === "data_masked")).toBe(false);
+      expect(result.modifiedContent).toBeUndefined();
     });
 
-    it("masks data in Anthropic response format", async () => {
+    it("does NOT mask data in Anthropic response format (intentional)", async () => {
       const response = {
         content: [
           { type: "text", text: "Here's the key: sk-zyxwvutsrqponmlkjihgfedcba987654" },
@@ -451,11 +453,9 @@ describe("SecurityFilter", () => {
 
       const result = await filter.checkResponse("test-agent", JSON.stringify(response));
 
-      expect(result.events.some(e => e.event_type === "data_masked")).toBe(true);
-      expect(result.modifiedContent).toBeDefined();
-
-      const modified = JSON.parse(result.modifiedContent!);
-      expect(modified.content[0].text).toContain("[REDACTED]");
+      // Response data masking is disabled
+      expect(result.events.some(e => e.event_type === "data_masked")).toBe(false);
+      expect(result.modifiedContent).toBeUndefined();
     });
   });
 

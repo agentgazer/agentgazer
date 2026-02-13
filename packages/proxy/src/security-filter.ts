@@ -182,7 +182,9 @@ export class SecurityFilter {
 
   /**
    * Check response content before returning to the client.
-   * Performs prompt injection detection and data masking.
+   * Performs prompt injection detection only.
+   * Note: Data masking is intentionally NOT applied to responses - if sensitive data
+   * appears in an LLM response, it's either fictional or already leaked.
    */
   async checkResponse(
     agentId: string,
@@ -195,12 +197,11 @@ export class SecurityFilter {
     }
 
     const events: SecurityEventData[] = [];
-    let modifiedContent = responseBody;
 
     try {
       const bodyJson = JSON.parse(responseBody);
 
-      // 1. Prompt injection detection on assistant content
+      // Prompt injection detection on assistant content
       const injectionEvents = this.checkPromptInjectionInResponse(bodyJson, config);
       events.push(...injectionEvents);
 
@@ -219,23 +220,12 @@ export class SecurityFilter {
         };
       }
 
-      // 2. Data masking on response content
-      const { maskedBody, maskEvents } = this.maskResponseData(bodyJson, config);
-      if (maskEvents.length > 0) {
-        events.push(...maskEvents);
-        modifiedContent = JSON.stringify(maskedBody);
-      }
-
       // Record events to server (non-blocking)
       if (events.length > 0) {
         await this.recordEvents(agentId, events, requestId);
       }
 
-      return {
-        allowed: true,
-        events,
-        modifiedContent: maskEvents.length > 0 ? modifiedContent : undefined,
-      };
+      return { allowed: true, events };
     } catch {
       // Non-JSON body, skip security checks
       return { allowed: true, events: [] };
@@ -509,72 +499,6 @@ export class SecurityFilter {
     }
 
     return content;
-  }
-
-  private maskResponseData(
-    body: Record<string, unknown>,
-    config: SecurityConfig,
-  ): { maskedBody: Record<string, unknown>; maskEvents: SecurityEventData[] } {
-    const events: SecurityEventData[] = [];
-    const maskedBody = JSON.parse(JSON.stringify(body)); // Deep clone
-
-    // OpenAI format: choices[].message.content
-    const choices = maskedBody.choices as Array<{ message?: { content?: string } }> | undefined;
-    if (Array.isArray(choices)) {
-      for (const choice of choices) {
-        if (choice.message?.content) {
-          const result = maskSensitiveData(
-            choice.message.content,
-            config.data_masking.replacement,
-            config.data_masking.rules,
-            config.data_masking.custom,
-          );
-          if (result.matches.length > 0) {
-            choice.message.content = result.masked;
-            for (const match of result.matches) {
-              events.push({
-                event_type: "data_masked",
-                severity: "info",
-                action_taken: "masked",
-                rule_name: match.pattern.name,
-                matched_pattern: match.pattern.pattern.source,
-                snippet: this.truncateSnippet(match.match),
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Anthropic format: content[].text
-    const anthropicContent = maskedBody.content as Array<{ type?: string; text?: string }> | undefined;
-    if (Array.isArray(anthropicContent)) {
-      for (const block of anthropicContent) {
-        if (block.type === "text" && block.text) {
-          const result = maskSensitiveData(
-            block.text,
-            config.data_masking.replacement,
-            config.data_masking.rules,
-            config.data_masking.custom,
-          );
-          if (result.matches.length > 0) {
-            block.text = result.masked;
-            for (const match of result.matches) {
-              events.push({
-                event_type: "data_masked",
-                severity: "info",
-                action_taken: "masked",
-                rule_name: match.pattern.name,
-                matched_pattern: match.pattern.pattern.source,
-                snippet: this.truncateSnippet(match.match),
-              });
-            }
-          }
-        }
-      }
-    }
-
-    return { maskedBody, maskEvents: events };
   }
 
   // ---------------------------------------------------------------------------

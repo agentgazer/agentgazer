@@ -164,7 +164,7 @@ describe("maskSensitiveData", () => {
   it("masks API keys with default replacement", () => {
     const content = "My key is sk-1234567890abcdefghijklmnopqrstuv";
     const result = maskSensitiveData(content);
-    expect(result.masked).toBe("My key is [REDACTED]");
+    expect(result.masked).toBe("My key is [AgentGazer Redacted]");
     expect(result.matches.length).toBe(1);
   });
 
@@ -178,7 +178,7 @@ describe("maskSensitiveData", () => {
     // Both keys need 32+ chars after "sk-" to match the OpenAI key pattern
     const content = "Keys: sk-1234567890abcdefghijklmnopqrstuv and sk-zyxwvutsrqponmlkjihgfedcba987654";
     const result = maskSensitiveData(content);
-    expect(result.masked).toBe("Keys: [REDACTED] and [REDACTED]");
+    expect(result.masked).toBe("Keys: [AgentGazer Redacted] and [AgentGazer Redacted]");
     expect(result.matches.length).toBe(2);
   });
 

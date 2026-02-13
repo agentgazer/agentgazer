@@ -92,7 +92,7 @@ describe("Security Config API", () => {
     expect(body.prompt_injection).toBeDefined();
     expect(body.prompt_injection.action).toBe("log");
     expect(body.data_masking).toBeDefined();
-    expect(body.data_masking.replacement).toBe("[REDACTED]");
+    expect(body.data_masking.replacement).toBe("[AgentGazer Redacted]");
     expect(body.tool_restrictions).toBeDefined();
   });
 

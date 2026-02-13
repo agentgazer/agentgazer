@@ -309,7 +309,7 @@ const SCHEMA = `
     prompt_injection_custom TEXT,
 
     -- Sensitive Data Masking
-    data_masking_replacement TEXT DEFAULT '[REDACTED]',
+    data_masking_replacement TEXT DEFAULT '[AgentGazer Redacted]',
     data_masking_rules TEXT,
     data_masking_custom TEXT,
 
@@ -1628,20 +1628,20 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
   prompt_injection: {
     action: "log",
     rules: {
-      ignore_instructions: true,
-      system_override: true,
-      role_hijacking: true,
-      jailbreak: true,
+      ignore_instructions: false,
+      system_override: false,
+      role_hijacking: false,
+      jailbreak: false,
     },
     custom: [],
   },
   data_masking: {
-    replacement: "[REDACTED]",
+    replacement: "[AgentGazer Redacted]",
     rules: {
-      api_keys: true,
-      credit_cards: true,
-      personal_data: true,
-      crypto: true,
+      api_keys: false,
+      credit_cards: false,
+      personal_data: false,
+      crypto: false,
       env_vars: false,
     },
     custom: [],
@@ -1692,7 +1692,7 @@ function parseSecurityConfigRow(row: SecurityConfigRow): SecurityConfig {
         : [],
     },
     data_masking: {
-      replacement: row.data_masking_replacement || "[REDACTED]",
+      replacement: row.data_masking_replacement || "[AgentGazer Redacted]",
       rules: row.data_masking_rules
         ? JSON.parse(row.data_masking_rules)
         : defaultConfig.data_masking.rules,
@@ -1767,42 +1767,64 @@ export function upsertSecurityConfig(
   const toolBlocklist = JSON.stringify(config.tool_restrictions.blocklist);
 
   if (config.agent_id === null) {
-    // Global config - use IS NULL for matching
-    db.prepare(`
-      INSERT INTO security_config (
-        id, agent_id,
-        prompt_injection_action, prompt_injection_rules, prompt_injection_custom,
-        data_masking_replacement, data_masking_rules, data_masking_custom,
-        tool_restrictions_action, tool_restrictions_rules, tool_allowlist, tool_blocklist,
-        created_at, updated_at
-      ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(agent_id) DO UPDATE SET
-        prompt_injection_action = excluded.prompt_injection_action,
-        prompt_injection_rules = excluded.prompt_injection_rules,
-        prompt_injection_custom = excluded.prompt_injection_custom,
-        data_masking_replacement = excluded.data_masking_replacement,
-        data_masking_rules = excluded.data_masking_rules,
-        data_masking_custom = excluded.data_masking_custom,
-        tool_restrictions_action = excluded.tool_restrictions_action,
-        tool_restrictions_rules = excluded.tool_restrictions_rules,
-        tool_allowlist = excluded.tool_allowlist,
-        tool_blocklist = excluded.tool_blocklist,
-        updated_at = excluded.updated_at
-    `).run(
-      id,
-      config.prompt_injection.action,
-      promptInjectionRules,
-      promptInjectionCustom,
-      config.data_masking.replacement,
-      dataMaskingRules,
-      dataMaskingCustom,
-      config.tool_restrictions.action,
-      toolRestrictionsRules,
-      toolAllowlist,
-      toolBlocklist,
-      now,
-      now,
-    );
+    // Global config - NULL doesn't work with ON CONFLICT, so check existence first
+    const existing = db.prepare(`SELECT id FROM security_config WHERE agent_id IS NULL`).get() as { id: string } | undefined;
+
+    if (existing) {
+      // Update existing global config
+      db.prepare(`
+        UPDATE security_config SET
+          prompt_injection_action = ?,
+          prompt_injection_rules = ?,
+          prompt_injection_custom = ?,
+          data_masking_replacement = ?,
+          data_masking_rules = ?,
+          data_masking_custom = ?,
+          tool_restrictions_action = ?,
+          tool_restrictions_rules = ?,
+          tool_allowlist = ?,
+          tool_blocklist = ?,
+          updated_at = ?
+        WHERE agent_id IS NULL
+      `).run(
+        config.prompt_injection.action,
+        promptInjectionRules,
+        promptInjectionCustom,
+        config.data_masking.replacement,
+        dataMaskingRules,
+        dataMaskingCustom,
+        config.tool_restrictions.action,
+        toolRestrictionsRules,
+        toolAllowlist,
+        toolBlocklist,
+        now,
+      );
+    } else {
+      // Insert new global config
+      db.prepare(`
+        INSERT INTO security_config (
+          id, agent_id,
+          prompt_injection_action, prompt_injection_rules, prompt_injection_custom,
+          data_masking_replacement, data_masking_rules, data_masking_custom,
+          tool_restrictions_action, tool_restrictions_rules, tool_allowlist, tool_blocklist,
+          created_at, updated_at
+        ) VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        id,
+        config.prompt_injection.action,
+        promptInjectionRules,
+        promptInjectionCustom,
+        config.data_masking.replacement,
+        dataMaskingRules,
+        dataMaskingCustom,
+        config.tool_restrictions.action,
+        toolRestrictionsRules,
+        toolAllowlist,
+        toolBlocklist,
+        now,
+        now,
+      );
+    }
   } else {
     // Agent-specific config
     db.prepare(`

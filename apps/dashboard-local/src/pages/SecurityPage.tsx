@@ -81,6 +81,95 @@ interface AgentsResponse {
 
 type Tab = "config" | "events";
 
+/* ---------- Tooltip Content ---------- */
+
+const TOOLTIP_CONTENT: Record<string, TooltipData> = {
+  // Prompt Injection
+  ignore_instructions: {
+    title: "Ignore Previous Instructions",
+    description: "Detects attempts to make the AI ignore its original instructions or rules.",
+    examples: ["ignore all previous instructions", "forget your rules", "disregard prior context"],
+    docsAnchor: "#ignore-instructions",
+  },
+  system_override: {
+    title: "System Prompt Override",
+    description: "Detects attempts to override or replace the system prompt with new instructions.",
+    examples: ["new system prompt:", "enable developer mode", "override system message"],
+    docsAnchor: "#system-override",
+  },
+  role_hijacking: {
+    title: "Role Hijacking",
+    description: "Detects attempts to change the AI's role or identity to bypass restrictions.",
+    examples: ["you are now a...", "pretend to be", "roleplay as"],
+    docsAnchor: "#role-hijacking",
+  },
+  jailbreak: {
+    title: "Jailbreak Patterns",
+    description: "Detects known jailbreak techniques like DAN prompts and restriction bypasses.",
+    examples: ["DAN mode", "bypass safety filters", "remove restrictions"],
+    docsAnchor: "#jailbreak",
+  },
+
+  // Data Masking
+  api_keys: {
+    title: "API Keys",
+    description: "Masks API keys from major providers to prevent accidental exposure.",
+    examples: ["sk-...", "anthropic-...", "AIza..."],
+    docsAnchor: "#api-keys",
+  },
+  credit_cards: {
+    title: "Credit Card Numbers",
+    description: "Masks credit card numbers in common formats (Visa, Mastercard, Amex, etc.).",
+    examples: ["4111-1111-1111-1111", "5500 0000 0000 0004"],
+    docsAnchor: "#credit-cards",
+  },
+  personal_data: {
+    title: "Personal Data",
+    description: "Masks personally identifiable information like SSN, email addresses, and phone numbers.",
+    examples: ["123-45-6789", "user@email.com", "+1-555-123-4567"],
+    docsAnchor: "#personal-data",
+  },
+  crypto: {
+    title: "Crypto Wallets & Keys",
+    description: "Masks cryptocurrency wallet addresses and private keys.",
+    examples: ["0x742d35Cc...", "bc1q...", "5HueCG..."],
+    docsAnchor: "#crypto",
+  },
+  env_vars: {
+    title: "Environment Variables",
+    description: "Masks environment variable patterns that may contain secrets.",
+    examples: ["DATABASE_URL=...", "SECRET_KEY=...", "API_TOKEN=..."],
+    docsAnchor: "#env-vars",
+  },
+
+  // Tool Restrictions
+  block_filesystem: {
+    title: "Block Filesystem Tools",
+    description: "Blocks tools that read, write, or delete files on the filesystem.",
+    examples: ["read_file", "write_file", "delete_file", "list_directory"],
+    docsAnchor: "#filesystem",
+  },
+  block_network: {
+    title: "Block Network Tools",
+    description: "Blocks tools that make network requests or access external services.",
+    examples: ["http_request", "fetch_url", "curl", "wget"],
+    docsAnchor: "#network",
+  },
+  block_code_execution: {
+    title: "Block Code Execution",
+    description: "Blocks tools that execute arbitrary code or shell commands.",
+    examples: ["execute_code", "run_command", "eval", "exec"],
+    docsAnchor: "#code-execution",
+  },
+};
+
+interface TooltipData {
+  title: string;
+  description: string;
+  examples: string[];
+  docsAnchor: string;
+}
+
 /* ---------- Component ---------- */
 
 export default function SecurityPage() {
@@ -151,24 +240,29 @@ export default function SecurityPage() {
     }
   }, [tab, loadEvents]);
 
-  // Save config
-  const saveConfig = async () => {
-    if (!config) return;
+  // Save config - accepts config to save (for auto-save after state update)
+  const saveConfig = async (configToSave?: SecurityConfig) => {
+    const data = configToSave ?? config;
+    if (!data) return;
+    console.log("[SecurityPage] saveConfig called", data);
     setSaving(true);
     setError(null);
     try {
-      await api.put<SecurityConfig>("/api/security/config", config);
+      await api.put<SecurityConfig>("/api/security/config", data);
+      console.log("[SecurityPage] saveConfig success");
     } catch (err) {
+      console.error("[SecurityPage] saveConfig error", err);
       setError(err instanceof Error ? err.message : "Failed to save config");
     } finally {
       setSaving(false);
     }
   };
 
-  // Toggle helpers
+  // Toggle helpers with auto-save
   const togglePromptInjectionRule = (key: keyof PromptInjectionRules) => {
     if (!config) return;
-    setConfig({
+    console.log("[SecurityPage] togglePromptInjectionRule", key);
+    const newConfig = {
       ...config,
       prompt_injection: {
         ...config.prompt_injection,
@@ -177,12 +271,14 @@ export default function SecurityPage() {
           [key]: !config.prompt_injection.rules[key],
         },
       },
-    });
+    };
+    setConfig(newConfig);
+    void saveConfig(newConfig);
   };
 
   const toggleDataMaskingRule = (key: keyof DataMaskingRules) => {
     if (!config) return;
-    setConfig({
+    const newConfig = {
       ...config,
       data_masking: {
         ...config.data_masking,
@@ -191,14 +287,16 @@ export default function SecurityPage() {
           [key]: !config.data_masking.rules[key],
         },
       },
-    });
+    };
+    setConfig(newConfig);
+    void saveConfig(newConfig);
   };
 
   const toggleToolRestrictionsRule = (key: keyof ToolRestrictionsRules) => {
     if (!config) return;
     const current = config.tool_restrictions.rules[key];
     const newValue = typeof current === "boolean" ? !current : current;
-    setConfig({
+    const newConfig = {
       ...config,
       tool_restrictions: {
         ...config.tool_restrictions,
@@ -207,7 +305,9 @@ export default function SecurityPage() {
           [key]: newValue,
         },
       },
-    });
+    };
+    setConfig(newConfig);
+    void saveConfig(newConfig);
   };
 
   // Parent toggle state
@@ -233,7 +333,7 @@ export default function SecurityPage() {
     if (!config) return;
     const state = getPromptInjectionToggleState();
     const newValue = state !== "on";
-    setConfig({
+    const newConfig = {
       ...config,
       prompt_injection: {
         ...config.prompt_injection,
@@ -244,14 +344,16 @@ export default function SecurityPage() {
           jailbreak: newValue,
         },
       },
-    });
+    };
+    setConfig(newConfig);
+    void saveConfig(newConfig);
   };
 
   const toggleAllDataMasking = () => {
     if (!config) return;
     const state = getDataMaskingToggleState();
     const newValue = state !== "on";
-    setConfig({
+    const newConfig = {
       ...config,
       data_masking: {
         ...config.data_masking,
@@ -263,7 +365,9 @@ export default function SecurityPage() {
           env_vars: newValue,
         },
       },
-    });
+    };
+    setConfig(newConfig);
+    void saveConfig(newConfig);
   };
 
   if (loading) {
@@ -349,15 +453,17 @@ export default function SecurityPage() {
               <div className="flex items-center gap-4">
                 <select
                   value={config.prompt_injection.action}
-                  onChange={(e) =>
-                    setConfig({
+                  onChange={(e) => {
+                    const newConfig = {
                       ...config,
                       prompt_injection: {
                         ...config.prompt_injection,
                         action: e.target.value as "log" | "alert" | "block",
                       },
-                    })
-                  }
+                    };
+                    setConfig(newConfig);
+                    void saveConfig(newConfig);
+                  }}
                   className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
                 >
                   <option value="log">Log</option>
@@ -375,33 +481,39 @@ export default function SecurityPage() {
                 label="Ignore previous instructions"
                 checked={config.prompt_injection.rules.ignore_instructions}
                 onChange={() => togglePromptInjectionRule("ignore_instructions")}
+                tooltip={TOOLTIP_CONTENT.ignore_instructions}
               />
               <ToggleRow
                 label="System prompt override"
                 checked={config.prompt_injection.rules.system_override}
                 onChange={() => togglePromptInjectionRule("system_override")}
+                tooltip={TOOLTIP_CONTENT.system_override}
               />
               <ToggleRow
                 label="Role hijacking"
                 checked={config.prompt_injection.rules.role_hijacking}
                 onChange={() => togglePromptInjectionRule("role_hijacking")}
+                tooltip={TOOLTIP_CONTENT.role_hijacking}
               />
               <ToggleRow
                 label="Jailbreak patterns"
                 checked={config.prompt_injection.rules.jailbreak}
                 onChange={() => togglePromptInjectionRule("jailbreak")}
+                tooltip={TOOLTIP_CONTENT.jailbreak}
               />
               <CustomPatternEditor
                 patterns={config.prompt_injection.custom}
-                onChange={(patterns) =>
-                  setConfig({
+                onChange={(patterns) => {
+                  const newConfig = {
                     ...config,
                     prompt_injection: {
                       ...config.prompt_injection,
                       custom: patterns,
                     },
-                  })
-                }
+                  };
+                  setConfig(newConfig);
+                  void saveConfig(newConfig);
+                }}
                 title="Custom Detection Patterns"
               />
             </div>
@@ -422,21 +534,30 @@ export default function SecurityPage() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <input
-                  type="text"
-                  value={config.data_masking.replacement}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      data_masking: {
-                        ...config.data_masking,
-                        replacement: e.target.value,
-                      },
-                    })
-                  }
-                  placeholder="[REDACTED]"
-                  className="w-32 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
-                />
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={config.data_masking.replacement}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        data_masking: {
+                          ...config.data_masking,
+                          replacement: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="[REDACTED]"
+                    className="w-32 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
+                  />
+                  <button
+                    onClick={() => void saveConfig()}
+                    disabled={saving}
+                    className="rounded-md bg-gray-700 px-2 py-1.5 text-xs text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </div>
                 <ParentToggle
                   state={getDataMaskingToggleState()}
                   onClick={toggleAllDataMasking}
@@ -448,38 +569,45 @@ export default function SecurityPage() {
                 label="API Keys"
                 checked={config.data_masking.rules.api_keys}
                 onChange={() => toggleDataMaskingRule("api_keys")}
+                tooltip={TOOLTIP_CONTENT.api_keys}
               />
               <ToggleRow
                 label="Credit Card Numbers"
                 checked={config.data_masking.rules.credit_cards}
                 onChange={() => toggleDataMaskingRule("credit_cards")}
+                tooltip={TOOLTIP_CONTENT.credit_cards}
               />
               <ToggleRow
                 label="Personal Data (SSN, Email, Phone)"
                 checked={config.data_masking.rules.personal_data}
                 onChange={() => toggleDataMaskingRule("personal_data")}
+                tooltip={TOOLTIP_CONTENT.personal_data}
               />
               <ToggleRow
                 label="Crypto Wallets & Keys"
                 checked={config.data_masking.rules.crypto}
                 onChange={() => toggleDataMaskingRule("crypto")}
+                tooltip={TOOLTIP_CONTENT.crypto}
               />
               <ToggleRow
                 label="Environment Variables"
                 checked={config.data_masking.rules.env_vars}
                 onChange={() => toggleDataMaskingRule("env_vars")}
+                tooltip={TOOLTIP_CONTENT.env_vars}
               />
               <CustomPatternEditor
                 patterns={config.data_masking.custom}
-                onChange={(patterns) =>
-                  setConfig({
+                onChange={(patterns) => {
+                  const newConfig = {
                     ...config,
                     data_masking: {
                       ...config.data_masking,
                       custom: patterns,
                     },
-                  })
-                }
+                  };
+                  setConfig(newConfig);
+                  void saveConfig(newConfig);
+                }}
                 title="Custom Masking Patterns"
               />
             </div>
@@ -501,15 +629,17 @@ export default function SecurityPage() {
               </div>
               <select
                 value={config.tool_restrictions.action}
-                onChange={(e) =>
-                  setConfig({
+                onChange={(e) => {
+                  const newConfig = {
                     ...config,
                     tool_restrictions: {
                       ...config.tool_restrictions,
                       action: e.target.value as "log" | "alert" | "block",
                     },
-                  })
-                }
+                  };
+                  setConfig(newConfig);
+                  void saveConfig(newConfig);
+                }}
                 className="rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
               >
                 <option value="log">Log</option>
@@ -522,99 +652,113 @@ export default function SecurityPage() {
                 label="Block filesystem tools"
                 checked={config.tool_restrictions.rules.block_filesystem}
                 onChange={() => toggleToolRestrictionsRule("block_filesystem")}
+                tooltip={TOOLTIP_CONTENT.block_filesystem}
               />
               <ToggleRow
                 label="Block network tools"
                 checked={config.tool_restrictions.rules.block_network}
                 onChange={() => toggleToolRestrictionsRule("block_network")}
+                tooltip={TOOLTIP_CONTENT.block_network}
               />
               <ToggleRow
                 label="Block code execution"
                 checked={config.tool_restrictions.rules.block_code_execution}
                 onChange={() => toggleToolRestrictionsRule("block_code_execution")}
+                tooltip={TOOLTIP_CONTENT.block_code_execution}
               />
               <div className="flex items-center gap-4">
                 <label className="text-sm text-gray-300">Max calls per request:</label>
-                <input
-                  type="number"
-                  value={config.tool_restrictions.rules.max_per_request ?? ""}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      tool_restrictions: {
-                        ...config.tool_restrictions,
-                        rules: {
-                          ...config.tool_restrictions.rules,
-                          max_per_request: e.target.value ? parseInt(e.target.value) : null,
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={config.tool_restrictions.rules.max_per_request ?? ""}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        tool_restrictions: {
+                          ...config.tool_restrictions,
+                          rules: {
+                            ...config.tool_restrictions.rules,
+                            max_per_request: e.target.value ? parseInt(e.target.value) : null,
+                          },
                         },
-                      },
-                    })
-                  }
-                  placeholder="No limit"
-                  className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
-                />
+                      })
+                    }
+                    placeholder="No limit"
+                    className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
+                  />
+                  <button
+                    onClick={() => void saveConfig()}
+                    disabled={saving}
+                    className="rounded-md bg-gray-700 px-2 py-1.5 text-xs text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <label className="text-sm text-gray-300">Max calls per minute:</label>
-                <input
-                  type="number"
-                  value={config.tool_restrictions.rules.max_per_minute ?? ""}
-                  onChange={(e) =>
-                    setConfig({
-                      ...config,
-                      tool_restrictions: {
-                        ...config.tool_restrictions,
-                        rules: {
-                          ...config.tool_restrictions.rules,
-                          max_per_minute: e.target.value ? parseInt(e.target.value) : null,
+                <div className="flex items-center gap-1">
+                  <input
+                    type="number"
+                    value={config.tool_restrictions.rules.max_per_minute ?? ""}
+                    onChange={(e) =>
+                      setConfig({
+                        ...config,
+                        tool_restrictions: {
+                          ...config.tool_restrictions,
+                          rules: {
+                            ...config.tool_restrictions.rules,
+                            max_per_minute: e.target.value ? parseInt(e.target.value) : null,
+                          },
                         },
-                      },
-                    })
-                  }
-                  placeholder="No limit"
-                  className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
-                />
+                      })
+                    }
+                    placeholder="No limit"
+                    className="w-24 rounded-md border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-white"
+                  />
+                  <button
+                    onClick={() => void saveConfig()}
+                    disabled={saving}
+                    className="rounded-md bg-gray-700 px-2 py-1.5 text-xs text-gray-300 hover:bg-gray-600 disabled:opacity-50"
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
               <StringListEditor
                 items={config.tool_restrictions.allowlist}
-                onChange={(items) =>
-                  setConfig({
+                onChange={(items) => {
+                  const newConfig = {
                     ...config,
                     tool_restrictions: {
                       ...config.tool_restrictions,
                       allowlist: items,
                     },
-                  })
-                }
+                  };
+                  setConfig(newConfig);
+                  void saveConfig(newConfig);
+                }}
                 title="Allowlist (only these tools allowed)"
                 placeholder="tool_name"
               />
               <StringListEditor
                 items={config.tool_restrictions.blocklist}
-                onChange={(items) =>
-                  setConfig({
+                onChange={(items) => {
+                  const newConfig = {
                     ...config,
                     tool_restrictions: {
                       ...config.tool_restrictions,
                       blocklist: items,
                     },
-                  })
-                }
+                  };
+                  setConfig(newConfig);
+                  void saveConfig(newConfig);
+                }}
                 title="Blocklist (these tools blocked)"
                 placeholder="tool_name"
               />
             </div>
-          </div>
-
-          {/* Save Button */}
-          <div className="flex justify-end">
-            <button
-              onClick={saveConfig}
-              disabled={saving}
-              className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
           </div>
         </div>
       )}
@@ -756,18 +900,62 @@ function ParentToggle({
   );
 }
 
+function InfoTooltip({ data }: { data: TooltipData }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <span className="relative inline-block">
+      <a
+        href={`https://www.agentgazer.com/en/guide/security${data.docsAnchor}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gray-700 text-[10px] text-gray-400 hover:bg-blue-600 hover:text-white"
+        aria-label={`Info about ${data.title} - click to view docs`}
+      >
+        ?
+      </a>
+      {isOpen && (
+        <div className="pointer-events-none absolute left-0 top-6 z-50 w-72 rounded-lg border border-gray-700 bg-gray-800 p-3 shadow-xl">
+          <div className="text-sm font-medium text-white">{data.title}</div>
+          <p className="mt-1 text-xs text-gray-400">{data.description}</p>
+          {data.examples.length > 0 && (
+            <div className="mt-2">
+              <div className="text-xs font-medium text-gray-500">Examples:</div>
+              <ul className="mt-1 space-y-0.5">
+                {data.examples.map((ex, i) => (
+                  <li key={i} className="text-xs text-gray-400">
+                    <code className="rounded bg-gray-900 px-1 py-0.5 text-gray-300">{ex}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="mt-2 text-xs text-blue-400">Click to view docs</div>
+        </div>
+      )}
+    </span>
+  );
+}
+
 function ToggleRow({
   label,
   checked,
   onChange,
+  tooltip,
 }: {
   label: string;
   checked: boolean;
   onChange: () => void;
+  tooltip?: TooltipData;
 }) {
   return (
     <label className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 hover:bg-gray-800">
-      <span className="text-sm text-gray-300">{label}</span>
+      <span className="flex items-center gap-2 text-sm text-gray-300">
+        {label}
+        {tooltip && <InfoTooltip data={tooltip} />}
+      </span>
       <button
         onClick={onChange}
         className={`relative h-5 w-9 rounded-full transition-colors ${

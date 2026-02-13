@@ -65,6 +65,7 @@ export default defineConfig({
             {
               text: "Governance",
               items: [
+                { text: "Security Shield", link: "/en/guide/security" },
                 { text: "Kill Switch", link: "/en/guide/kill-switch" },
                 { text: "Model Override", link: "/en/guide/model-override" },
                 { text: "Rate Limiting", link: "/en/guide/rate-limiting" },
@@ -128,6 +129,7 @@ export default defineConfig({
             {
               text: "治理功能",
               items: [
+                { text: "Security Shield 安全護盾", link: "/zh/guide/security" },
                 { text: "Kill Switch 緊急停止", link: "/zh/guide/kill-switch" },
                 { text: "Model Override 模型覆蓋", link: "/zh/guide/model-override" },
                 { text: "Rate Limiting 請求限制", link: "/zh/guide/rate-limiting" },
