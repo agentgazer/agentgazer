@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import * as http from "node:http";
-import { startProxy, type ProxyServer } from "../proxy-server.js";
+import { startProxy, clearProviderPolicyCache, type ProxyServer } from "../proxy-server.js";
 
 /**
  * Helper: make an HTTP request and return the status, headers, and body.
@@ -1985,6 +1985,121 @@ describe("Proxy Server Integration", () => {
       const response = JSON.parse(res.body);
       // The mock echoes the model it received - should be the overridden model
       expect(response.model).toBe("gpt-4o-mini");
+
+      vi.restoreAllMocks();
+      db.close();
+    });
+  });
+
+  describe("Provider Deactivation", () => {
+    it("blocks requests when provider is deactivated", async () => {
+      // Clear provider policy cache to ensure fresh state
+      clearProviderPolicyCache();
+
+      const agentId = `test-agent-deactivated-${Date.now()}`;
+      const db = createTestDb(agentId);
+
+      // Deactivate the provider
+      db.prepare("INSERT INTO provider_settings (provider, active) VALUES (?, ?)").run("openai", 0);
+
+      ingestServer = await createMockIngestServer();
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 100,
+        providerKeys: { openai: "sk-openai-key" },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Hello" }],
+        }),
+      });
+
+      // Request should be blocked with 200 status and policy block message
+      expect(res.status).toBe(200);
+      const response = JSON.parse(res.body);
+      expect(response.choices[0].message.content).toContain("[AgentGazer Policy Block]");
+      expect(response.choices[0].message.content).toContain("deactivated");
+
+      db.close();
+    });
+
+    it("allows requests when provider is active", async () => {
+      // Clear provider policy cache to ensure fresh state
+      clearProviderPolicyCache();
+
+      const agentId = `test-agent-active-${Date.now()}`;
+      const db = createTestDb(agentId);
+
+      // Provider is active (explicitly set)
+      db.prepare("INSERT INTO provider_settings (provider, active) VALUES (?, ?)").run("openai", 1);
+
+      ingestServer = await createMockIngestServer();
+
+      // Mock fetch to simulate OpenAI response
+      const originalFetch = global.fetch;
+      vi.spyOn(global, "fetch").mockImplementation(async (input, init) => {
+        const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        if (url.includes("api.openai.com")) {
+          return new Response(JSON.stringify({
+            id: "chatcmpl-123",
+            object: "chat.completion",
+            model: "gpt-4o",
+            choices: [{ index: 0, message: { role: "assistant", content: "Hello from OpenAI!" }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+          }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return originalFetch(input, init);
+      });
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 100,
+        providerKeys: { openai: "sk-openai-key" },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Hello" }],
+        }),
+      });
+
+      // Request should go through
+      expect(res.status).toBe(200);
+      const response = JSON.parse(res.body);
+      expect(response.choices[0].message.content).toBe("Hello from OpenAI!");
 
       vi.restoreAllMocks();
       db.close();

@@ -789,7 +789,21 @@ interface ProviderPolicyCache {
 }
 
 const providerPolicyCache: ProviderPolicyCache = {};
-const PROVIDER_POLICY_CACHE_TTL_MS = 5_000; // 5 seconds (shorter for faster policy updates)
+const PROVIDER_POLICY_CACHE_TTL_MS = 1_000; // 1 second - short TTL for responsive policy updates
+
+/**
+ * Clear the provider policy cache for a specific provider, or all providers.
+ * Useful for testing or when provider settings are updated.
+ */
+export function clearProviderPolicyCache(provider?: string): void {
+  if (provider) {
+    delete providerPolicyCache[provider];
+  } else {
+    for (const key of Object.keys(providerPolicyCache)) {
+      delete providerPolicyCache[key];
+    }
+  }
+}
 
 // Provider-level rate limiter (separate from agent rate limiter)
 const providerRateLimiter = new RateLimiter();
@@ -1310,6 +1324,32 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       loopDetector.clearAgent(targetAgentId);
       log.info(`[PROXY] Cleared loop detector window for agent "${targetAgentId}"`);
       sendJson(res, 200, { success: true, agent_id: targetAgentId });
+      return;
+    }
+
+    // Internal endpoint: Clear provider policy cache
+    // POST /internal/providers/:provider/clear-cache
+    // POST /internal/providers/clear-cache (clears all)
+    const clearProviderCacheMatch = path.match(/^\/internal\/providers(?:\/([^/]+))?\/clear-cache$/);
+    if (method === "POST" && clearProviderCacheMatch) {
+      const targetProvider = clearProviderCacheMatch[1] ? decodeURIComponent(clearProviderCacheMatch[1]) : undefined;
+
+      // Security: Only allow from localhost
+      const remoteAddr = req.socket.remoteAddress;
+      const isLocalhost = remoteAddr === "127.0.0.1" || remoteAddr === "::1" || remoteAddr === "::ffff:127.0.0.1";
+      if (!isLocalhost) {
+        sendJson(res, 403, { error: "This endpoint is only accessible from localhost" });
+        return;
+      }
+
+      clearProviderPolicyCache(targetProvider);
+      if (targetProvider) {
+        log.info(`[PROXY] Cleared provider policy cache for "${targetProvider}"`);
+        sendJson(res, 200, { success: true, provider: targetProvider });
+      } else {
+        log.info(`[PROXY] Cleared all provider policy caches`);
+        sendJson(res, 200, { success: true, all: true });
+      }
       return;
     }
 
