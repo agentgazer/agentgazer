@@ -531,6 +531,7 @@ export default function SecurityPage() {
                 checked={config.prompt_injection.rules.role_hijacking}
                 onChange={() => togglePromptInjectionRule("role_hijacking")}
                 tooltip={TOOLTIP_CONTENT.role_hijacking}
+                warning="[OpenClaw users: keep OFF]"
               />
               <ToggleRow
                 label="Jailbreak patterns"
@@ -1107,17 +1108,20 @@ function ToggleRow({
   checked,
   onChange,
   tooltip,
+  warning,
 }: {
   label: string;
   checked: boolean;
   onChange: () => void;
   tooltip?: TooltipData;
+  warning?: string;
 }) {
   return (
     <label className="flex cursor-pointer items-center justify-between rounded-md px-3 py-2 hover:bg-gray-800">
       <span className="flex items-center gap-2 text-sm text-gray-300">
         {label}
         {tooltip && <InfoTooltip data={tooltip} />}
+        {warning && <span className="text-xs text-orange-400">{warning}</span>}
       </span>
       <button
         onClick={onChange}
