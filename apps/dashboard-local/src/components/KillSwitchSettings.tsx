@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 
 interface KillSwitchConfig {
@@ -19,6 +20,7 @@ interface KillSwitchSettingsProps {
 }
 
 export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps) {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<KillSwitchConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -124,7 +126,7 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
   if (loading) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <div className="animate-pulse text-gray-400">Loading kill switch settings...</div>
+        <div className="animate-pulse text-gray-400">{t("killSwitch.loading")}</div>
       </div>
     );
   }
@@ -135,7 +137,7 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
         <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs">
           !
         </span>
-        Kill Switch (Loop Detection)
+        {t("killSwitch.title")}
       </h2>
 
       {error && (
@@ -147,23 +149,22 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
       {/* Warning Modal */}
       {showNoAlertWarning && (
         <div className="mb-4 rounded-md border border-yellow-700 bg-yellow-900/20 p-4">
-          <p className="text-sm font-medium text-yellow-400">No Alert Rule Configured</p>
+          <p className="text-sm font-medium text-yellow-400">{t("killSwitch.noAlertTitle")}</p>
           <p className="mt-1 text-xs text-yellow-300/80">
-            The kill switch will block loops but you won't receive notifications.
-            Consider adding a "kill_switch" alert rule on the Alerts page first.
+            {t("killSwitch.noAlertDescription")}
           </p>
           <div className="mt-3 flex gap-2">
             <button
               onClick={handleConfirmEnableWithoutAlert}
               className="rounded-md bg-yellow-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-yellow-500"
             >
-              Enable Anyway
+              {t("killSwitch.enableAnyway")}
             </button>
             <button
               onClick={() => setShowNoAlertWarning(false)}
               className="rounded-md bg-gray-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-500"
             >
-              Cancel
+              {t("killSwitch.cancel")}
             </button>
           </div>
         </div>
@@ -171,16 +172,15 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
 
       {/* Description */}
       <p className="mb-4 text-xs text-gray-400">
-        Automatically detect and block infinite loops to prevent wasting API credits.
-        When triggered, requests return HTTP 429 and an alert is sent.
+        {t("killSwitch.description")}
       </p>
 
       {/* Enable Toggle */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-white">Kill Switch Enabled</p>
+          <p className="text-sm font-medium text-white">{t("killSwitch.enabled")}</p>
           <p className="text-xs text-gray-400">
-            {enabled ? "Loop detection is active" : "Loop detection is disabled"}
+            {enabled ? t("killSwitch.activeStatus") : t("killSwitch.disabledStatus")}
           </p>
         </div>
         <button
@@ -204,10 +204,10 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
           {/* Window Size */}
           <div>
             <label htmlFor="window-size" className="block text-sm font-medium text-white">
-              Detection Window Size
+              {t("killSwitch.windowSize")}
             </label>
             <p className="text-xs text-gray-400">
-              Number of recent requests to analyze for patterns (5-100)
+              {t("killSwitch.windowSizeHelp")}
             </p>
             <input
               type="number"
@@ -223,10 +223,10 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
           {/* Threshold */}
           <div>
             <label htmlFor="threshold" className="block text-sm font-medium text-white">
-              Loop Score Threshold
+              {t("killSwitch.threshold")}
             </label>
             <p className="text-xs text-gray-400">
-              Minimum score to trigger kill switch (1-50). Lower = more sensitive.
+              {t("killSwitch.thresholdHelp")}
             </p>
             <input
               type="number"
@@ -242,11 +242,11 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
 
           {/* Scoring explanation */}
           <div className="rounded-md border border-gray-700 bg-gray-900 p-3">
-            <p className="text-xs font-medium text-gray-300">How scoring works:</p>
+            <p className="text-xs font-medium text-gray-300">{t("killSwitch.scoringTitle")}</p>
             <ul className="mt-1 list-inside list-disc text-xs text-gray-400">
-              <li>Similar prompts: +1.0 per match</li>
-              <li>Similar responses: +2.0 per pair</li>
-              <li>Repeated tool calls: +1.5 per match</li>
+              <li>{t("killSwitch.scoringPrompts")}</li>
+              <li>{t("killSwitch.scoringResponses")}</li>
+              <li>{t("killSwitch.scoringTools")}</li>
             </ul>
           </div>
 
@@ -259,7 +259,7 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
                 saving ? "opacity-50 cursor-not-allowed" : ""
               }`}
             >
-              {saving ? "Saving..." : "Save Settings"}
+              {saving ? t("killSwitch.saving") : t("killSwitch.saveSettings")}
             </button>
           </div>
         </div>
@@ -271,12 +271,12 @@ export default function KillSwitchSettings({ agentId }: KillSwitchSettingsProps)
           {hasAlertRule ? (
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-              <span className="text-green-400">Alert rule configured</span>
+              <span className="text-green-400">{t("killSwitch.alertConfigured")}</span>
             </>
           ) : (
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-yellow-500" />
-              <span className="text-yellow-400">No alert rule - loops will be blocked silently</span>
+              <span className="text-yellow-400">{t("killSwitch.noAlertWarning")}</span>
             </>
           )}
         </div>

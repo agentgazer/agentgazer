@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { providerApi, oauthApi, type ProviderInfo } from "../lib/api";
 import { useConnection } from "../contexts/ConnectionContext";
 import { usePolling } from "../hooks/usePolling";
@@ -34,6 +35,7 @@ const PROVIDER_LABELS: Record<string, string> = {
 };
 
 export default function ProvidersPage() {
+  const { t } = useTranslation();
   const { isLoopback } = useConnection();
   const [showAddModal, setShowAddModal] = useState(false);
   const [togglingProvider, setTogglingProvider] = useState<string | null>(null);
@@ -139,9 +141,9 @@ export default function ProvidersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Providers</h1>
+          <h1 className="text-2xl font-bold text-white">{t("providers.title")}</h1>
           <p className="text-sm text-gray-400">
-            Manage LLM provider connections and settings
+            {t("providers.subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -153,7 +155,7 @@ export default function ProvidersPage() {
                 disabled={oauthLoading}
                 className="rounded-md border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50"
               >
-                {oauthLoading ? "..." : "Logout OpenAI Codex"}
+                {oauthLoading ? "..." : t("providers.logoutCodex")}
               </button>
             ) : (
               <button
@@ -161,7 +163,7 @@ export default function ProvidersPage() {
                 disabled={oauthLoading}
                 className="rounded-md border border-green-600 bg-green-600/10 px-4 py-2 text-sm font-medium text-green-400 transition-colors hover:bg-green-600/20 disabled:opacity-50"
               >
-                {oauthLoading ? "Waiting..." : "Login OpenAI Codex"}
+                {oauthLoading ? t("providers.waiting") : t("providers.loginCodex")}
               </button>
             )
           )}
@@ -177,15 +179,15 @@ export default function ProvidersPage() {
               }`}
               title={
                 isLoopback
-                  ? "Add a new provider"
-                  : "Only available from localhost for API key security"
+                  ? t("providers.addProviderTitle")
+                  : t("providers.localhostOnly")
               }
             >
-              + Add Provider
+              {t("providers.addProvider")}
             </button>
             {!isLoopback && (
               <div className="absolute right-0 top-full mt-1 w-64 rounded bg-gray-800 p-2 text-xs text-gray-400 shadow-lg">
-                Only available from localhost for API key security
+                {t("providers.localhostOnly")}
               </div>
             )}
           </div>
@@ -207,9 +209,9 @@ export default function ProvidersPage() {
       {/* Empty state */}
       {configuredProviders.length === 0 && (
         <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 px-6 py-12 text-center">
-          <p className="text-gray-400">No providers configured yet.</p>
+          <p className="text-gray-400">{t("providers.noProviders")}</p>
           <p className="mt-1 text-sm text-gray-500">
-            Click "Add Provider" to get started.
+            {t("providers.clickToAdd")}
           </p>
         </div>
       )}
@@ -220,14 +222,14 @@ export default function ProvidersPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="bg-gray-800 text-xs uppercase text-gray-400">
-                <th className="px-4 py-3 font-medium">Provider</th>
-                <th className="px-4 py-3 font-medium text-center">Active</th>
-                <th className="px-4 py-3 font-medium text-right">Agents</th>
+                <th className="px-4 py-3 font-medium">{t("providers.provider")}</th>
+                <th className="px-4 py-3 font-medium text-center">{t("providers.active")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("providers.agents")}</th>
                 <th className="px-4 py-3 font-medium text-right">
-                  Total Tokens
+                  {t("providers.totalTokens")}
                 </th>
-                <th className="px-4 py-3 font-medium text-right">Total Cost</th>
-                <th className="px-4 py-3 font-medium text-right">Today</th>
+                <th className="px-4 py-3 font-medium text-right">{t("providers.totalCost")}</th>
+                <th className="px-4 py-3 font-medium text-right">{t("providers.today")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
@@ -320,6 +322,7 @@ function AddProviderModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const { t } = useTranslation();
   const [selectedProvider, setSelectedProvider] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [loading, setLoading] = useState(false);
@@ -367,7 +370,7 @@ function AddProviderModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-white">Add Provider</h2>
+          <h2 className="text-lg font-medium text-white">{t("providers.addProviderTitle")}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-white">
             <svg
               className="h-5 w-5"
@@ -388,7 +391,7 @@ function AddProviderModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-300">
-              Provider
+              {t("providers.provider")}
             </label>
             <select
               value={selectedProvider}
@@ -396,7 +399,7 @@ function AddProviderModal({
               className="mt-1 block w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white focus:border-blue-500 focus:outline-none"
               required
             >
-              <option value="">Select a provider...</option>
+              <option value="">{t("providers.selectProvider")}</option>
               {providers.map((p) => (
                 <option key={p} value={p}>
                   {PROVIDER_LABELS[p] || p.charAt(0).toUpperCase() + p.slice(1)}
@@ -407,7 +410,7 @@ function AddProviderModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-300">
-              API Key
+              {t("providers.apiKey")}
             </label>
             <input
               type="password"
@@ -434,8 +437,8 @@ function AddProviderModal({
               }`}
             >
               {validationResult.validated
-                ? "API key validated successfully! Provider saved."
-                : `Provider saved, but validation failed: ${validationResult.error}`}
+                ? t("providers.validationSuccess")
+                : t("providers.validationFailed", { error: validationResult.error })}
             </div>
           )}
 
@@ -445,14 +448,14 @@ function AddProviderModal({
               onClick={onClose}
               className="rounded-md px-4 py-2 text-sm text-gray-400 hover:text-white"
             >
-              Cancel
+              {t("common.cancel")}
             </button>
             <button
               type="submit"
               disabled={loading || !selectedProvider || !apiKey}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {loading ? "Testing..." : "Test & Save"}
+              {loading ? t("providers.testing") : t("providers.testAndSave")}
             </button>
           </div>
         </form>

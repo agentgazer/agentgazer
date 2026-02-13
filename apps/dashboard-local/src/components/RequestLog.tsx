@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { usePolling } from "../hooks/usePolling";
 import { relativeTime, formatCost } from "../lib/format";
@@ -35,6 +36,7 @@ interface RequestLogProps {
 }
 
 export default function RequestLog({ agentId }: RequestLogProps) {
+  const { t } = useTranslation();
   const [limit] = useState(20);
   const [selectedPayload, setSelectedPayload] = useState<PayloadData | null>(null);
   const [payloadLoading, setPayloadLoading] = useState<string | null>(null);
@@ -56,20 +58,20 @@ export default function RequestLog({ agentId }: RequestLogProps) {
       setSelectedPayload(payload);
     } catch (err) {
       if (err instanceof Error && err.message.includes("404")) {
-        setPayloadError("Payload not found. Archive may be disabled or data expired.");
+        setPayloadError(t("requestLog.payloadNotFound"));
       } else {
         setPayloadError(err instanceof Error ? err.message : "Failed to load payload");
       }
     } finally {
       setPayloadLoading(null);
     }
-  }, []);
+  }, [t]);
 
   if (loading && !data) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <h2 className="text-sm font-semibold text-gray-300">Request Log</h2>
-        <p className="mt-2 text-sm text-gray-400">Loading...</p>
+        <h2 className="text-sm font-semibold text-gray-300">{t("requestLog.title")}</h2>
+        <p className="mt-2 text-sm text-gray-400">{t("requestLog.loading")}</p>
       </div>
     );
   }
@@ -79,14 +81,14 @@ export default function RequestLog({ agentId }: RequestLogProps) {
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800">
       <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-sm font-semibold text-gray-300">Request Log</h2>
+        <h2 className="text-sm font-semibold text-gray-300">{t("requestLog.title")}</h2>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-500">Last {limit} LLM calls</span>
+          <span className="text-xs text-gray-500">{t("requestLog.lastCalls", { count: limit })}</span>
           <button
             onClick={refresh}
             disabled={loading}
             className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200 disabled:opacity-50"
-            title="Reload"
+            title={t("requestLog.reload")}
           >
             <svg
               className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -113,20 +115,20 @@ export default function RequestLog({ agentId }: RequestLogProps) {
 
       {events.length === 0 ? (
         <div className="px-4 pb-4 text-sm text-gray-400">
-          No LLM calls recorded yet.
+          {t("requestLog.noEvents")}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-t border-gray-700 bg-gray-900 text-xs uppercase text-gray-400">
-                <th className="px-4 py-2 font-medium">Time</th>
-                <th className="px-4 py-2 font-medium">Provider</th>
-                <th className="px-4 py-2 font-medium">Model</th>
-                <th className="px-4 py-2 font-medium text-right">Tokens</th>
-                <th className="px-4 py-2 font-medium text-right">Cost</th>
-                <th className="px-4 py-2 font-medium text-right">Latency</th>
-                <th className="px-4 py-2 font-medium text-center">Payload</th>
+                <th className="px-4 py-2 font-medium">{t("requestLog.time")}</th>
+                <th className="px-4 py-2 font-medium">{t("requestLog.provider")}</th>
+                <th className="px-4 py-2 font-medium">{t("requestLog.model")}</th>
+                <th className="px-4 py-2 font-medium text-right">{t("requestLog.tokens")}</th>
+                <th className="px-4 py-2 font-medium text-right">{t("requestLog.cost")}</th>
+                <th className="px-4 py-2 font-medium text-right">{t("requestLog.latency")}</th>
+                <th className="px-4 py-2 font-medium text-center">{t("requestLog.payload")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
@@ -178,7 +180,7 @@ export default function RequestLog({ agentId }: RequestLogProps) {
                         onClick={() => loadPayload(event.id)}
                         disabled={payloadLoading === event.id}
                         className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-indigo-300 disabled:opacity-50"
-                        title="View payload"
+                        title={t("requestLog.viewPayload")}
                       >
                         {payloadLoading === event.id ? (
                           <svg
@@ -241,7 +243,7 @@ export default function RequestLog({ agentId }: RequestLogProps) {
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-gray-700 px-4 py-3">
               <h3 className="text-sm font-semibold text-gray-200">
-                {payloadError ? "Error" : "Request / Response Payload"}
+                {payloadError ? t("requestLog.error") : t("requestLog.payloadTitle")}
               </h3>
               <button
                 onClick={() => {
@@ -266,40 +268,40 @@ export default function RequestLog({ agentId }: RequestLogProps) {
                 <div className="space-y-4">
                   {/* Meta info */}
                   <div className="text-xs text-gray-500">
-                    Event ID: {selectedPayload.event_id} | Size: {(selectedPayload.size_bytes / 1024).toFixed(1)} KB | {selectedPayload.created_at}
+                    {t("requestLog.eventId")} {selectedPayload.event_id} | {t("requestLog.size")} {(selectedPayload.size_bytes / 1024).toFixed(1)} KB | {selectedPayload.created_at}
                   </div>
 
                   {/* Request */}
                   <div>
                     <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      Request
+                      {t("requestLog.request")}
                       {selectedPayload.request_body && (
                         <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.request_body.length.toLocaleString()} chars)
+                          ({selectedPayload.request_body.length.toLocaleString()} {t("requestLog.chars")})
                         </span>
                       )}
                     </h4>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.request_body
                         ? formatJSON(selectedPayload.request_body)
-                        : "(No request body)"}
+                        : t("requestLog.noRequestBody")}
                     </pre>
                   </div>
 
                   {/* Response */}
                   <div>
                     <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      Response
+                      {t("requestLog.response")}
                       {selectedPayload.response_body && (
                         <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.response_body.length.toLocaleString()} chars)
+                          ({selectedPayload.response_body.length.toLocaleString()} {t("requestLog.chars")})
                         </span>
                       )}
                     </h4>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.response_body
                         ? formatJSON(selectedPayload.response_body)
-                        : "(No response body)"}
+                        : t("requestLog.noResponseBody")}
                     </pre>
                   </div>
                 </div>

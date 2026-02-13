@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { formatCost, formatNumber } from "../lib/format";
 import { usePolling } from "../hooks/usePolling";
@@ -48,6 +49,7 @@ function formatPercent(n: number): string {
 }
 
 export default function AgentDetailPage() {
+  const { t } = useTranslation();
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
   const [range, setRange] = useState<Range>("24h");
@@ -59,7 +61,7 @@ export default function AgentDetailPage() {
     if (!agentId) return;
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete agent "${agentId}"?\n\nThis action cannot be undone. All related data (events, alerts, rate limits, model rules) will be permanently deleted.`
+      t("agentDetail.deleteConfirm", { agent: agentId })
     );
 
     if (!confirmed) return;
@@ -69,7 +71,7 @@ export default function AgentDetailPage() {
       await api.delete(`/api/agents/${encodeURIComponent(agentId)}`);
       navigate("/agents");
     } catch (err) {
-      alert(`Failed to delete agent: ${err}`);
+      alert(t("agentDetail.deleteFailed", { error: String(err) }));
       setDeleting(false);
     }
   };
@@ -88,32 +90,32 @@ export default function AgentDetailPage() {
   const statCards = useMemo(() => {
     if (!data) return [];
     const cards = [
-      { label: "Total Requests", value: formatNumber(data.total_requests) },
-      { label: "Total Errors", value: formatNumber(data.total_errors) },
+      { label: t("agentDetail.totalRequests"), value: formatNumber(data.total_requests) },
+      { label: t("agentDetail.totalErrors"), value: formatNumber(data.total_errors) },
       {
-        label: "Error Rate (%)",
+        label: t("agentDetail.errorRate"),
         value: formatPercent(data.error_rate),
       },
-      { label: "Total Cost ($)", value: formatCost(data.total_cost) },
-      { label: "Tokens Used", value: formatNumber(data.total_tokens) },
+      { label: t("agentDetail.totalCost"), value: formatCost(data.total_cost) },
+      { label: t("agentDetail.tokensUsed"), value: formatNumber(data.total_tokens) },
       {
-        label: "P50 Latency (ms)",
+        label: t("agentDetail.p50Latency"),
         value: formatLatency(data.p50_latency),
       },
       {
-        label: "P99 Latency (ms)",
+        label: t("agentDetail.p99Latency"),
         value: formatLatency(data.p99_latency),
       },
     ];
     // Add blocked count if there are any
     if (data.blocked_count > 0) {
       cards.push({
-        label: "Blocked Requests",
+        label: t("agentDetail.blockedRequests"),
         value: formatNumber(data.blocked_count),
       });
     }
     return cards;
-  }, [data]);
+  }, [data, t]);
 
   if (loading && !data) return <LoadingSpinner />;
 
@@ -126,7 +128,7 @@ export default function AgentDetailPage() {
             to="/agents"
             className="rounded-md bg-gray-700 px-3 py-1.5 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 hover:text-white"
           >
-            &larr; Back
+            &larr; {t("agentDetail.back")}
           </Link>
           <h1 className="text-2xl font-bold text-white">{agentId}</h1>
         </div>
@@ -135,7 +137,7 @@ export default function AgentDetailPage() {
           disabled={deleting}
           className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50"
         >
-          {deleting ? "Deleting..." : "Delete Agent"}
+          {deleting ? t("agentDetail.deleting") : t("agentDetail.deleteAgent")}
         </button>
       </div>
 
@@ -202,7 +204,7 @@ export default function AgentDetailPage() {
           {/* Token chart */}
           <div className="mt-8 rounded-lg border border-gray-700 bg-gray-800 p-4">
             <h2 className="mb-4 text-sm font-semibold text-gray-300">
-              Token Usage Over Time
+              {t("agentDetail.tokenUsageOverTime")}
             </h2>
             <TokenBarChart series={data.token_series} />
           </div>
@@ -211,18 +213,18 @@ export default function AgentDetailPage() {
           {data.cost_by_model.length > 0 && (
             <div className="mt-8 overflow-hidden rounded-lg border border-gray-700">
               <h2 className="bg-gray-800 px-4 py-3 text-sm font-semibold text-gray-300">
-                Cost Breakdown by Model
+                {t("agentDetail.costBreakdownByModel")}
               </h2>
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="bg-gray-800 text-xs uppercase text-gray-400">
-                    <th className="px-4 py-3 font-medium">Model</th>
-                    <th className="px-4 py-3 font-medium">Provider</th>
+                    <th className="px-4 py-3 font-medium">{t("agentDetail.model")}</th>
+                    <th className="px-4 py-3 font-medium">{t("agentDetail.provider")}</th>
                     <th className="px-4 py-3 font-medium text-right">
-                      Cost ($)
+                      {t("agentDetail.cost")}
                     </th>
                     <th className="px-4 py-3 font-medium text-right">
-                      Count
+                      {t("agentDetail.count")}
                     </th>
                   </tr>
                 </thead>
@@ -255,7 +257,7 @@ export default function AgentDetailPage() {
           {data.blocked_count > 0 && Object.keys(data.block_reasons).length > 0 && (
             <div className="mt-8 overflow-hidden rounded-lg border border-gray-700">
               <h2 className="bg-gray-800 px-4 py-3 text-sm font-semibold text-gray-300">
-                Blocked Requests by Reason
+                {t("agentDetail.blockedRequestsByReason")}
               </h2>
               <div className="bg-gray-900 p-4">
                 <div className="flex flex-wrap gap-4">

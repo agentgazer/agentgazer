@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { formatCost } from "../lib/format";
 
@@ -16,6 +17,7 @@ interface PolicySettingsProps {
 }
 
 export default function PolicySettings({ agentId }: PolicySettingsProps) {
+  const { t } = useTranslation();
   const [policy, setPolicy] = useState<PolicyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +104,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
   if (loading) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <div className="animate-pulse text-gray-400">Loading policy...</div>
+        <div className="animate-pulse text-gray-400">{t("policySettings.loading")}</div>
       </div>
     );
   }
@@ -117,7 +119,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
       <h2 className="mb-4 text-sm font-semibold text-gray-300">
-        Agent Policy Settings
+        {t("policySettings.title")}
       </h2>
 
       {error && (
@@ -129,9 +131,9 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
       {/* Active Toggle */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-white">Agent Active</p>
+          <p className="text-sm font-medium text-white">{t("policySettings.agentActive")}</p>
           <p className="text-xs text-gray-400">
-            When disabled, all requests will be blocked
+            {t("policySettings.agentActiveHelp")}
           </p>
           {!active && policy?.deactivated_by === "kill_switch" && (
             <div className="mt-2 flex items-center gap-2 rounded-md border border-red-800 bg-red-900/30 px-3 py-2">
@@ -139,7 +141,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
               <span className="text-sm text-red-300">
-                Deactivated by Kill Switch due to loop detection
+                {t("policySettings.deactivatedByKillSwitch")}
               </span>
             </div>
           )}
@@ -173,7 +175,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
             htmlFor="budget-enabled"
             className="text-sm font-medium text-white"
           >
-            Daily Budget Limit
+            {t("policySettings.dailyBudgetLimit")}
           </label>
         </div>
         {budgetEnabled && (
@@ -189,11 +191,11 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
                 className="w-24 rounded-md border border-gray-600 bg-gray-700 px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
                 placeholder="10.00"
               />
-              <span className="text-sm text-gray-400">per day</span>
+              <span className="text-sm text-gray-400">{t("policySettings.perDay")}</span>
             </div>
             {policy && (
               <p className="mt-2 text-xs text-gray-400">
-                Today's spend:{" "}
+                {t("policySettings.todaysSpend")}{" "}
                 <span className="font-medium text-white">
                   {formatCost(policy.daily_spend)}
                 </span>
@@ -202,7 +204,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
                     {" "}
                     / ${policy.budget_limit.toFixed(2)}
                     {policy.daily_spend >= policy.budget_limit && (
-                      <span className="ml-2 text-red-400">(Limit reached)</span>
+                      <span className="ml-2 text-red-400">{t("policySettings.limitReached")}</span>
                     )}
                   </>
                 )}
@@ -226,7 +228,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
             htmlFor="hours-enabled"
             className="text-sm font-medium text-white"
           >
-            Allowed Operating Hours
+            {t("policySettings.allowedHours")}
           </label>
         </div>
         {hoursEnabled && (
@@ -243,7 +245,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
                   </option>
                 ))}
               </select>
-              <span className="text-gray-400">to</span>
+              <span className="text-gray-400">{t("policySettings.to")}</span>
               <select
                 value={hoursEnd}
                 onChange={(e) => setHoursEnd(e.target.value)}
@@ -257,7 +259,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
               </select>
             </div>
             <p className="mt-2 text-xs text-gray-400">
-              Server timezone: {tzString}
+              {t("policySettings.serverTimezone")} {tzString}
             </p>
           </div>
         )}
@@ -272,7 +274,7 @@ export default function PolicySettings({ agentId }: PolicySettingsProps) {
             saving ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
-          {saving ? "Saving..." : "Save Policy"}
+          {saving ? t("policySettings.saving") : t("policySettings.savePolicy")}
         </button>
       </div>
     </div>

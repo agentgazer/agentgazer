@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Tooltip,
   ResponsiveContainer,
@@ -24,6 +25,7 @@ const TIME_RANGES = [
 const CHART_COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
 
 export default function ProviderDetailPage() {
+  const { t } = useTranslation();
   const { name } = useParams<{ name: string }>();
   const navigate = useNavigate();
   const [_settings, setSettings] = useState<ProviderSettings | null>(null);
@@ -167,7 +169,7 @@ export default function ProviderDetailPage() {
     if (!name) return;
 
     const confirmed = window.confirm(
-      `Are you sure you want to delete provider "${name}"?\n\nThis will remove the API key and all provider settings.`
+      t("providerDetail.deleteConfirm", { provider: name })
     );
 
     if (!confirmed) return;
@@ -210,7 +212,7 @@ export default function ProviderDetailPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold capitalize text-white">{name}</h1>
-            <p className="text-sm text-gray-400">Provider configuration and statistics</p>
+            <p className="text-sm text-gray-400">{t("providerDetail.subtitle")}</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -219,14 +221,14 @@ export default function ProviderDetailPage() {
             disabled={validating}
             className="rounded-md bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-600 disabled:opacity-50"
           >
-            {validating ? "Testing..." : "Test Connection"}
+            {validating ? t("providerDetail.testing") : t("providerDetail.testConnection")}
           </button>
           <button
             onClick={handleDeleteProvider}
             disabled={deleting}
             className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
-            {deleting ? "Deleting..." : "Delete Provider"}
+            {deleting ? t("providerDetail.deleting") : t("providerDetail.deleteProvider")}
           </button>
         </div>
       </div>
@@ -238,19 +240,19 @@ export default function ProviderDetailPage() {
             validationResult.valid ? "bg-green-900/20 text-green-400" : "bg-red-900/20 text-red-400"
           }`}
         >
-          {validationResult.valid ? "Connection successful!" : `Connection failed: ${validationResult.error}`}
+          {validationResult.valid ? t("providerDetail.connectionSuccess") : t("providerDetail.connectionFailed", { error: validationResult.error })}
         </div>
       )}
 
       {/* Settings Section */}
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
-        <h2 className="mb-4 text-lg font-medium text-white">Settings</h2>
+        <h2 className="mb-4 text-lg font-medium text-white">{t("providerDetail.settings")}</h2>
         <div className="space-y-4">
           {/* Active Toggle */}
           <div className="flex items-center justify-between">
             <div>
-              <label className="font-medium text-white">Active</label>
-              <p className="text-sm text-gray-400">Deactivated providers block all requests (takes ~5s to take effect)</p>
+              <label className="font-medium text-white">{t("providerDetail.active")}</label>
+              <p className="text-sm text-gray-400">{t("providerDetail.activeHelp")}</p>
             </div>
             <button
               onClick={handleToggleActive}
@@ -271,8 +273,8 @@ export default function ProviderDetailPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <label className="font-medium text-white">Rate Limit</label>
-                <p className="text-sm text-gray-400">Limit requests per time window</p>
+                <label className="font-medium text-white">{t("providerDetail.rateLimit")}</label>
+                <p className="text-sm text-gray-400">{t("providerDetail.rateLimitHelp")}</p>
               </div>
               <button
                 onClick={() => setRateLimitEnabled(!rateLimitEnabled)}
@@ -290,7 +292,7 @@ export default function ProviderDetailPage() {
             {rateLimitEnabled && (
               <div className="mt-2 flex gap-4">
                 <div>
-                  <label className="block text-sm text-gray-400">Max Requests</label>
+                  <label className="block text-sm text-gray-400">{t("providerDetail.maxRequests")}</label>
                   <input
                     type="number"
                     value={maxRequests}
@@ -300,7 +302,7 @@ export default function ProviderDetailPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400">Window (seconds)</label>
+                  <label className="block text-sm text-gray-400">{t("providerDetail.windowSeconds")}</label>
                   <input
                     type="number"
                     value={windowSeconds}
@@ -320,7 +322,7 @@ export default function ProviderDetailPage() {
               disabled={savingSettings}
               className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {savingSettings ? "Saving..." : "Save Settings"}
+              {savingSettings ? t("providerDetail.saving") : t("providerDetail.saveSettings")}
             </button>
           </div>
         </div>
@@ -328,7 +330,7 @@ export default function ProviderDetailPage() {
 
       {/* Models Section */}
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
-        <h2 className="mb-4 text-lg font-medium text-white">Models</h2>
+        <h2 className="mb-4 text-lg font-medium text-white">{t("providerDetail.models")}</h2>
 
         {/* Add Model */}
         <div className="mb-4 flex gap-2">
@@ -336,7 +338,7 @@ export default function ProviderDetailPage() {
             type="text"
             value={newModelId}
             onChange={(e) => setNewModelId(e.target.value)}
-            placeholder="Enter model ID (e.g., gpt-4o-mini)"
+            placeholder={t("providerDetail.enterModelId")}
             className="flex-1 rounded border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500"
           />
           <button
@@ -344,7 +346,7 @@ export default function ProviderDetailPage() {
             disabled={testingModel || !newModelId.trim()}
             className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {testingModel ? "Testing..." : "Test & Add"}
+            {testingModel ? t("providerDetail.testing") : t("providerDetail.testAndAdd")}
           </button>
         </div>
 
@@ -354,7 +356,7 @@ export default function ProviderDetailPage() {
               modelTestResult.success ? "bg-green-900/20 text-green-400" : "bg-red-900/20 text-red-400"
             }`}
           >
-            {modelTestResult.success ? "Model verified and added!" : `Failed: ${modelTestResult.error}`}
+            {modelTestResult.success ? t("providerDetail.modelVerified") : t("providerDetail.modelFailed", { error: modelTestResult.error })}
           </div>
         )}
 
@@ -369,12 +371,12 @@ export default function ProviderDetailPage() {
                 <span className="text-white">{model.id}</span>
                 {model.verified && (
                   <span className="rounded-full bg-green-900/30 px-2 py-0.5 text-xs text-green-400">
-                    Verified
+                    {t("providerDetail.verified")}
                   </span>
                 )}
                 {model.custom && (
                   <span className="rounded-full bg-blue-900/30 px-2 py-0.5 text-xs text-blue-400">
-                    Custom
+                    {t("providerDetail.custom")}
                   </span>
                 )}
               </div>
@@ -391,7 +393,7 @@ export default function ProviderDetailPage() {
             </div>
           ))}
           {models.length === 0 && (
-            <p className="text-center text-gray-500">No models available</p>
+            <p className="text-center text-gray-500">{t("providerDetail.noModels")}</p>
           )}
         </div>
       </div>
@@ -399,7 +401,7 @@ export default function ProviderDetailPage() {
       {/* Stats Section */}
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-white">Usage Statistics</h2>
+          <h2 className="text-lg font-medium text-white">{t("providerDetail.usageStatistics")}</h2>
           <div className="flex gap-1">
             {TIME_RANGES.map((range) => (
               <button
@@ -419,14 +421,14 @@ export default function ProviderDetailPage() {
 
         {/* Stats Cards */}
         <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <StatCard label="Total Requests" value={stats?.total_requests ?? 0} />
+          <StatCard label={t("providerDetail.totalRequests")} value={stats?.total_requests ?? 0} />
           <StatCard
-            label="Total Tokens"
+            label={t("providerDetail.totalTokens")}
             value={stats?.total_tokens ?? 0}
             format={(v) => v.toLocaleString()}
           />
           <StatCard
-            label="Total Cost"
+            label={t("providerDetail.totalCost")}
             value={stats?.total_cost ?? 0}
             format={(v) => `$${v.toFixed(4)}`}
           />
@@ -435,7 +437,7 @@ export default function ProviderDetailPage() {
         {/* Cost by Model Chart */}
         {stats?.by_model && stats.by_model.length > 0 && (
           <div>
-            <h3 className="mb-2 text-sm font-medium text-gray-400">Cost by Model</h3>
+            <h3 className="mb-2 text-sm font-medium text-gray-400">{t("providerDetail.costByModel")}</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

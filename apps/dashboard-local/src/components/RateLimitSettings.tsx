@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 
 // Provider names for rate limit configuration
@@ -30,6 +31,7 @@ interface RateLimitSettingsProps {
 }
 
 export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
+  const { t } = useTranslation();
   const [rateLimits, setRateLimits] = useState<RateLimit[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
         setPendingChanges({});
         setError(null);
       } catch (err) {
-        setError("Failed to load rate limit settings");
+        setError(t("rateLimits.loadFailed"));
         console.error(err);
       } finally {
         setLoading(false);
@@ -103,7 +105,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
       });
       setError(null);
     } catch (err) {
-      setError("Failed to update rate limit");
+      setError(t("rateLimits.updateFailed"));
       console.error(err);
     } finally {
       setSaving(null);
@@ -130,7 +132,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
       });
       setError(null);
     } catch (err) {
-      setError("Failed to remove rate limit");
+      setError(t("rateLimits.removeFailed"));
       console.error(err);
     } finally {
       setSaving(null);
@@ -143,7 +145,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
     const maxReq = parseInt(newMaxRequests, 10);
     const windowSec = parseInt(newWindowSeconds, 10);
     if (isNaN(maxReq) || maxReq <= 0 || isNaN(windowSec) || windowSec <= 0) {
-      setError("Invalid rate limit values");
+      setError(t("rateLimits.invalidValues"));
       return;
     }
 
@@ -167,7 +169,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
       setNewWindowSeconds("60");
       setError(null);
     } catch (err) {
-      setError("Failed to add rate limit");
+      setError(t("rateLimits.addFailed"));
       console.error(err);
     } finally {
       setSaving(null);
@@ -177,17 +179,17 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
   if (loading) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <h2 className="text-sm font-semibold text-gray-300">Rate Limits</h2>
-        <p className="mt-2 text-sm text-gray-400">Loading...</p>
+        <h2 className="text-sm font-semibold text-gray-300">{t("rateLimits.title")}</h2>
+        <p className="mt-2 text-sm text-gray-400">{t("rateLimits.loading")}</p>
       </div>
     );
   }
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-      <h2 className="text-sm font-semibold text-gray-300">Rate Limits</h2>
+      <h2 className="text-sm font-semibold text-gray-300">{t("rateLimits.title")}</h2>
       <p className="mt-1 text-xs text-gray-500">
-        Limit requests per provider for this agent. Requests exceeding the limit will receive a 429 response.
+        {t("rateLimits.description")}
       </p>
 
       {error && (
@@ -215,7 +217,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
                   </span>
                   {hasPendingChange && (
                     <span className="ml-2 rounded bg-yellow-900 px-2 py-0.5 text-xs text-yellow-200">
-                      Unsaved
+                      {t("rateLimits.unsaved")}
                     </span>
                   )}
                 </div>
@@ -224,7 +226,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
                   disabled={isSaving}
                   className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
                 >
-                  Remove
+                  {t("rateLimits.remove")}
                 </button>
               </div>
 
@@ -237,7 +239,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
                   onChange={(e) => handleChange(rl.provider, "max_requests", e.target.value)}
                   disabled={isSaving}
                 />
-                <span className="text-xs text-gray-400">requests per</span>
+                <span className="text-xs text-gray-400">{t("rateLimits.requestsPer")}</span>
                 <input
                   type="number"
                   min="1"
@@ -246,7 +248,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
                   onChange={(e) => handleChange(rl.provider, "window_seconds", e.target.value)}
                   disabled={isSaving}
                 />
-                <span className="text-xs text-gray-400">seconds</span>
+                <span className="text-xs text-gray-400">{t("rateLimits.seconds")}</span>
 
                 {hasPendingChange && (
                   <>
@@ -256,7 +258,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
                       disabled={isSaving}
                       className="ml-2 rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
                     >
-                      {isSaving ? "Applying..." : "Apply"}
+                      {isSaving ? t("rateLimits.applying") : t("rateLimits.apply")}
                     </button>
                     <button
                       type="button"
@@ -264,7 +266,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
                       disabled={isSaving}
                       className="rounded-md border border-gray-600 px-3 py-1 text-xs font-medium text-gray-300 hover:bg-gray-700 disabled:opacity-50"
                     >
-                      Cancel
+                      {t("rateLimits.cancel")}
                     </button>
                   </>
                 )}
@@ -275,7 +277,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
 
         {rateLimits.length === 0 && !showAddForm && (
           <p className="text-sm text-gray-400">
-            No rate limits configured. Add one to limit request frequency.
+            {t("rateLimits.noLimits")}
           </p>
         )}
 
@@ -287,7 +289,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
                 value={newProvider}
                 onChange={(e) => setNewProvider(e.target.value)}
               >
-                <option value="">Select provider</option>
+                <option value="">{t("rateLimits.selectProvider")}</option>
                 {availableProviders.map((p) => (
                   <option key={p} value={p}>
                     {p}
@@ -297,35 +299,35 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
               <input
                 type="number"
                 min="1"
-                placeholder="Max requests"
+                placeholder={t("rateLimits.maxRequests")}
                 className="w-20 rounded-md border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-white focus:border-indigo-500 focus:outline-none"
                 value={newMaxRequests}
                 onChange={(e) => setNewMaxRequests(e.target.value)}
               />
-              <span className="text-xs text-gray-400">per</span>
+              <span className="text-xs text-gray-400">{t("rateLimits.per")}</span>
               <input
                 type="number"
                 min="1"
-                placeholder="Seconds"
+                placeholder={t("rateLimits.seconds")}
                 className="w-20 rounded-md border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-white focus:border-indigo-500 focus:outline-none"
                 value={newWindowSeconds}
                 onChange={(e) => setNewWindowSeconds(e.target.value)}
               />
-              <span className="text-xs text-gray-400">sec</span>
+              <span className="text-xs text-gray-400">{t("rateLimits.sec")}</span>
               <button
                 type="button"
                 onClick={handleAdd}
                 disabled={!newProvider || saving === newProvider}
                 className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
               >
-                Add
+                {t("rateLimits.add")}
               </button>
               <button
                 type="button"
                 onClick={() => setShowAddForm(false)}
                 className="rounded-md border border-gray-600 px-3 py-1 text-xs font-medium text-gray-300 hover:bg-gray-700"
               >
-                Cancel
+                {t("rateLimits.cancel")}
               </button>
             </div>
           </div>
@@ -340,7 +342,7 @@ export default function RateLimitSettings({ agentId }: RateLimitSettingsProps) {
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Add Rate Limit
+            {t("rateLimits.addRateLimit")}
           </button>
         )}
       </div>

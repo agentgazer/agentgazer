@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 
 interface ProviderInfo {
@@ -43,6 +44,7 @@ function parseModelValue(value: string | null, defaultProvider: string): { provi
 }
 
 export default function ModelSettings({ agentId }: ModelSettingsProps) {
+  const { t } = useTranslation();
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [selectableModels, setSelectableModels] = useState<Record<string, string[]>>({});
   const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
@@ -72,7 +74,7 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
         setPendingChanges({});
         setError(null);
       } catch (err) {
-        setError("Failed to load model settings");
+        setError(t("modelSettings.loadFailed"));
         console.error(err);
       } finally {
         setLoading(false);
@@ -130,7 +132,7 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
       });
       setError(null);
     } catch (err) {
-      setError("Failed to update model override");
+      setError(t("modelSettings.updateFailed"));
       console.error(err);
     } finally {
       setSaving(null);
@@ -170,8 +172,8 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
   if (loading) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <h2 className="text-sm font-semibold text-gray-300">Model Settings</h2>
-        <p className="mt-2 text-sm text-gray-400">Loading...</p>
+        <h2 className="text-sm font-semibold text-gray-300">{t("modelSettings.title")}</h2>
+        <p className="mt-2 text-sm text-gray-400">{t("modelSettings.loading")}</p>
       </div>
     );
   }
@@ -179,9 +181,9 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
   if (providers.length === 0) {
     return (
       <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-        <h2 className="text-sm font-semibold text-gray-300">Model Settings</h2>
+        <h2 className="text-sm font-semibold text-gray-300">{t("modelSettings.title")}</h2>
         <p className="mt-2 text-sm text-gray-400">
-          No providers detected yet. Make some LLM calls through the proxy to see provider options here.
+          {t("modelSettings.noProviders")}
         </p>
       </div>
     );
@@ -198,9 +200,9 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
 
   return (
     <div className="rounded-lg border border-gray-700 bg-gray-800 p-4">
-      <h2 className="text-sm font-semibold text-gray-300">Model Settings</h2>
+      <h2 className="text-sm font-semibold text-gray-300">{t("modelSettings.title")}</h2>
       <p className="mt-1 text-xs text-gray-500">
-        Override the model for requests. Select models from any provider - cross-provider routing is supported.
+        {t("modelSettings.description")}
       </p>
 
       {error && (
@@ -228,7 +230,7 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
                   </span>
                   {p.default_model && (
                     <span className="ml-2 text-xs text-gray-400">
-                      (from agent default: {p.default_model})
+                      {t("modelSettings.fromDefault", { model: p.default_model })}
                     </span>
                   )}
                   {displayValue && !hasPendingChange && (
@@ -237,19 +239,19 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
                         ? "bg-purple-900 text-purple-200"
                         : "bg-indigo-900 text-indigo-200"
                     }`}>
-                      {crossProvider ? "Cross-provider override" : "Override active"}
+                      {crossProvider ? t("modelSettings.crossProviderOverride") : t("modelSettings.overrideActive")}
                     </span>
                   )}
                   {hasPendingChange && (
                     <span className="ml-2 rounded bg-yellow-900 px-2 py-0.5 text-xs text-yellow-200">
-                      Unsaved
+                      {t("modelSettings.unsaved")}
                     </span>
                   )}
                 </div>
               </div>
 
               <div className="mt-2">
-                <label className="text-xs text-gray-400">Model Override</label>
+                <label className="text-xs text-gray-400">{t("modelSettings.modelOverride")}</label>
                 <div className="mt-1 flex gap-2">
                   <select
                     className="block flex-1 rounded-md border border-gray-600 bg-gray-800 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
@@ -257,7 +259,7 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
                     onChange={(e) => handleDropdownChange(p.provider, e.target.value || null)}
                     disabled={isSaving}
                   >
-                    <option value="">None (use agent default)</option>
+                    <option value="">{t("modelSettings.noneDefault")}</option>
                     {allProviders.map((providerKey) => {
                       const models = selectableModels[providerKey] ?? [];
                       if (models.length === 0) return null;
@@ -287,7 +289,7 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
                         disabled={isSaving}
                         className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
                       >
-                        {isSaving ? "Applying..." : "Apply"}
+                        {isSaving ? t("modelSettings.applying") : t("modelSettings.apply")}
                       </button>
                       <button
                         type="button"
@@ -295,14 +297,14 @@ export default function ModelSettings({ agentId }: ModelSettingsProps) {
                         disabled={isSaving}
                         className="rounded-md border border-gray-600 px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
                       >
-                        Cancel
+                        {t("modelSettings.cancel")}
                       </button>
                     </>
                   )}
                 </div>
                 {crossProvider && !hasPendingChange && (
                   <p className="mt-1 text-xs text-purple-400">
-                    Requests will be transformed and routed to {PROVIDER_DISPLAY_NAMES[p.target_provider ?? ""] ?? p.target_provider}
+                    {t("modelSettings.routedTo", { provider: PROVIDER_DISPLAY_NAMES[p.target_provider ?? ""] ?? p.target_provider })}
                   </p>
                 )}
               </div>
