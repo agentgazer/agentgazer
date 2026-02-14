@@ -3,6 +3,7 @@ import { render } from "ink";
 import { Overview } from "../tui/Overview.js";
 
 export async function cmdOverview(port: number = 8080): Promise<void> {
-  const { waitUntilExit } = render(React.createElement(Overview, { port }));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { waitUntilExit } = render(React.createElement(Overview, { port }) as any);
   await waitUntilExit();
 }

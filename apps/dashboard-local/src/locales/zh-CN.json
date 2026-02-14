@@ -166,7 +166,19 @@
       "creditCards": "信用卡号",
       "personalData": "个人数据（身份证、邮箱、电话）",
       "cryptoWallets": "加密钱包和密钥",
-      "envVars": "环境变量"
+      "envVars": "环境变量",
+      "hardwareFingerprint": "硬件指纹检测"
+    },
+    "selfProtection": {
+      "title": "自我保护",
+      "subtitle": "保护 AgentGazer 内部数据免受恶意代理访问",
+      "alwaysEnabled": "始终启用",
+      "description": "自我保护功能自动启用，防止代理访问或操纵 AgentGazer 的内部数据。此保护功能无法禁用。",
+      "configAccess": "阻止访问 ~/.agentgazer/ 配置文件",
+      "databaseAccess": "阻止访问 AgentGazer 数据库 (data.db)",
+      "secretsAccess": "阻止访问存储的密钥和 API 密钥",
+      "sqlInjection": "阻止针对 AgentGazer 表的 SQL 注入尝试",
+      "note": "违规行为将被自动阻止并记录为 'self_protection' 类型的安全事件。"
     },
     "toolRestrictions": {
       "title": "工具调用限制",

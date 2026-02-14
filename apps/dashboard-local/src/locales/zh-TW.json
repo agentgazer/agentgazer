@@ -166,7 +166,19 @@
       "creditCards": "信用卡號",
       "personalData": "個人資料（身分證、電子郵件、電話）",
       "cryptoWallets": "加密錢包和金鑰",
-      "envVars": "環境變數"
+      "envVars": "環境變數",
+      "hardwareFingerprint": "硬體指紋偵測"
+    },
+    "selfProtection": {
+      "title": "自我保護",
+      "subtitle": "保護 AgentGazer 內部資料免受惡意代理存取",
+      "alwaysEnabled": "始終啟用",
+      "description": "自我保護功能自動啟用，防止代理存取或操縱 AgentGazer 的內部資料。此保護功能無法停用。",
+      "configAccess": "阻止存取 ~/.agentgazer/ 設定檔",
+      "databaseAccess": "阻止存取 AgentGazer 資料庫 (data.db)",
+      "secretsAccess": "阻止存取儲存的金鑰和 API 金鑰",
+      "sqlInjection": "阻止針對 AgentGazer 資料表的 SQL 注入嘗試",
+      "note": "違規行為將被自動阻止並記錄為 'self_protection' 類型的安全事件。"
     },
     "toolRestrictions": {
       "title": "工具呼叫限制",

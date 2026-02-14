@@ -20,6 +20,7 @@ interface DataMaskingRules {
   personal_data: boolean;
   crypto: boolean;
   env_vars: boolean;
+  hardware_fingerprint: boolean;
 }
 
 interface ToolRestrictionsRules {
@@ -324,6 +325,7 @@ export default function SecurityPage() {
           personal_data: newValue,
           crypto: newValue,
           env_vars: newValue,
+          hardware_fingerprint: newValue,
         },
       },
     };
@@ -397,6 +399,50 @@ export default function SecurityPage() {
 
       {tab === "config" && config && (
         <div className="space-y-6">
+          {/* Self Protection - Always enabled */}
+          <div className="rounded-lg border border-green-800 bg-green-950/30 p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🔐</span>
+                <div>
+                  <h2 className="text-lg font-medium text-white">
+                    {t("security.selfProtection.title")}
+                  </h2>
+                  <p className="text-sm text-gray-400">
+                    {t("security.selfProtection.subtitle")}
+                  </p>
+                </div>
+              </div>
+              <span className="rounded-full bg-green-600 px-3 py-1 text-xs font-medium text-white">
+                {t("security.selfProtection.alwaysEnabled")}
+              </span>
+            </div>
+            <div className="mt-4 pl-10 space-y-2">
+              <p className="text-sm text-gray-300">{t("security.selfProtection.description")}</p>
+              <ul className="mt-2 space-y-1 text-sm text-gray-400">
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  {t("security.selfProtection.configAccess")}
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  {t("security.selfProtection.databaseAccess")}
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  {t("security.selfProtection.secretsAccess")}
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">✓</span>
+                  {t("security.selfProtection.sqlInjection")}
+                </li>
+              </ul>
+              <p className="mt-3 text-xs text-gray-500">
+                {t("security.selfProtection.note")}
+              </p>
+            </div>
+          </div>
+
           {/* Prompt Injection Detection */}
           <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
             <div className="flex items-center justify-between">
@@ -551,6 +597,11 @@ export default function SecurityPage() {
                 label={t("security.dataMasking.envVars")}
                 checked={config.data_masking.rules.env_vars}
                 onChange={() => toggleDataMaskingRule("env_vars")}
+              />
+              <ToggleRow
+                label={t("security.dataMasking.hardwareFingerprint")}
+                checked={config.data_masking.rules.hardware_fingerprint}
+                onChange={() => toggleDataMaskingRule("hardware_fingerprint")}
               />
               <CustomPatternEditor
                 patterns={config.data_masking.custom}

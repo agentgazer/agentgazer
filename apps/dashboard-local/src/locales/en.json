@@ -166,7 +166,19 @@
       "creditCards": "Credit Card Numbers",
       "personalData": "Personal Data (SSN, Email, Phone)",
       "cryptoWallets": "Crypto Wallets & Keys",
-      "envVars": "Environment Variables"
+      "envVars": "Environment Variables",
+      "hardwareFingerprint": "Hardware Fingerprint Detection"
+    },
+    "selfProtection": {
+      "title": "Self Protection",
+      "subtitle": "Protect AgentGazer internal data from malicious agents",
+      "alwaysEnabled": "Always Enabled",
+      "description": "Self Protection is automatically enabled to prevent agents from accessing or manipulating AgentGazer's internal data. This protection cannot be disabled.",
+      "configAccess": "Block access to ~/.agentgazer/ configuration files",
+      "databaseAccess": "Block access to AgentGazer database (data.db)",
+      "secretsAccess": "Block access to stored secrets and API keys",
+      "sqlInjection": "Block SQL injection attempts against AgentGazer tables",
+      "note": "Violations are automatically blocked and logged as security events with 'self_protection' type."
     },
     "toolRestrictions": {
       "title": "Tool Call Restrictions",
