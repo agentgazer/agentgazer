@@ -1,7 +1,7 @@
 import { apiGet, apiPost, apiPut, apiDelete, handleApiError } from "../utils/api.js";
 import { formatNumber, formatCurrency, formatLatency, timeAgo } from "../utils/format.js";
 import { confirm, selectProvider } from "../utils/prompt.js";
-import { readConfig, getAlertDefaults, updateAlertDefaults } from "../config.js";
+import { readConfig, getAlertDefaults, updateAlertDefaults, getServerPort } from "../config.js";
 
 interface StatsResponse {
   total_requests: number;
@@ -51,7 +51,7 @@ export async function cmdAgent(
   args: string[],
   flags: Record<string, string>,
 ): Promise<void> {
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  const port = flags["port"] ? parseInt(flags["port"], 10) : getServerPort();
 
   if (!name) {
     console.error("Usage: agentgazer agent <name> <action>");

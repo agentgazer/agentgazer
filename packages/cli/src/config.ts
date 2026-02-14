@@ -208,6 +208,12 @@ export function saveConfig(config: AgentGazerConfig): void {
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
 }
 
+/** Get the server port from config, or return default 18880 */
+export function getServerPort(): number {
+  const config = readConfig();
+  return config?.server?.port ?? 18880;
+}
+
 export function setProvider(
   name: string,
   providerConfig: ProviderConfig
@@ -251,22 +257,6 @@ export function resetToken(): AgentGazerConfig {
 // ---------------------------------------------------------------------------
 // Helper functions for accessing config values with defaults
 // ---------------------------------------------------------------------------
-
-export function getServerPort(config: AgentGazerConfig | null): number {
-  return config?.server?.port ?? 18880;
-}
-
-export function getProxyPort(config: AgentGazerConfig | null): number {
-  return config?.server?.proxyPort ?? 18900;
-}
-
-export function getAutoOpen(config: AgentGazerConfig | null): boolean {
-  return config?.server?.autoOpen ?? true;
-}
-
-export function getRetentionDays(config: AgentGazerConfig | null): number {
-  return config?.data?.retentionDays ?? 30;
-}
 
 export function getAlertDefaults(config: AgentGazerConfig | null): AlertDefaults {
   return config?.alerts?.defaults ?? {};

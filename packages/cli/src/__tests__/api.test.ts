@@ -28,7 +28,7 @@ describe("API utilities", () => {
 
       expect(result.data).toBe("test");
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://localhost:8080/api/test",
+        "http://localhost:18880/api/test",
         expect.objectContaining({
           headers: { Authorization: "Bearer test-token" },
         }),
@@ -74,7 +74,7 @@ describe("API utilities", () => {
 
       expect(result.success).toBe(true);
       expect(global.fetch).toHaveBeenCalledWith(
-        "http://localhost:8080/api/test",
+        "http://localhost:18880/api/test",
         expect.objectContaining({
           method: "POST",
           headers: {

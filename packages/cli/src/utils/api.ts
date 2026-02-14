@@ -5,7 +5,7 @@ export interface ApiError {
   message: string;
 }
 
-export async function apiGet<T>(urlPath: string, port: number = 8080): Promise<T> {
+export async function apiGet<T>(urlPath: string, port: number = 18880): Promise<T> {
   const config = readConfig();
   const token = config?.token ?? "";
   try {
@@ -30,7 +30,7 @@ export async function apiGet<T>(urlPath: string, port: number = 8080): Promise<T
   }
 }
 
-export async function apiPost<T>(urlPath: string, body: unknown, port: number = 8080): Promise<T> {
+export async function apiPost<T>(urlPath: string, body: unknown, port: number = 18880): Promise<T> {
   const config = readConfig();
   const token = config?.token ?? "";
   try {
@@ -60,7 +60,7 @@ export async function apiPost<T>(urlPath: string, body: unknown, port: number = 
   }
 }
 
-export async function apiPut<T>(urlPath: string, body: unknown, port: number = 8080): Promise<T> {
+export async function apiPut<T>(urlPath: string, body: unknown, port: number = 18880): Promise<T> {
   const config = readConfig();
   const token = config?.token ?? "";
   try {
@@ -90,7 +90,7 @@ export async function apiPut<T>(urlPath: string, body: unknown, port: number = 8
   }
 }
 
-export async function apiDelete<T>(urlPath: string, port: number = 8080): Promise<T> {
+export async function apiDelete<T>(urlPath: string, port: number = 18880): Promise<T> {
   const config = readConfig();
   const token = config?.token ?? "";
   try {

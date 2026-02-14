@@ -1,7 +1,7 @@
 import { apiGet, apiPut, apiDelete, handleApiError } from "../utils/api.js";
 import { formatNumber, formatCurrency } from "../utils/format.js";
 import { confirm, selectProvider, inputApiKey } from "../utils/prompt.js";
-import { getConfigDir, setProvider, type ProviderConfig } from "../config.js";
+import { getConfigDir, setProvider, getServerPort, type ProviderConfig } from "../config.js";
 import { detectSecretStore, PROVIDER_SERVICE } from "../secret-store.js";
 import {
   KNOWN_PROVIDER_NAMES,
@@ -26,7 +26,7 @@ interface ModelInfo {
 }
 
 export async function cmdProvider(action: string, args: string[], flags: Record<string, string>): Promise<void> {
-  const port = flags["port"] ? parseInt(flags["port"], 10) : 8080;
+  const port = flags["port"] ? parseInt(flags["port"], 10) : getServerPort();
 
   switch (action) {
     case "add":
