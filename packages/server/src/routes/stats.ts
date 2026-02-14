@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type Database from "better-sqlite3";
 import type { EventRow } from "../db.js";
+import { getModelPricing, calculateCost } from "@agentgazer/shared";
 
 const router = Router();
 
@@ -284,6 +285,213 @@ router.get("/api/stats/:agentId", (req, res) => {
     token_series: tokenSeries,
     blocked_count: blockedCount,
     block_reasons: blockReasons,
+  });
+});
+
+// GET /api/stats/tokens - Token usage for MCP
+router.get("/api/stats/tokens", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const agentId = req.query.agentId as string | undefined;
+  const period = req.query.period as string | undefined;
+  const model = req.query.model as string | undefined;
+
+  // Build time range from period
+  const now = new Date();
+  let fromTime: Date;
+  switch (period) {
+    case "today":
+      fromTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+    case "7d":
+      fromTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case "30d":
+      fromTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      // All time - use epoch
+      fromTime = new Date(0);
+  }
+
+  const conditions: string[] = [
+    "(event_type = 'llm_call' OR event_type = 'completion')",
+    "timestamp >= ?",
+  ];
+  const params: unknown[] = [fromTime.toISOString()];
+
+  if (agentId) {
+    conditions.push("agent_id = ?");
+    params.push(agentId);
+  }
+  if (model) {
+    conditions.push("model = ?");
+    params.push(model);
+  }
+
+  const where = `WHERE ${conditions.join(" AND ")}`;
+
+  const result = db
+    .prepare(
+      `SELECT
+         COALESCE(SUM(tokens_in), 0) AS inputTokens,
+         COALESCE(SUM(tokens_out), 0) AS outputTokens
+       FROM agent_events
+       ${where}`,
+    )
+    .get(...params) as { inputTokens: number; outputTokens: number };
+
+  res.json(result);
+});
+
+// GET /api/stats/cost - Cost for MCP
+router.get("/api/stats/cost", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const agentId = req.query.agentId as string | undefined;
+  const period = req.query.period as string | undefined;
+  const breakdown = req.query.breakdown === "true";
+
+  // Build time range from period
+  const now = new Date();
+  let fromTime: Date;
+  switch (period) {
+    case "today":
+      fromTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      break;
+    case "7d":
+      fromTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    case "30d":
+      fromTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    default:
+      fromTime = new Date(0);
+  }
+
+  const conditions: string[] = [
+    "(event_type = 'llm_call' OR event_type = 'completion')",
+    "timestamp >= ?",
+  ];
+  const params: unknown[] = [fromTime.toISOString()];
+
+  if (agentId) {
+    conditions.push("agent_id = ?");
+    params.push(agentId);
+  }
+
+  const where = `WHERE ${conditions.join(" AND ")}`;
+
+  const totalResult = db
+    .prepare(
+      `SELECT COALESCE(SUM(cost_usd), 0) AS totalCost
+       FROM agent_events
+       ${where}`,
+    )
+    .get(...params) as { totalCost: number };
+
+  const response: {
+    totalCost: number;
+    currency: string;
+    breakdown?: Array<{ model: string; cost: number }>;
+  } = {
+    totalCost: totalResult.totalCost,
+    currency: "USD",
+  };
+
+  if (breakdown) {
+    const breakdownRows = db
+      .prepare(
+        `SELECT
+           COALESCE(model, 'unknown') AS model,
+           COALESCE(SUM(cost_usd), 0) AS cost
+         FROM agent_events
+         ${where}
+         GROUP BY model
+         ORDER BY cost DESC`,
+      )
+      .all(...params) as Array<{ model: string; cost: number }>;
+    response.breakdown = breakdownRows;
+  }
+
+  res.json(response);
+});
+
+// GET /api/stats/budget - Budget status for MCP
+router.get("/api/stats/budget", (req, res) => {
+  const db = req.app.locals.db as Database.Database;
+  const agentId = req.query.agentId as string | undefined;
+
+  // Get total spent
+  const conditions: string[] = [
+    "(event_type = 'llm_call' OR event_type = 'completion')",
+  ];
+  const params: unknown[] = [];
+
+  if (agentId) {
+    conditions.push("agent_id = ?");
+    params.push(agentId);
+  }
+
+  const where = `WHERE ${conditions.join(" AND ")}`;
+
+  const totalResult = db
+    .prepare(
+      `SELECT COALESCE(SUM(cost_usd), 0) AS used
+       FROM agent_events
+       ${where}`,
+    )
+    .get(...params) as { used: number };
+
+  // Check if there's a budget limit for this agent
+  // For now, we don't have budget limits in the schema, so return no limit
+  // This can be extended when budget alerts are implemented
+  const response: {
+    hasLimit: boolean;
+    limit?: number;
+    used: number;
+    remaining?: number;
+    percentageUsed?: number;
+  } = {
+    hasLimit: false,
+    used: totalResult.used,
+  };
+
+  // TODO: Read budget limit from agent settings when implemented
+  // const agentSettings = db.prepare("SELECT budget_limit FROM agents WHERE id = ?").get(agentId);
+  // if (agentSettings?.budget_limit) {
+  //   response.hasLimit = true;
+  //   response.limit = agentSettings.budget_limit;
+  //   response.remaining = response.limit - response.used;
+  //   response.percentageUsed = (response.used / response.limit) * 100;
+  // }
+
+  res.json(response);
+});
+
+// POST /api/stats/estimate - Estimate cost for MCP
+router.post("/api/stats/estimate", (req, res) => {
+  const { model, inputTokens, outputTokens } = req.body as {
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+  };
+
+  if (!model || inputTokens === undefined || outputTokens === undefined) {
+    res.status(400).json({ error: "model, inputTokens, and outputTokens are required" });
+    return;
+  }
+
+  const pricing = getModelPricing(model);
+  if (!pricing) {
+    res.status(404).json({ error: `Model '${model}' not found in pricing table` });
+    return;
+  }
+
+  const estimatedCost = calculateCost(model, inputTokens, outputTokens);
+
+  res.json({
+    model,
+    estimatedCost,
+    currency: "USD",
   });
 });
 

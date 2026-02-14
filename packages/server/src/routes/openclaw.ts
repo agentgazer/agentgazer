@@ -23,6 +23,12 @@ function getOpenclawConfigPath(): string {
   return path.join(os.homedir(), ".openclaw", "openclaw.json");
 }
 
+interface McpServerConfig {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
 interface OpenclawConfig {
   models?: {
     mode?: string;
@@ -38,6 +44,7 @@ interface OpenclawConfig {
     };
     [key: string]: unknown;
   };
+  mcpServers?: Record<string, McpServerConfig>;
   [key: string]: unknown;
 }
 
@@ -50,7 +57,7 @@ export function createOpenclawRouter(): Router {
 
     try {
       if (!fs.existsSync(configPath)) {
-        res.json({ exists: false, models: null, agents: null });
+        res.json({ exists: false, models: null, agents: null, mcpServers: null });
         return;
       }
 
@@ -62,6 +69,7 @@ export function createOpenclawRouter(): Router {
           exists: true,
           models: config.models ?? null,
           agents: config.agents ?? null,
+          mcpServers: config.mcpServers ?? null,
         });
       } catch {
         // JSON parse error
@@ -76,17 +84,18 @@ export function createOpenclawRouter(): Router {
     }
   });
 
-  // PUT /api/openclaw/config - update models and/or agents key in OpenClaw config
+  // PUT /api/openclaw/config - update models, agents, and/or mcpServers in OpenClaw config
   router.put("/config", requireLoopback, (req: Request, res: Response) => {
     const configPath = getOpenclawConfigPath();
     const configDir = path.dirname(configPath);
-    const { models, agents } = req.body as {
+    const { models, agents, mcpServers } = req.body as {
       models?: OpenclawConfig["models"];
       agents?: OpenclawConfig["agents"];
+      mcpServers?: Record<string, McpServerConfig>;
     };
 
-    if (!models && !agents) {
-      res.status(400).json({ error: "models or agents is required" });
+    if (!models && !agents && !mcpServers) {
+      res.status(400).json({ error: "models, agents, or mcpServers is required" });
       return;
     }
 
@@ -121,6 +130,14 @@ export function createOpenclawRouter(): Router {
         config.agents.defaults.model = {
           ...config.agents.defaults.model,
           ...agents.defaults.model,
+        };
+      }
+
+      // Update mcpServers if provided (deep merge - preserve existing servers)
+      if (mcpServers) {
+        config.mcpServers = {
+          ...config.mcpServers,
+          ...mcpServers,
         };
       }
 

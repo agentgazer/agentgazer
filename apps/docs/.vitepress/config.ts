@@ -81,6 +81,7 @@ export default defineConfig({
               text: "Integration",
               items: [
                 { text: "OpenClaw", link: "/en/guide/openclaw" },
+                { text: "MCP Server", link: "/en/guide/mcp" },
               ],
             },
             {
@@ -145,6 +146,7 @@ export default defineConfig({
               text: "整合指南",
               items: [
                 { text: "OpenClaw", link: "/zh/guide/openclaw" },
+                { text: "MCP Server", link: "/zh/guide/mcp" },
               ],
             },
             {

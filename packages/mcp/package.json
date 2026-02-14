@@ -1,0 +1,59 @@
+{
+  "name": "@agentgazer/mcp",
+  "version": "0.5.5",
+  "description": "AgentGazer MCP server for AI agent cost awareness",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "agentgazer-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agentgazer/agentgazer.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/agentgazer/agentgazer/tree/main/packages/mcp#readme",
+  "bugs": {
+    "url": "https://github.com/agentgazer/agentgazer/issues"
+  },
+  "keywords": [
+    "agentgazer",
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "observability",
+    "cost-awareness"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc && chmod +x dist/cli.js",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^4.0.18"
+  }
+}
