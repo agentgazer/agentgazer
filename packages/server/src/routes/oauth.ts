@@ -97,6 +97,190 @@ function generateCodeChallenge(verifier: string): string {
   return hash.toString("base64url");
 }
 
+// MiniMax device code flow state
+interface MiniMaxPendingFlow {
+  codeVerifier: string;
+  state: string;
+  userCode: string;
+  expiresAt: number;
+  interval: number;
+  createdAt: number;
+}
+const minimaxPendingFlows = new Map<string, MiniMaxPendingFlow>();
+
+// Clean up old MiniMax flows
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, flow] of minimaxPendingFlows.entries()) {
+    if (now > flow.expiresAt) {
+      minimaxPendingFlows.delete(sessionId);
+    }
+  }
+}, 60_000);
+
+/**
+ * Handle MiniMax OAuth start - uses device code flow.
+ */
+async function handleMiniMaxOAuthStart(
+  req: Request,
+  res: Response,
+  secretStore: SecretStore
+): Promise<void> {
+  const config = OAUTH_CONFIG["minimax-oauth"];
+  const region = (req.body?.region as string) === "cn" ? "cn" : "global";
+  const codeEndpoint = region === "cn" ? config.codeEndpointCN : config.codeEndpoint;
+
+  const sessionId = crypto.randomBytes(16).toString("hex");
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+  const state = crypto.randomBytes(16).toString("base64url");
+
+  const body = new URLSearchParams({
+    response_type: "code",
+    client_id: config.clientId,
+    scope: config.scopes.join(" "),
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
+    state,
+  });
+
+  try {
+    const response = await fetch(codeEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+        "x-request-id": crypto.randomUUID(),
+      },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      res.status(response.status).json({ error: `MiniMax OAuth failed: ${text || response.statusText}` });
+      return;
+    }
+
+    const data = await response.json() as {
+      user_code: string;
+      verification_uri: string;
+      expired_in: number;
+      interval?: number;
+      state: string;
+      error?: string;
+    };
+
+    if (!data.user_code || !data.verification_uri) {
+      res.status(400).json({ error: data.error ?? "MiniMax OAuth returned incomplete response" });
+      return;
+    }
+
+    if (data.state !== state) {
+      res.status(400).json({ error: "MiniMax OAuth state mismatch" });
+      return;
+    }
+
+    // Store pending flow for polling
+    minimaxPendingFlows.set(sessionId, {
+      codeVerifier,
+      state,
+      userCode: data.user_code,
+      expiresAt: Date.now() + (data.expired_in ?? 600) * 1000,
+      interval: data.interval ?? 5,
+      createdAt: Date.now(),
+    });
+
+    // Start polling for authorization completion
+    startMiniMaxPolling(sessionId, region, secretStore);
+
+    res.json({
+      sessionId,
+      userCode: data.user_code,
+      verificationUri: data.verification_uri,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+}
+
+/**
+ * Poll MiniMax token endpoint for authorization completion.
+ */
+async function startMiniMaxPolling(
+  sessionId: string,
+  region: "global" | "cn",
+  secretStore: SecretStore
+): Promise<void> {
+  const config = OAUTH_CONFIG["minimax-oauth"];
+  const tokenEndpoint = region === "cn" ? config.tokenEndpointCN : config.tokenEndpoint;
+
+  const poll = async (): Promise<void> => {
+    const flow = minimaxPendingFlows.get(sessionId);
+    if (!flow) return;
+
+    if (Date.now() > flow.expiresAt) {
+      minimaxPendingFlows.delete(sessionId);
+      return;
+    }
+
+    try {
+      const body = new URLSearchParams({
+        grant_type: config.grantType,
+        client_id: config.clientId,
+        user_code: flow.userCode,
+        code_verifier: flow.codeVerifier,
+      });
+
+      const response = await fetch(tokenEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Accept: "application/json",
+        },
+        body: body.toString(),
+      });
+
+      if (response.ok) {
+        const data = await response.json() as {
+          access_token: string;
+          refresh_token?: string;
+          expires_in?: number;
+          scope?: string;
+        };
+
+        const oauthToken: OAuthTokenData = {
+          accessToken: data.access_token,
+          refreshToken: data.refresh_token ?? "",
+          expiresAt: Math.floor(Date.now() / 1000) + (data.expires_in ?? 3600),
+          scope: data.scope,
+        };
+
+        await secretStore.set(OAUTH_SERVICE, "minimax-oauth", JSON.stringify(oauthToken));
+        minimaxPendingFlows.delete(sessionId);
+        return;
+      }
+
+      // Check for pending state
+      const errorData = await response.json().catch(() => ({})) as { error?: string };
+      if (errorData.error === "authorization_pending" || errorData.error === "slow_down") {
+        // Continue polling
+        setTimeout(poll, (flow.interval || 5) * 1000);
+        return;
+      }
+
+      // Other error - stop polling
+      minimaxPendingFlows.delete(sessionId);
+    } catch {
+      // Network error - retry
+      setTimeout(poll, (flow?.interval || 5) * 1000);
+    }
+  };
+
+  // Start first poll after interval
+  const flow = minimaxPendingFlows.get(sessionId);
+  setTimeout(poll, (flow?.interval || 5) * 1000);
+}
+
 export function createOAuthRouter(options: OAuthRouterOptions): Router {
   const { secretStore } = options;
   const router = Router();
@@ -146,11 +330,20 @@ export function createOAuthRouter(options: OAuthRouterOptions): Router {
         return;
       }
 
-      const config = OAUTH_CONFIG[provider as keyof typeof OAUTH_CONFIG];
-      if (!config) {
-        res.status(400).json({ error: `No OAuth config for ${provider}` });
+      // Handle different OAuth flows based on provider
+      if (provider === "minimax-oauth") {
+        // MiniMax uses device code flow
+        await handleMiniMaxOAuthStart(req, res, secretStore);
         return;
       }
+
+      // OpenAI browser-based OAuth flow
+      if (provider !== "openai-oauth") {
+        res.status(400).json({ error: `Unknown OAuth provider: ${provider}` });
+        return;
+      }
+
+      const config = OAUTH_CONFIG["openai-oauth"];
 
       const sessionId = crypto.randomBytes(16).toString("hex");
       const codeVerifier = generateCodeVerifier();

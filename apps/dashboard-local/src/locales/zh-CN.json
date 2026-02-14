@@ -339,6 +339,8 @@
     "oauthNotLoggedIn": "OpenAI Codex（订阅制，$0 费用）",
     "logout": "退出登录",
     "loginCodex": "登录 OpenAI Codex",
+    "loginMiniMax": "登录 MiniMax",
+    "enterCode": "在浏览器中输入此代码",
     "waiting": "等待中...",
     "openclawInstalled": "已安装 OpenClaw",
     "completeAuth": "请在浏览器窗口中完成授权，然后等待...",

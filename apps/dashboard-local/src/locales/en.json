@@ -339,6 +339,8 @@
     "oauthNotLoggedIn": "OpenAI Codex (subscription, $0 cost)",
     "logout": "Logout",
     "loginCodex": "Login OpenAI Codex",
+    "loginMiniMax": "Login MiniMax",
+    "enterCode": "Enter this code in the browser",
     "waiting": "Waiting...",
     "openclawInstalled": "OpenClaw installed",
     "completeAuth": "Complete authorization in the browser window, then wait...",

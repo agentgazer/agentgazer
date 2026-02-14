@@ -364,7 +364,10 @@ export interface OAuthStatus {
 
 export interface OAuthStartResponse {
   sessionId: string;
-  authUrl: string;
+  authUrl?: string;
+  // MiniMax device code flow
+  userCode?: string;
+  verificationUri?: string;
 }
 
 // ---------------------------------------------------------------------------

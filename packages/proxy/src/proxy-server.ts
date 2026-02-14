@@ -212,18 +212,31 @@ async function refreshOAuthToken(
   provider: ProviderName,
   refreshToken: string
 ): Promise<OAuthTokenData> {
-  const config = OAUTH_CONFIG[provider as keyof typeof OAUTH_CONFIG];
-  if (!config) {
+  if (provider !== "openai-oauth" && provider !== "minimax-oauth") {
     throw new Error(`No OAuth config for provider: ${provider}`);
+  }
+
+  // Get the appropriate token endpoint for each provider
+  let tokenUrl: string;
+  let clientId: string;
+
+  if (provider === "openai-oauth") {
+    const config = OAUTH_CONFIG["openai-oauth"];
+    tokenUrl = config.tokenUrl;
+    clientId = config.clientId;
+  } else {
+    const config = OAUTH_CONFIG["minimax-oauth"];
+    tokenUrl = config.tokenEndpoint;
+    clientId = config.clientId;
   }
 
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
-    client_id: config.clientId,
+    client_id: clientId,
   });
 
-  const response = await fetch(config.tokenUrl, {
+  const response = await fetch(tokenUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

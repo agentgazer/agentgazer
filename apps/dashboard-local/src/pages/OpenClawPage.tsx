@@ -50,10 +50,14 @@ export default function OpenClawPage() {
   const [agentName, setAgentName] = useState<string>(
     () => `openclaw-${Date.now().toString(36)}`
   );
-  // OAuth state
-  const [oauthLoading, setOauthLoading] = useState(false);
-  const [oauthError, setOauthError] = useState<string | null>(null);
-  const [oauthPolling, setOauthPolling] = useState(false);
+  // OAuth state - per provider
+  const [oauthState, setOauthState] = useState<Record<string, {
+    loading: boolean;
+    error: string | null;
+    polling: boolean;
+    userCode?: string;
+    verificationUri?: string;
+  }>>({});
   // Add provider modal state
   const [showAddProviderModal, setShowAddProviderModal] = useState(false);
   // Confirmation modal state
@@ -107,34 +111,53 @@ export default function OpenClawPage() {
     }
   }
 
-  // OAuth handlers
-  async function handleOAuthLogin() {
-    setOauthLoading(true);
-    setOauthError(null);
+  // OAuth handlers - generic for multiple providers
+  function getOAuthState(provider: string) {
+    return oauthState[provider] || { loading: false, error: null, polling: false };
+  }
+
+  function setProviderOAuthState(provider: string, update: Partial<typeof oauthState[string]>) {
+    setOauthState(prev => ({
+      ...prev,
+      [provider]: { ...getOAuthState(provider), ...update }
+    }));
+  }
+
+  async function handleOAuthLogin(provider: string) {
+    setProviderOAuthState(provider, { loading: true, error: null });
     try {
-      const { authUrl } = await oauthApi.start("openai-oauth");
-      // Open auth URL in new window
-      window.open(authUrl, "_blank", "width=600,height=700");
-      // Start polling for completion
-      setOauthPolling(true);
-      pollOAuthStatus();
+      const result = await oauthApi.start(provider);
+
+      if (result.authUrl) {
+        // Browser-based flow (OpenAI)
+        window.open(result.authUrl, "_blank", "width=600,height=700");
+        setProviderOAuthState(provider, { polling: true });
+        pollOAuthStatus(provider);
+      } else if (result.userCode && result.verificationUri) {
+        // Device code flow (MiniMax)
+        setProviderOAuthState(provider, {
+          polling: true,
+          userCode: result.userCode,
+          verificationUri: result.verificationUri,
+        });
+        // Open verification URL
+        window.open(result.verificationUri, "_blank", "width=600,height=700");
+        pollOAuthStatus(provider);
+      }
     } catch (err) {
-      setOauthError(String(err));
-      setOauthLoading(false);
+      setProviderOAuthState(provider, { loading: false, error: String(err) });
     }
   }
 
-  async function pollOAuthStatus() {
+  async function pollOAuthStatus(provider: string) {
     const maxAttempts = 60; // 5 minutes with 5s interval
     let attempts = 0;
 
     const poll = async () => {
       try {
-        const status = await oauthApi.getStatus("openai-oauth");
+        const status = await oauthApi.getStatus(provider);
         if (status.loggedIn) {
-          setOauthPolling(false);
-          setOauthLoading(false);
-          // Reload providers to show updated status
+          setProviderOAuthState(provider, { polling: false, loading: false, userCode: undefined, verificationUri: undefined });
           await loadData(false);
           return;
         }
@@ -143,33 +166,34 @@ export default function OpenClawPage() {
       }
 
       attempts++;
-      if (attempts < maxAttempts && oauthPolling) {
+      const state = getOAuthState(provider);
+      if (attempts < maxAttempts && state.polling) {
         setTimeout(poll, 5000);
       } else {
-        setOauthPolling(false);
-        setOauthLoading(false);
+        setProviderOAuthState(provider, { polling: false, loading: false });
       }
     };
 
     setTimeout(poll, 3000); // Start after 3 seconds
   }
 
-  async function handleOAuthLogout() {
-    setOauthLoading(true);
-    setOauthError(null);
+  async function handleOAuthLogout(provider: string) {
+    setProviderOAuthState(provider, { loading: true, error: null });
     try {
-      await oauthApi.logout("openai-oauth");
+      await oauthApi.logout(provider);
       await loadData(false);
     } catch (err) {
-      setOauthError(String(err));
+      setProviderOAuthState(provider, { error: String(err) });
     } finally {
-      setOauthLoading(false);
+      setProviderOAuthState(provider, { loading: false });
     }
   }
 
-  // Check if openai-oauth is configured
+  // Check OAuth provider status
   const openaiOAuthProvider = providers.find((p) => p.name === "openai-oauth");
-  const isOAuthLoggedIn = openaiOAuthProvider?.configured ?? false;
+  const minimaxOAuthProvider = providers.find((p) => p.name === "minimax-oauth");
+  const isOpenAIOAuthLoggedIn = openaiOAuthProvider?.configured ?? false;
+  const isMiniMaxOAuthLoggedIn = minimaxOAuthProvider?.configured ?? false;
 
   if (loading) return <LoadingSpinner />;
 
@@ -222,42 +246,38 @@ export default function OpenClawPage() {
             </button>
           </li>
 
-          {/* OAuth Providers (OpenAI Codex) */}
+          {/* OAuth Provider: OpenAI Codex */}
           <li className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {isOAuthLoggedIn ? (
+              {isOpenAIOAuthLoggedIn ? (
                 <span className="text-green-400">✓</span>
               ) : (
                 <span className="text-yellow-400">○</span>
               )}
-              <span>
-                {isOAuthLoggedIn
-                  ? t("openclaw.oauthLoggedIn")
-                  : t("openclaw.oauthNotLoggedIn")}
-              </span>
-              {isOAuthLoggedIn && (
+              <span>OpenAI Codex</span>
+              {isOpenAIOAuthLoggedIn && (
                 <span className="rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-400">
                   OAuth
                 </span>
               )}
             </div>
             <div className="flex gap-2">
-              {isOAuthLoggedIn ? (
+              {isOpenAIOAuthLoggedIn ? (
                 <button
-                  onClick={handleOAuthLogout}
-                  disabled={oauthLoading || !isLoopback}
+                  onClick={() => handleOAuthLogout("openai-oauth")}
+                  disabled={getOAuthState("openai-oauth").loading || !isLoopback}
                   className="rounded bg-gray-600 px-3 py-1 text-xs font-medium text-white hover:bg-gray-500 disabled:opacity-50"
                 >
                   {t("openclaw.logout")}
                 </button>
               ) : (
                 <button
-                  onClick={handleOAuthLogin}
-                  disabled={oauthLoading || !isLoopback}
+                  onClick={() => handleOAuthLogin("openai-oauth")}
+                  disabled={getOAuthState("openai-oauth").loading || !isLoopback}
                   className="rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
                 >
-                  {oauthLoading
-                    ? oauthPolling
+                  {getOAuthState("openai-oauth").loading
+                    ? getOAuthState("openai-oauth").polling
                       ? t("openclaw.waiting")
                       : t("common.loading")
                     : t("openclaw.loginCodex")}
@@ -265,10 +285,63 @@ export default function OpenClawPage() {
               )}
             </div>
           </li>
-          {oauthError && (
-            <li className="text-red-400 text-xs pl-6">{oauthError}</li>
+          {getOAuthState("openai-oauth").error && (
+            <li className="text-red-400 text-xs pl-6">{getOAuthState("openai-oauth").error}</li>
           )}
-          {oauthPolling && (
+          {getOAuthState("openai-oauth").polling && (
+            <li className="text-yellow-400 text-xs pl-6">
+              {t("openclaw.completeAuth")}
+            </li>
+          )}
+
+          {/* OAuth Provider: MiniMax Coding Plan */}
+          <li className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {isMiniMaxOAuthLoggedIn ? (
+                <span className="text-green-400">✓</span>
+              ) : (
+                <span className="text-yellow-400">○</span>
+              )}
+              <span>MiniMax Coding Plan</span>
+              {isMiniMaxOAuthLoggedIn && (
+                <span className="rounded bg-green-900/50 px-2 py-0.5 text-xs text-green-400">
+                  OAuth
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {isMiniMaxOAuthLoggedIn ? (
+                <button
+                  onClick={() => handleOAuthLogout("minimax-oauth")}
+                  disabled={getOAuthState("minimax-oauth").loading || !isLoopback}
+                  className="rounded bg-gray-600 px-3 py-1 text-xs font-medium text-white hover:bg-gray-500 disabled:opacity-50"
+                >
+                  {t("openclaw.logout")}
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleOAuthLogin("minimax-oauth")}
+                  disabled={getOAuthState("minimax-oauth").loading || !isLoopback}
+                  className="rounded bg-purple-600 px-3 py-1 text-xs font-medium text-white hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {getOAuthState("minimax-oauth").loading
+                    ? getOAuthState("minimax-oauth").polling
+                      ? t("openclaw.waiting")
+                      : t("common.loading")
+                    : t("openclaw.loginMiniMax")}
+                </button>
+              )}
+            </div>
+          </li>
+          {getOAuthState("minimax-oauth").userCode && (
+            <li className="text-blue-400 text-xs pl-6">
+              {t("openclaw.enterCode")}: <code className="bg-gray-700 px-1 rounded">{getOAuthState("minimax-oauth").userCode}</code>
+            </li>
+          )}
+          {getOAuthState("minimax-oauth").error && (
+            <li className="text-red-400 text-xs pl-6">{getOAuthState("minimax-oauth").error}</li>
+          )}
+          {getOAuthState("minimax-oauth").polling && !getOAuthState("minimax-oauth").userCode && (
             <li className="text-yellow-400 text-xs pl-6">
               {t("openclaw.completeAuth")}
             </li>
@@ -473,6 +546,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   zhipu: "Zhipu / Z.ai (GLM-4.7)",
   "zhipu-coding-plan": "Zhipu Coding Plan (GLM-4.7, Subscription)",
   minimax: "MiniMax (M2)",
+  "minimax-oauth": "MiniMax Coding Plan (M2, Subscription)",
 };
 
 function AddProviderModal({
