@@ -93,14 +93,18 @@ export {
   checkToolCategory,
   isToolAllowed,
   isToolBlocked,
+  checkSelfProtection,
   PROMPT_INJECTION_PATTERNS,
   SENSITIVE_DATA_PATTERNS,
   TOOL_CATEGORIES,
+  SELF_PROTECTION_PATTERNS,
   type PromptInjectionPattern,
   type PromptInjectionMatch,
   type SensitiveDataPattern,
   type SensitiveDataMatch,
   type ToolCategory,
+  type SelfProtectionPattern,
+  type SelfProtectionMatch,
 } from "./security-patterns.js";
 
 export {

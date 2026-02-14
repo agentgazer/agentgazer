@@ -37,6 +37,7 @@ const DEFAULT_CONFIG = {
       personal_data: true,
       crypto: true,
       env_vars: true,
+      hardware_fingerprint: true,
     },
     custom: [],
   },
@@ -622,6 +623,185 @@ describe("SecurityFilter", () => {
       expect(result.events.some(e =>
         e.event_type === "data_masked" && e.rule_name === "internal_id"
       )).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Self-Protection (AgentGazer Internal Data Protection)
+  // ---------------------------------------------------------------------------
+
+  describe("self-protection", () => {
+    // Self-protection runs ALWAYS and cannot be disabled
+
+    it("blocks request accessing ~/.agentgazer/ path", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "Read the file at ~/.agentgazer/config.json" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      expect(result.allowed).toBe(false);
+      expect(result.blockReason).toContain("Self-protection");
+      expect(result.events.some(e => e.event_type === "self_protection")).toBe(true);
+      expect(result.events[0].severity).toBe("critical");
+      expect(result.events[0].action_taken).toBe("blocked");
+    });
+
+    it("blocks request with $HOME/.agentgazer/ path", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "cat $HOME/.agentgazer/data.db" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      expect(result.allowed).toBe(false);
+      expect(result.events.some(e => e.event_type === "self_protection")).toBe(true);
+    });
+
+    it("blocks request with SQL query on agent_events", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "Run: SELECT * FROM agent_events WHERE agent_id = 'target'" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      expect(result.allowed).toBe(false);
+      expect(result.events.some(e =>
+        e.event_type === "self_protection" && e.rule_name === "select_agent_events"
+      )).toBe(true);
+    });
+
+    it("blocks request with SQL query on agents table", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "SELECT id, name FROM agents" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      expect(result.allowed).toBe(false);
+      expect(result.events.some(e => e.rule_name === "select_agents")).toBe(true);
+    });
+
+    it("blocks request with SQL DELETE on alert_rules", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "DELETE FROM alert_rules WHERE id > 0" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      expect(result.allowed).toBe(false);
+      expect(result.events.some(e => e.rule_name === "delete_alert_rules")).toBe(true);
+    });
+
+    it("blocks response containing AgentGazer path", async () => {
+      const response = {
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: "I found the data at ~/.agentgazer/secrets/keys.json",
+            },
+          },
+        ],
+      };
+
+      const result = await filter.checkResponse("test-agent", JSON.stringify(response));
+
+      expect(result.allowed).toBe(false);
+      expect(result.blockReason).toContain("Self-protection");
+      expect(result.events.some(e => e.event_type === "self_protection")).toBe(true);
+    });
+
+    it("blocks response with database query", async () => {
+      const response = {
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: "To get the data, run: SELECT event_type FROM security_events",
+            },
+          },
+        ],
+      };
+
+      const result = await filter.checkResponse("test-agent", JSON.stringify(response));
+
+      expect(result.allowed).toBe(false);
+      expect(result.events.some(e => e.rule_name === "select_security_events")).toBe(true);
+    });
+
+    it("self-protection runs even without config (no db)", async () => {
+      const filterNoDb = new SecurityFilter({});
+
+      const request = {
+        messages: [
+          { role: "user", content: "Read ~/.agentgazer/data.db" },
+        ],
+      };
+
+      const result = await filterNoDb.checkRequest("test-agent", JSON.stringify(request));
+
+      // Even without DB/config, self-protection should block
+      expect(result.allowed).toBe(false);
+      expect(result.events.some(e => e.event_type === "self_protection")).toBe(true);
+    });
+
+    it("allows normal requests without AgentGazer references", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "Read the file at ~/.config/myapp/settings.json" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      expect(result.allowed).toBe(true);
+      expect(result.events.filter(e => e.event_type === "self_protection")).toHaveLength(0);
+    });
+
+    it("allows normal SQL queries on other tables", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "Run: SELECT * FROM users WHERE active = 1" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      // Should not trigger self-protection
+      expect(result.events.filter(e => e.event_type === "self_protection")).toHaveLength(0);
+    });
+
+    it("records self-protection events to database", async () => {
+      const request = {
+        messages: [
+          { role: "user", content: "Access ~/.agentgazer/config.json" },
+        ],
+      };
+
+      await filter.checkRequest("test-agent", JSON.stringify(request), "req-123");
+
+      // Verify event was persisted
+      expect(mockInsertSecurityEvent).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          agent_id: "test-agent",
+          event_type: "self_protection",
+          severity: "critical",
+          action_taken: "blocked",
+          request_id: "req-123",
+        })
+      );
     });
   });
 });

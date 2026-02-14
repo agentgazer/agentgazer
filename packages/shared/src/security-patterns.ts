@@ -221,7 +221,7 @@ export const PROMPT_INJECTION_PATTERNS: PromptInjectionPattern[] = [
 
 export interface SensitiveDataPattern {
   name: string;
-  category: "api_keys" | "credit_cards" | "personal_data" | "crypto" | "env_vars";
+  category: "api_keys" | "credit_cards" | "personal_data" | "crypto" | "env_vars" | "hardware_fingerprint";
   pattern: RegExp;
   replacement?: string;  // Custom replacement text
 }
@@ -353,6 +353,77 @@ export const SENSITIVE_DATA_PATTERNS: SensitiveDataPattern[] = [
     name: "seed_phrase_24",
     category: "crypto",
     pattern: /\b(?:[a-z]+\s+){23}[a-z]+\b/gi,  // 24-word seed phrase
+  },
+
+  // Hardware Fingerprinting (Windows)
+  {
+    name: "wmic_bios_serial",
+    category: "hardware_fingerprint",
+    pattern: /wmic\s+bios\s+get\s+serialnumber/gi,
+  },
+  {
+    name: "wmic_baseboard_serial",
+    category: "hardware_fingerprint",
+    pattern: /wmic\s+baseboard\s+get\s+serialnumber/gi,
+  },
+  {
+    name: "wmic_csproduct_uuid",
+    category: "hardware_fingerprint",
+    pattern: /wmic\s+csproduct\s+get\s+uuid/gi,
+  },
+  {
+    name: "powershell_wmi_bios",
+    category: "hardware_fingerprint",
+    pattern: /Get-WmiObject\s+Win32_BIOS/gi,
+  },
+  {
+    name: "powershell_wmi_baseboard",
+    category: "hardware_fingerprint",
+    pattern: /Get-WmiObject\s+Win32_BaseBoard/gi,
+  },
+  {
+    name: "powershell_cim_bios",
+    category: "hardware_fingerprint",
+    pattern: /Get-CimInstance\s+Win32_BIOS/gi,
+  },
+  {
+    name: "powershell_cim_baseboard",
+    category: "hardware_fingerprint",
+    pattern: /Get-CimInstance\s+Win32_BaseBoard/gi,
+  },
+
+  // Hardware Fingerprinting (macOS)
+  {
+    name: "system_profiler_hardware",
+    category: "hardware_fingerprint",
+    pattern: /system_profiler\s+SPHardwareDataType/gi,
+  },
+  {
+    name: "ioreg_serial",
+    category: "hardware_fingerprint",
+    pattern: /ioreg\s+.*IOPlatformSerialNumber/gi,
+  },
+
+  // Hardware Fingerprinting (Linux)
+  {
+    name: "dmidecode",
+    category: "hardware_fingerprint",
+    pattern: /\bdmidecode\b/gi,
+  },
+  {
+    name: "dmi_product_serial",
+    category: "hardware_fingerprint",
+    pattern: /\/sys\/class\/dmi\/id\/product_serial/gi,
+  },
+  {
+    name: "dmi_board_serial",
+    category: "hardware_fingerprint",
+    pattern: /\/sys\/class\/dmi\/id\/board_serial/gi,
+  },
+  {
+    name: "dmi_product_uuid",
+    category: "hardware_fingerprint",
+    pattern: /\/sys\/class\/dmi\/id\/product_uuid/gi,
   },
 
   // Environment Variables
@@ -519,6 +590,7 @@ export function findSensitiveData(
     personal_data?: boolean;
     crypto?: boolean;
     env_vars?: boolean;
+    hardware_fingerprint?: boolean;
   },
   customPatterns?: Array<{ name: string; pattern: string }>,
 ): SensitiveDataMatch[] {
@@ -529,6 +601,7 @@ export function findSensitiveData(
     personal_data: true,
     crypto: true,
     env_vars: false,
+    hardware_fingerprint: true,  // Enabled by default
   };
 
   // Check built-in patterns
@@ -590,6 +663,7 @@ export function maskSensitiveData(
     personal_data?: boolean;
     crypto?: boolean;
     env_vars?: boolean;
+    hardware_fingerprint?: boolean;
   },
   customPatterns?: Array<{ name: string; pattern: string }>,
 ): { masked: string; matches: SensitiveDataMatch[] } {
@@ -676,4 +750,135 @@ export function isToolBlocked(toolName: string, blocklist: string[]): boolean {
   return blocklist.some(blocked =>
     blocked.toLowerCase() === toolName.toLowerCase()
   );
+}
+
+// ---------------------------------------------------------------------------
+// Self-Protection Patterns (AgentGazer internal data protection)
+// ---------------------------------------------------------------------------
+
+export interface SelfProtectionPattern {
+  name: string;
+  category: "path_access" | "database_query";
+  pattern: RegExp;
+}
+
+export const SELF_PROTECTION_PATTERNS: SelfProtectionPattern[] = [
+  // Path access patterns
+  {
+    name: "agentgazer_home_path",
+    category: "path_access",
+    pattern: /~\/\.agentgazer\//i,
+  },
+  {
+    name: "agentgazer_home_var",
+    category: "path_access",
+    pattern: /\$HOME\/\.agentgazer\//i,
+  },
+  {
+    name: "agentgazer_data_db",
+    category: "path_access",
+    pattern: /\.agentgazer\/data\.db/i,
+  },
+  {
+    name: "agentgazer_config_json",
+    category: "path_access",
+    pattern: /\.agentgazer\/config\.json/i,
+  },
+  {
+    name: "agentgazer_secrets",
+    category: "path_access",
+    pattern: /\.agentgazer\/secrets/i,
+  },
+
+  // Database query patterns
+  {
+    name: "select_agent_events",
+    category: "database_query",
+    pattern: /SELECT\s+[\s\S]*?\s+FROM\s+agent_events/i,
+  },
+  {
+    name: "select_agents",
+    category: "database_query",
+    pattern: /SELECT\s+[\s\S]*?\s+FROM\s+agents\b/i,
+  },
+  {
+    name: "select_alert_rules",
+    category: "database_query",
+    pattern: /SELECT\s+[\s\S]*?\s+FROM\s+alert_rules/i,
+  },
+  {
+    name: "select_alert_history",
+    category: "database_query",
+    pattern: /SELECT\s+[\s\S]*?\s+FROM\s+alert_history/i,
+  },
+  {
+    name: "select_security_events",
+    category: "database_query",
+    pattern: /SELECT\s+[\s\S]*?\s+FROM\s+security_events/i,
+  },
+  {
+    name: "select_security_config",
+    category: "database_query",
+    pattern: /SELECT\s+[\s\S]*?\s+FROM\s+security_config/i,
+  },
+  {
+    name: "insert_agent_events",
+    category: "database_query",
+    pattern: /INSERT\s+INTO\s+agent_events/i,
+  },
+  {
+    name: "insert_agents",
+    category: "database_query",
+    pattern: /INSERT\s+INTO\s+agents\b/i,
+  },
+  {
+    name: "insert_alert_rules",
+    category: "database_query",
+    pattern: /INSERT\s+INTO\s+alert_rules/i,
+  },
+  {
+    name: "delete_agent_events",
+    category: "database_query",
+    pattern: /DELETE\s+FROM\s+agent_events/i,
+  },
+  {
+    name: "delete_agents",
+    category: "database_query",
+    pattern: /DELETE\s+FROM\s+agents\b/i,
+  },
+  {
+    name: "delete_alert_rules",
+    category: "database_query",
+    pattern: /DELETE\s+FROM\s+alert_rules/i,
+  },
+];
+
+export interface SelfProtectionMatch {
+  pattern: SelfProtectionPattern;
+  match: string;
+  index: number;
+}
+
+/**
+ * Check content for self-protection violations (AgentGazer internal data access).
+ * @param content The content to check
+ * @returns Array of matches found
+ */
+export function checkSelfProtection(content: string): SelfProtectionMatch[] {
+  const matches: SelfProtectionMatch[] = [];
+
+  for (const pattern of SELF_PROTECTION_PATTERNS) {
+    // Clone regex to avoid shared state issues
+    const regex = new RegExp(pattern.pattern.source, pattern.pattern.flags);
+    const match = regex.exec(content);
+    if (match) {
+      matches.push({
+        pattern,
+        match: match[0],
+        index: match.index,
+      });
+    }
+  }
+
+  return matches;
 }

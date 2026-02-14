@@ -9,8 +9,10 @@ import {
   checkToolCategory,
   isToolAllowed,
   isToolBlocked,
+  checkSelfProtection,
   type PromptInjectionMatch,
   type SensitiveDataMatch,
+  type SelfProtectionMatch,
 } from "@agentgazer/shared";
 import {
   getSecurityConfig,
@@ -35,7 +37,7 @@ export interface SecurityCheckResult {
 }
 
 export interface SecurityEventData {
-  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked" | "self_protection";
   severity: "info" | "warning" | "critical";
   action_taken: "logged" | "alerted" | "blocked" | "masked";
   rule_name: string;
@@ -127,6 +129,13 @@ export class SecurityFilter {
     requestBody: string,
     requestId?: string,
   ): Promise<SecurityCheckResult> {
+    // Self-protection check runs FIRST and ALWAYS (no config needed)
+    const selfProtectionResult = this.checkSelfProtectionViolation(requestBody);
+    if (selfProtectionResult) {
+      await this.recordEvents(agentId, selfProtectionResult.events, requestId);
+      return selfProtectionResult;
+    }
+
     const config = getCachedConfig(this.db, agentId);
     if (!config) {
       return { allowed: true, events: [] };
@@ -191,6 +200,13 @@ export class SecurityFilter {
     responseBody: string,
     requestId?: string,
   ): Promise<SecurityCheckResult> {
+    // Self-protection check runs FIRST and ALWAYS (no config needed)
+    const selfProtectionResult = this.checkSelfProtectionViolation(responseBody);
+    if (selfProtectionResult) {
+      await this.recordEvents(agentId, selfProtectionResult.events, requestId);
+      return selfProtectionResult;
+    }
+
     const config = getCachedConfig(this.db, agentId);
     if (!config) {
       return { allowed: true, events: [] };
@@ -502,6 +518,40 @@ export class SecurityFilter {
   }
 
   // ---------------------------------------------------------------------------
+  // Self-Protection (AgentGazer internal data protection)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Check content for self-protection violations.
+   * This check runs ALWAYS and cannot be disabled - it protects AgentGazer's internal data.
+   * Returns a blocking result if violation detected, null otherwise.
+   */
+  private checkSelfProtectionViolation(content: string): SecurityCheckResult | null {
+    const matches = checkSelfProtection(content);
+
+    if (matches.length === 0) {
+      return null;
+    }
+
+    // Self-protection violations always result in blocking
+    const events: SecurityEventData[] = matches.map(match => ({
+      event_type: "self_protection" as const,
+      severity: "critical" as const,
+      action_taken: "blocked" as const,
+      rule_name: match.pattern.name,
+      matched_pattern: match.pattern.pattern.source,
+      snippet: this.truncateSnippet(match.match),
+    }));
+
+    const firstMatch = matches[0];
+    return {
+      allowed: false,
+      events,
+      blockReason: `Self-protection: Access to AgentGazer internal data blocked (${firstMatch.pattern.name})`,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
 
@@ -570,7 +620,13 @@ export class SecurityFilter {
 export function generateSecurityBlockedResponse(
   reason: string,
   provider: string,
+  isSelfProtection = false,
 ): Record<string, unknown> {
+  // Self-protection blocks have a specific message
+  const message = isSelfProtection
+    ? `[AgentGazer Security] Access to AgentGazer internal data is not permitted. This request has been blocked to protect system integrity.`
+    : `[Security] Request blocked: ${reason}`;
+
   return {
     id: `chatcmpl-security-blocked-${Date.now()}`,
     object: "chat.completion",
@@ -581,7 +637,7 @@ export function generateSecurityBlockedResponse(
         index: 0,
         message: {
           role: "assistant",
-          content: `[Security] Request blocked: ${reason}`,
+          content: message,
         },
         finish_reason: "stop",
       },

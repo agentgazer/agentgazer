@@ -161,7 +161,7 @@ router.post("/api/security/events", (req, res) => {
   // Fire security alert (non-blocking)
   const alertData: SecurityEventData = {
     agent_id: body.agent_id,
-    event_type: body.event_type as "prompt_injection" | "data_masked" | "tool_blocked",
+    event_type: body.event_type as "prompt_injection" | "data_masked" | "tool_blocked" | "self_protection",
     severity: body.severity as "info" | "warning" | "critical",
     action_taken: body.action_taken,
     rule_name: body.rule_name,

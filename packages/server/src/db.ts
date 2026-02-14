@@ -1606,6 +1606,7 @@ export interface SecurityConfig {
       personal_data: boolean;
       crypto: boolean;
       env_vars: boolean;
+      hardware_fingerprint: boolean;
     };
     custom: Array<{ name: string; pattern: string }>;
   };
@@ -1643,6 +1644,7 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
       personal_data: false,
       crypto: false,
       env_vars: false,
+      hardware_fingerprint: true,  // Enabled by default for security
     },
     custom: [],
   },
@@ -1694,7 +1696,7 @@ function parseSecurityConfigRow(row: SecurityConfigRow): SecurityConfig {
     data_masking: {
       replacement: row.data_masking_replacement || "[AgentGazer Redacted]",
       rules: row.data_masking_rules
-        ? JSON.parse(row.data_masking_rules)
+        ? { ...defaultConfig.data_masking.rules, ...JSON.parse(row.data_masking_rules) }
         : defaultConfig.data_masking.rules,
       custom: row.data_masking_custom
         ? JSON.parse(row.data_masking_custom)
@@ -1887,7 +1889,7 @@ export interface SecurityEventRow {
 
 export interface InsertSecurityEvent {
   agent_id: string;
-  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked" | "self_protection";
   severity: "info" | "warning" | "critical";
   action_taken: "logged" | "alerted" | "blocked" | "masked";
   rule_name?: string;

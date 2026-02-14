@@ -78,14 +78,14 @@ interface KillSwitchConfig {
 
 interface SecurityEventConfig {
   // Filter by event types (optional - if empty, all types trigger)
-  event_types?: ("prompt_injection" | "data_masked" | "tool_blocked")[];
+  event_types?: ("prompt_injection" | "data_masked" | "tool_blocked" | "self_protection")[];
   // Filter by minimum severity (optional - defaults to all severities)
   min_severity?: "info" | "warning" | "critical";
 }
 
 export interface SecurityEventData {
   agent_id: string;
-  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked" | "self_protection";
   severity: "info" | "warning" | "critical";
   action_taken: string;
   rule_name?: string;
