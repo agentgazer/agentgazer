@@ -250,42 +250,71 @@ async function startMiniMaxPolling(
 
       const responseText = await response.text();
 
-      if (response.ok) {
-        const data = JSON.parse(responseText) as {
-          access_token: string;
-          refresh_token?: string;
-          expires_in?: number;
-          scope?: string;
-        };
-
-        const oauthToken: OAuthTokenData = {
-          accessToken: data.access_token,
-          refreshToken: data.refresh_token ?? "",
-          expiresAt: Math.floor(Date.now() / 1000) + (data.expires_in ?? 3600),
-          scope: data.scope,
-        };
-
-        await secretStore.set(OAUTH_SERVICE, "minimax-oauth", JSON.stringify(oauthToken));
-        minimaxPendingFlows.delete(sessionId);
-        return;
-      }
-
-      // Check for pending state
-      let errorData: { error?: string } = {};
+      // Parse response
+      let data: {
+        status?: string;
+        access_token?: string;
+        accessToken?: string;
+        refresh_token?: string;
+        refreshToken?: string;
+        expires_in?: number;
+        expiresIn?: number;
+        expired_in?: number;  // MiniMax uses absolute timestamp in ms
+        scope?: string;
+        error?: string;
+        base_resp?: { status_code?: number; status_msg?: string };
+      };
       try {
-        errorData = JSON.parse(responseText);
+        data = JSON.parse(responseText);
       } catch {
-        errorData = {};
-      }
-
-      if (errorData.error === "authorization_pending" || errorData.error === "slow_down") {
-        // Continue polling
-        setTimeout(poll, (flow.interval || 5) * 1000);
+        // JSON parse error - retry
+        setTimeout(poll, (flow?.interval || 5) * 1000);
         return;
       }
 
-      // Other error - stop polling
+      // MiniMax returns status: "pending" when user hasn't authorized yet
+      if (data.status === "pending") {
+        setTimeout(poll, (flow?.interval || 5) * 1000);
+        return;
+      }
+
+      // Check for error responses
+      if (data.error === "authorization_pending" || data.error === "slow_down") {
+        setTimeout(poll, (flow?.interval || 5) * 1000);
+        return;
+      }
+
+      // Check if we got an actual access token
+      const accessToken = data.access_token || data.accessToken || "";
+      const refreshToken = data.refresh_token || data.refreshToken || "";
+
+      // MiniMax uses "expired_in" (absolute timestamp in ms) instead of "expires_in" (relative seconds)
+      let expiresAt: number;
+      if (data.expired_in) {
+        // MiniMax: expired_in is absolute timestamp in milliseconds
+        expiresAt = Math.floor(data.expired_in / 1000);
+      } else {
+        // Standard OAuth: expires_in is relative seconds
+        const expiresIn = data.expires_in ?? data.expiresIn ?? 3600;
+        expiresAt = Math.floor(Date.now() / 1000) + expiresIn;
+      }
+
+      if (!accessToken) {
+        setTimeout(poll, (flow?.interval || 5) * 1000);
+        return;
+      }
+
+      const oauthToken: OAuthTokenData = {
+        accessToken,
+        refreshToken,
+        expiresAt,
+        scope: data.scope,
+      };
+
+      await secretStore.set(OAUTH_SERVICE, "minimax-oauth", JSON.stringify(oauthToken));
       minimaxPendingFlows.delete(sessionId);
+      console.log(`[MiniMax OAuth] Login successful, token expires: ${new Date(expiresAt * 1000).toISOString()}`);
+      return;
     } catch {
       // Network error - retry
       setTimeout(poll, (flow?.interval || 5) * 1000);

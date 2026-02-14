@@ -185,11 +185,19 @@ export function createProvidersRouter(options: ProvidersRouterOptions): Router {
   // DELETE /api/providers/:name - remove provider and all related data (loopback only)
   router.delete("/:name", requireLoopback, async (req: Request, res: Response) => {
     try {
-      const name = req.params.name as string;
+      const name = req.params.name as ProviderName;
 
       // Delete API key from secret store
       if (secretStore) {
         await secretStore.delete(PROVIDER_SERVICE, name);
+      }
+
+      // For OAuth providers, also delete OAuth token
+      if (isOAuthProvider(name)) {
+        const store = oauthSecretStore || secretStore;
+        if (store) {
+          await store.delete(OAUTH_SERVICE, name);
+        }
       }
 
       // Delete provider settings and related data from database

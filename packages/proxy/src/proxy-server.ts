@@ -1996,11 +1996,16 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         effectiveProvider = targetProv;
 
         // Transform request format if needed
+        // Providers that use Anthropic Messages API format
+        const anthropicFormatProviders = new Set(["anthropic", "minimax-oauth"]);
+        const isSourceAnthropic = anthropicFormatProviders.has(provider);
+        const isTargetAnthropic = anthropicFormatProviders.has(targetProv);
+
         if (targetProv === "openai-oauth") {
           // Any provider → Codex API
           // Convert to Codex format (Responses API)
           let openaiRequest: OpenAIRequest;
-          if (provider === "anthropic") {
+          if (isSourceAnthropic) {
             openaiRequest = anthropicToOpenaiRequest(bodyJson as AnthropicRequest);
           } else {
             openaiRequest = bodyJson as OpenAIRequest;
@@ -2009,27 +2014,20 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           bodyJson = codexRequest;
           bodyModified = true;
           log.info(`[PROXY] Transformed request: ${provider} → Codex API`);
-        } else if (provider !== "anthropic" && targetProv === "anthropic") {
-          // OpenAI-compatible or Google → Anthropic
-          // For Google, we need to ensure the request has required fields
-          if (provider === "google") {
-            // Google native format → need to convert to OpenAI first, then to Anthropic
-            // For now, assume the request is already in a compatible format or
-            // the client is using OpenAI-compatible format through the Google endpoint
-            log.info(`[PROXY] Converting Google request → Anthropic`);
-          }
+        } else if (!isSourceAnthropic && isTargetAnthropic) {
+          // OpenAI-compatible → Anthropic format (anthropic, minimax-oauth)
           const anthropicRequest = openaiToAnthropic(bodyJson as OpenAIRequest);
           bodyJson = anthropicRequest;
           bodyModified = true;
-          log.info(`[PROXY] Transformed request: ${provider} → Anthropic`);
-        } else if (provider === "anthropic" && targetProv !== "anthropic") {
-          // Anthropic → OpenAI-compatible
+          log.info(`[PROXY] Transformed request: ${provider} → Anthropic format (${targetProv})`);
+        } else if (isSourceAnthropic && !isTargetAnthropic && targetProv !== ("openai-oauth" as ProviderName)) {
+          // Anthropic format → OpenAI-compatible
           const openaiRequest = anthropicToOpenaiRequest(bodyJson as AnthropicRequest);
           bodyJson = openaiRequest;
           bodyModified = true;
-          log.info(`[PROXY] Transformed request: Anthropic → OpenAI`);
+          log.info(`[PROXY] Transformed request: Anthropic format → OpenAI`);
         }
-        // Other cases (OpenAI-compatible → OpenAI-compatible) don't need transformation
+        // Other cases (same format family) don't need transformation
 
         // Update target URL for cross-provider
         const newEndpoint = getProviderChatEndpoint(targetProv);
@@ -2267,17 +2265,22 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       (useCodexApi && isStreaming);
 
     if (isSSE && providerResponse.body) {
+      // Providers that use Anthropic Messages API format (for streaming conversion)
+      const anthropicFormatProviders = new Set(["anthropic", "minimax-oauth"]);
+      const isOriginalAnthropic = crossProviderOverride ? anthropicFormatProviders.has(crossProviderOverride.originalProvider) : false;
+      const isTargetAnthropic = anthropicFormatProviders.has(effectiveProvider);
+
       // Determine stream conversion direction BEFORE setting headers
-      // Case 1: OpenAI-compatible client → Anthropic target (convert Anthropic SSE → OpenAI SSE)
-      const needsAnthropicToOpenai = crossProviderOverride && effectiveProvider === "anthropic" && crossProviderOverride.originalProvider !== "anthropic";
-      // Case 2: Anthropic client → OpenAI-compatible target (convert OpenAI SSE → Anthropic SSE)
-      const needsOpenaiToAnthropic = crossProviderOverride && crossProviderOverride.originalProvider === "anthropic" && effectiveProvider !== "anthropic";
+      // Case 1: OpenAI-compatible client → Anthropic format target (convert Anthropic SSE → OpenAI SSE)
+      const needsAnthropicToOpenai = crossProviderOverride && isTargetAnthropic && !isOriginalAnthropic;
+      // Case 2: Anthropic format client → OpenAI-compatible target (convert OpenAI SSE → Anthropic SSE)
+      const needsOpenaiToAnthropic = crossProviderOverride && isOriginalAnthropic && !isTargetAnthropic && effectiveProvider !== "openai-oauth";
       // Case 3: OpenAI-compatible client → Codex target (convert Codex SSE → OpenAI SSE)
       // This includes: (a) cross-provider override to openai-oauth, or (b) direct Codex model via OpenAI API
-      const needsCodexToOpenai = (crossProviderOverride && effectiveProvider === "openai-oauth" && crossProviderOverride.originalProvider !== "anthropic") ||
+      const needsCodexToOpenai = (crossProviderOverride && effectiveProvider === "openai-oauth" && !isOriginalAnthropic) ||
         (useCodexApi && !crossProviderOverride);
-      // Case 4: Anthropic client → Codex target (convert Codex SSE → OpenAI SSE → Anthropic SSE)
-      const needsCodexToAnthropic = crossProviderOverride && effectiveProvider === "openai-oauth" && crossProviderOverride.originalProvider === "anthropic";
+      // Case 4: Anthropic format client → Codex target (convert Codex SSE → OpenAI SSE → Anthropic SSE)
+      const needsCodexToAnthropic = crossProviderOverride && effectiveProvider === "openai-oauth" && isOriginalAnthropic;
 
       // Streaming response - build headers carefully
       const responseHeaders: Record<string, string> = {};
@@ -2671,22 +2674,27 @@ export function startProxy(options: ProxyOptions): ProxyServer {
       let responseConverted = false;
 
       if (crossProviderOverride && providerResponse.status < 400) {
-        // Case 1: OpenAI-compatible client → Anthropic target
+        // Providers that use Anthropic Messages API format
+        const anthropicFormatProviders = new Set(["anthropic", "minimax-oauth"]);
+        const isOriginalAnthropic = anthropicFormatProviders.has(crossProviderOverride.originalProvider);
+        const isTargetAnthropic = anthropicFormatProviders.has(effectiveProvider);
+
+        // Case 1: OpenAI-compatible client → Anthropic format target
         // Need to convert Anthropic response → OpenAI format
-        if (effectiveProvider === "anthropic" && crossProviderOverride.originalProvider !== "anthropic") {
+        if (isTargetAnthropic && !isOriginalAnthropic) {
           try {
             const anthropicResponse = JSON.parse(responseBodyBuffer.toString("utf-8")) as AnthropicResponse;
             const openaiResponse = anthropicToOpenai(anthropicResponse, requestedModel ?? undefined);
             finalResponseBody = Buffer.from(JSON.stringify(openaiResponse), "utf-8");
             responseConverted = true;
-            log.info(`[PROXY] Converted Anthropic response → OpenAI format`);
+            log.info(`[PROXY] Converted Anthropic format response → OpenAI format`);
           } catch (e) {
             log.error(`[PROXY] Failed to convert Anthropic response: ${e instanceof Error ? e.message : String(e)}`);
           }
         }
-        // Case 2: Anthropic client → OpenAI-compatible target
+        // Case 2: Anthropic format client → OpenAI-compatible target
         // Need to convert OpenAI response → Anthropic format
-        else if (crossProviderOverride.originalProvider === "anthropic" && effectiveProvider !== "anthropic") {
+        else if (isOriginalAnthropic && !isTargetAnthropic) {
           try {
             const openaiResponse = JSON.parse(responseBodyBuffer.toString("utf-8")) as OpenAIResponse;
             const anthropicResponse = openaiToAnthropicResponse(openaiResponse, requestedModel ?? undefined);

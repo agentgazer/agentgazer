@@ -19,6 +19,7 @@ const PROVIDER_ICONS: Record<string, string> = {
   zhipu: "Z",
   "zhipu-coding-plan": "Z",
   minimax: "X",
+  "minimax-oauth": "X",
 };
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -32,7 +33,14 @@ const PROVIDER_LABELS: Record<string, string> = {
   zhipu: "Zhipu / Z.ai (GLM-4.7)",
   "zhipu-coding-plan": "Zhipu Coding Plan (GLM-4.7, Subscription)",
   minimax: "MiniMax (M2)",
+  "minimax-oauth": "MiniMax Coding Plan (OAuth)",
 };
+
+// OAuth providers configuration
+const OAUTH_PROVIDERS = [
+  { name: "openai-oauth", label: "Codex", color: "green" },
+  { name: "minimax-oauth", label: "MiniMax", color: "purple" },
+] as const;
 
 export default function ProvidersPage() {
   const { t } = useTranslation();
@@ -40,10 +48,11 @@ export default function ProvidersPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [togglingProvider, setTogglingProvider] = useState<string | null>(null);
 
-  // OAuth state
-  const [oauthLoading, setOauthLoading] = useState(false);
+  // OAuth state - per provider
+  const [oauthLoading, setOauthLoading] = useState<Record<string, boolean>>({});
   const [oauthError, setOauthError] = useState<string | null>(null);
-  const oauthPollingRef = useRef(false);
+  const [minimaxUserCode, setMinimaxUserCode] = useState<string | null>(null);
+  const oauthPollingRef = useRef<Record<string, boolean>>({});
 
   const fetcher = useCallback(() => providerApi.list(), []);
   const { data, error, loading, refresh } = usePolling(fetcher, 3000);
@@ -51,45 +60,58 @@ export default function ProvidersPage() {
   // Filter to only show configured providers in the table
   const configuredProviders = data?.providers.filter((p) => p.configured) ?? [];
 
-  // Check if openai-oauth is configured
-  const openaiOAuthProvider = data?.providers.find((p) => p.name === "openai-oauth");
-  const isOAuthLoggedIn = openaiOAuthProvider?.configured ?? false;
+  // Check OAuth provider status
+  const getOAuthStatus = (providerName: string) => {
+    const provider = data?.providers.find((p) => p.name === providerName);
+    return provider?.configured ?? false;
+  };
 
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
-      oauthPollingRef.current = false;
+      oauthPollingRef.current = {};
     };
   }, []);
 
   // OAuth handlers
-  async function handleOAuthLogin() {
-    setOauthLoading(true);
+  async function handleOAuthLogin(providerName: string) {
+    setOauthLoading((prev) => ({ ...prev, [providerName]: true }));
     setOauthError(null);
+    setMinimaxUserCode(null);
     try {
-      const { authUrl } = await oauthApi.start("openai-oauth");
-      // Open auth URL in new window
-      window.open(authUrl, "_blank", "width=600,height=700");
+      const response = await oauthApi.start(providerName);
+
+      if (providerName === "minimax-oauth" && response.userCode) {
+        // MiniMax device code flow - show user code
+        setMinimaxUserCode(response.userCode);
+        if (response.verificationUri) {
+          window.open(response.verificationUri, "_blank", "width=600,height=700");
+        }
+      } else if (response.authUrl) {
+        // Standard OAuth flow - open auth URL
+        window.open(response.authUrl, "_blank", "width=600,height=700");
+      }
+
       // Start polling for completion
-      oauthPollingRef.current = true;
-      pollOAuthStatus();
+      oauthPollingRef.current[providerName] = true;
+      pollOAuthStatus(providerName);
     } catch (err) {
       setOauthError(String(err));
-      setOauthLoading(false);
+      setOauthLoading((prev) => ({ ...prev, [providerName]: false }));
     }
   }
 
-  async function pollOAuthStatus() {
+  async function pollOAuthStatus(providerName: string) {
     const maxAttempts = 60; // 5 minutes with 5s interval
     let attempts = 0;
 
     const poll = async () => {
       try {
-        const status = await oauthApi.getStatus("openai-oauth");
+        const status = await oauthApi.getStatus(providerName);
         if (status.loggedIn) {
-          oauthPollingRef.current = false;
-          setOauthLoading(false);
-          // Refresh providers to show updated status
+          oauthPollingRef.current[providerName] = false;
+          setOauthLoading((prev) => ({ ...prev, [providerName]: false }));
+          setMinimaxUserCode(null);
           refresh();
           return;
         }
@@ -98,27 +120,28 @@ export default function ProvidersPage() {
       }
 
       attempts++;
-      if (attempts < maxAttempts && oauthPollingRef.current) {
+      if (attempts < maxAttempts && oauthPollingRef.current[providerName]) {
         setTimeout(poll, 5000);
       } else {
-        oauthPollingRef.current = false;
-        setOauthLoading(false);
+        oauthPollingRef.current[providerName] = false;
+        setOauthLoading((prev) => ({ ...prev, [providerName]: false }));
+        setMinimaxUserCode(null);
       }
     };
 
     setTimeout(poll, 3000); // Start after 3 seconds
   }
 
-  async function handleOAuthLogout() {
-    setOauthLoading(true);
+  async function handleOAuthLogout(providerName: string) {
+    setOauthLoading((prev) => ({ ...prev, [providerName]: true }));
     setOauthError(null);
     try {
-      await oauthApi.logout("openai-oauth");
+      await oauthApi.logout(providerName);
       refresh();
     } catch (err) {
       setOauthError(String(err));
     } finally {
-      setOauthLoading(false);
+      setOauthLoading((prev) => ({ ...prev, [providerName]: false }));
     }
   }
 
@@ -147,26 +170,34 @@ export default function ProvidersPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* OAuth Login/Logout Button */}
-          {isLoopback && (
-            isOAuthLoggedIn ? (
+          {/* OAuth Login/Logout Buttons */}
+          {isLoopback && OAUTH_PROVIDERS.map((oauth) => {
+            const isLoggedIn = getOAuthStatus(oauth.name);
+            const isLoading = oauthLoading[oauth.name] ?? false;
+            const colorClass = oauth.color === "green"
+              ? "border-green-600 bg-green-600/10 text-green-400 hover:bg-green-600/20"
+              : "border-purple-600 bg-purple-600/10 text-purple-400 hover:bg-purple-600/20";
+
+            return isLoggedIn ? (
               <button
-                onClick={handleOAuthLogout}
-                disabled={oauthLoading}
+                key={oauth.name}
+                onClick={() => handleOAuthLogout(oauth.name)}
+                disabled={isLoading}
                 className="rounded-md border border-gray-600 bg-gray-700 px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50"
               >
-                {oauthLoading ? "..." : t("providers.logoutCodex")}
+                {isLoading ? "..." : `Logout ${oauth.label}`}
               </button>
             ) : (
               <button
-                onClick={handleOAuthLogin}
-                disabled={oauthLoading}
-                className="rounded-md border border-green-600 bg-green-600/10 px-4 py-2 text-sm font-medium text-green-400 transition-colors hover:bg-green-600/20 disabled:opacity-50"
+                key={oauth.name}
+                onClick={() => handleOAuthLogin(oauth.name)}
+                disabled={isLoading}
+                className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${colorClass}`}
               >
-                {oauthLoading ? t("providers.waiting") : t("providers.loginCodex")}
+                {isLoading ? t("providers.waiting") : `Login ${oauth.label}`}
               </button>
-            )
-          )}
+            );
+          })}
 
           <div className="relative">
             <button
@@ -203,6 +234,21 @@ export default function ProvidersPage() {
       {oauthError && (
         <div className="mt-4">
           <ErrorBanner message={`OAuth error: ${oauthError}`} />
+        </div>
+      )}
+
+      {/* MiniMax Device Code */}
+      {minimaxUserCode && (
+        <div className="mt-4 rounded-lg border border-purple-600 bg-purple-900/20 p-4">
+          <p className="text-sm text-purple-300">
+            Enter this code on MiniMax:
+          </p>
+          <p className="mt-2 font-mono text-2xl font-bold text-purple-400">
+            {minimaxUserCode}
+          </p>
+          <p className="mt-2 text-xs text-purple-400">
+            Waiting for authorization...
+          </p>
         </div>
       )}
 
