@@ -220,6 +220,7 @@ async function listModels(name: string): Promise<void> {
 
 async function showStats(name: string, flags: Record<string, string>, port: number): Promise<void> {
   const range = flags["range"] || "24h";
+  const outputFormat = flags["o"] || flags["output"] || "table";
 
   try {
     const data = await apiGet<ProviderStats>(
@@ -227,6 +228,22 @@ async function showStats(name: string, flags: Record<string, string>, port: numb
       port,
     );
 
+    // JSON output for machine consumption
+    if (outputFormat === "json") {
+      const jsonOutput = {
+        provider: name,
+        range,
+        total_calls: data.total_calls,
+        total_cost_usd: data.total_cost,
+        total_tokens: data.total_tokens,
+        top_models: data.top_models || [],
+        top_agents: data.top_agents || [],
+      };
+      console.log(JSON.stringify(jsonOutput, null, 2));
+      return;
+    }
+
+    // Table output (default)
     console.log(`
   Provider Statistics: "${name}" (last ${range})
   ───────────────────────────────────────

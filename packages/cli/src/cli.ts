@@ -240,6 +240,7 @@ Config file: ~/.agentgazer/config.json (optional settings: port, proxyPort, auto
 
 Options (for agent/provider stat):
   --range <period>           Time range: 1h, 24h, 7d, 30d (default: 24h)
+  -o, --output <format>      Output format: table, json (default: table)
 
 Options (for delete commands):
   --yes                      Skip confirmation prompts

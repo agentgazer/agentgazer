@@ -4,6 +4,7 @@ import {
   providerApi,
   openclawApi,
   oauthApi,
+  getToken,
   type ProviderInfo,
   type OpenclawModels,
   type OpenclawConfigResponse,
@@ -99,8 +100,18 @@ export default function OpenClawPage() {
     setError(null);
     setConfigSuccess(false);
     try {
-      // Apply models config and default model
+      // 1. Apply models config and default model to OpenClaw
       await openclawApi.updateConfig(generatedConfig, primaryModel);
+
+      // 2. Setup AgentGazer integration (mcp-config.json + OpenClaw skill)
+      const serverHost = proxyHost.replace(":18900", ":18880");
+      const token = getToken() || "";
+      await openclawApi.setupAgentgazer(
+        `http://${serverHost}`,
+        token,
+        agentName || "openclaw"
+      );
+
       setConfigSuccess(true);
       // Reload to show updated current config
       await loadData(false);

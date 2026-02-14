@@ -274,6 +274,13 @@ export const openclawApi = {
         },
       }),
     }),
+
+  setupAgentgazer: (endpoint: string, token: string, agentId: string) =>
+    api.post<{ success: boolean }>("/api/openclaw/setup-agentgazer", {
+      endpoint,
+      token,
+      agentId,
+    }),
 };
 
 // ---------------------------------------------------------------------------

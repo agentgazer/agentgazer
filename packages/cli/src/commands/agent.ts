@@ -163,6 +163,7 @@ async function deleteAgent(name: string, flags: Record<string, string>, port: nu
 
 async function showStats(name: string, flags: Record<string, string>, port: number): Promise<void> {
   const range = flags["range"] || "24h";
+  const outputFormat = flags["o"] || flags["output"] || "table";
 
   try {
     const data = await apiGet<StatsResponse>(
@@ -170,6 +171,25 @@ async function showStats(name: string, flags: Record<string, string>, port: numb
       port,
     );
 
+    // JSON output for machine consumption
+    if (outputFormat === "json") {
+      const jsonOutput = {
+        agent_id: name,
+        range,
+        total_requests: data.total_requests,
+        total_errors: data.total_errors,
+        error_rate: data.total_requests > 0 ? data.total_errors / data.total_requests : 0,
+        total_cost_usd: data.total_cost,
+        total_tokens: data.total_tokens,
+        p50_latency_ms: data.p50_latency,
+        p99_latency_ms: data.p99_latency,
+        cost_by_model: data.cost_by_model || [],
+      };
+      console.log(JSON.stringify(jsonOutput, null, 2));
+      return;
+    }
+
+    // Table output (default)
     const errorPct =
       data.total_requests > 0 ? ((data.total_errors / data.total_requests) * 100).toFixed(2) : "0.00";
 

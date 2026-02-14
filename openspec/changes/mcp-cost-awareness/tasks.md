@@ -61,3 +61,24 @@
 - [x] 9.1 Build and test @agentgazer/mcp package
 - [ ] 9.2 Publish @agentgazer/mcp to npm
 - [ ] 9.3 Update @agentgazer/cli to optionally depend on mcp package
+
+## 10. CLI JSON Output
+
+- [x] 10.1 Add `-o json` flag to `agent <name> stat` command
+- [x] 10.2 Implement JSON output format for stats response
+- [x] 10.3 Update CLI help text to document new flag
+
+## 11. Dashboard mcp-config.json Integration
+
+- [x] 11.1 Update OpenClaw Apply to write `~/.agentgazer/mcp-config.json`
+- [x] 11.2 Include endpoint, token, and agentId in config
+- [x] 11.3 Test that config is created correctly on Apply
+
+## 12. OpenClaw Skill (Auto-install via Dashboard)
+
+- [x] 12.1 Create skill template: `SKILL.md` with metadata and instructions
+- [x] 12.2 Create skill template: `scripts/cost.sh` to query stats via CLI
+- [x] 12.3 Update Dashboard Apply to create `~/.openclaw/skills/agentgazer/` directory
+- [x] 12.4 Update Dashboard Apply to write SKILL.md and scripts to skill directory
+- [x] 12.5 Test skill auto-installation on Apply
+- [x] 12.6 Test skill works with OpenClaw
