@@ -206,7 +206,7 @@ export interface OverviewData {
 }
 
 export interface RecentEvent {
-  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent";
+  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent" | "security";
   agent_id: string;
   message: string;
   timestamp: string;

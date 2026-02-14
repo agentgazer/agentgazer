@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { relativeTime } from "../lib/format";
 
 export interface RecentEvent {
-  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent";
+  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent" | "security";
   agent_id: string;
   message: string;
   timestamp: string;
@@ -18,6 +18,7 @@ const EVENT_LABELS: Record<RecentEvent["type"], string> = {
   budget_warning: "Budget",
   high_error_rate: "Error Rate",
   new_agent: "New Agent",
+  security: "Security",
 };
 
 const EVENT_STYLES: Record<
@@ -47,6 +48,12 @@ const EVENT_STYLES: Record<
     bg: "bg-blue-900/20",
     text: "text-blue-400",
     border: "border-blue-800/50",
+  },
+  security: {
+    icon: "🛡️",
+    bg: "bg-purple-900/20",
+    text: "text-purple-400",
+    border: "border-purple-800/50",
   },
 };
 
