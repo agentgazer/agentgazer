@@ -9,6 +9,8 @@ export interface ModelPricing {
 // Prices in USD per 1M tokens
 const PRICING_TABLE: Record<string, ModelPricing> = {
   // OpenAI - GPT-4
+  "gpt-4": { inputPerMToken: 30.00, outputPerMToken: 60.00 },
+  "gpt-4-32k": { inputPerMToken: 60.00, outputPerMToken: 120.00 },
   "gpt-4o": { inputPerMToken: 2.50, outputPerMToken: 10.00 },
   "gpt-4o-mini": { inputPerMToken: 0.15, outputPerMToken: 0.60 },
   "gpt-4-turbo": { inputPerMToken: 10.00, outputPerMToken: 30.00 },
@@ -111,10 +113,12 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
  * e.g. "gpt-4o-2024-08-06" -> "gpt-4o"
  *      "o1-2024-12-17" -> "o1"
  *      "gpt-4o-mini-2024-07-18" -> "gpt-4o-mini"
+ *      "gpt-4-0613" -> "gpt-4"
+ *      "gpt-4-32k-0613" -> "gpt-4-32k"
  */
 export function normalizeModelName(model: string): string {
-  // Strip date suffix like -2024-08-06 or -2025-01-31
-  return model.replace(/-\d{4}-\d{2}-\d{2}$/, "");
+  // Strip date suffix like -2024-08-06, -2025-01-31, or legacy -0613, -0314
+  return model.replace(/-\d{4}-\d{2}-\d{2}$/, "").replace(/-\d{4}$/, "");
 }
 
 export function getModelPricing(model: string): ModelPricing | null {
