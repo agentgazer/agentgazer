@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/shared",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Shared types, schemas, and utilities for AgentGazer packages",
   "license": "AGPL-3.0",
   "main": "./dist/index.js",
@@ -48,6 +48,7 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
+    "turbo": "^2.8.8",
     "typescript": "^5.5.0",
     "vitest": "^4.0.18"
   }
