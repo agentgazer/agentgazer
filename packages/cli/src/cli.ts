@@ -37,6 +37,8 @@ import {
   startOAuthFlow,
   startDeviceCodeFlow,
   pollDeviceCodeAuthorization,
+  startMiniMaxOAuthFlow,
+  pollMiniMaxAuthorization,
   type OAuthToken,
 } from "./oauth.js";
 import { startServer } from "@agentgazer/server";
@@ -287,6 +289,7 @@ Examples:
   agentgazer overview                   Launch TUI dashboard
   agentgazer login openai-oauth         Login to OpenAI Codex via OAuth
   agentgazer login openai-oauth --device  Use device code flow
+  agentgazer login minimax-oauth        Login to MiniMax Coding Plan
   agentgazer logout openai-oauth        Logout from OpenAI Codex
   agentgazer provider add openai        Add OpenAI (prompts for key)
   agentgazer agent my-bot stat          Show stats for my-bot
@@ -1410,6 +1413,7 @@ async function cmdLogin(provider: string, flags: Record<string, string>): Promis
     console.error("Usage: agentgazer login <provider>");
     console.error("\nSupported OAuth providers:");
     console.error("  openai-oauth    OpenAI Codex (subscription)");
+    console.error("  minimax-oauth   MiniMax Coding Plan (subscription)");
     process.exit(1);
   }
 
@@ -1447,8 +1451,55 @@ async function cmdLogin(provider: string, flags: Record<string, string>): Promis
   console.log(`\n  Logging in to ${PROVIDER_DISPLAY_NAMES[normalizedProvider] || normalizedProvider}...`);
   console.log(`  Secret backend: ${backendName}\n`);
 
-  if (useDeviceCode) {
-    // Device code flow (for headless environments)
+  // MiniMax always uses device code flow, OpenAI can use either
+  if (normalizedProvider === "minimax-oauth") {
+    // MiniMax device code flow (user_code grant type)
+    try {
+      const region = (flags.region as "global" | "cn") || "global";
+      const { auth, verifier } = await startMiniMaxOAuthFlow(region);
+
+      console.log("  ┌────────────────────────────────────────────────┐");
+      console.log("  │                                                │");
+      console.log(`  │  Code:  ${auth.userCode.padEnd(38)}│`);
+      console.log("  │                                                │");
+      console.log("  └────────────────────────────────────────────────┘");
+      console.log(`\n  Visit: ${auth.verificationUri}`);
+      console.log("  Enter the code above to authorize.\n");
+
+      // Try to open browser
+      try {
+        const open = await import("open");
+        await open.default(auth.verificationUri);
+      } catch {
+        // Browser couldn't be opened, user will need to use the URL
+      }
+
+      console.log("  Waiting for authorization...");
+
+      const token = await pollMiniMaxAuthorization(
+        auth.userCode,
+        verifier,
+        auth.interval,
+        auth.expiresAt,
+        region
+      );
+
+      await storeOAuthToken(store, normalizedProvider, {
+        accessToken: token.accessToken,
+        refreshToken: token.refreshToken,
+        expiresAt: token.expiresAt,
+        scope: token.scope,
+      });
+
+      console.log("\n  ✓ Login successful!");
+      console.log(`  Token stored in ${backendName}`);
+      console.log(`  Expires: ${new Date(token.expiresAt * 1000).toLocaleString()}`);
+    } catch (err) {
+      console.error(`\n  ✗ Login failed: ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+  } else if (useDeviceCode) {
+    // OpenAI device code flow (for headless environments)
     try {
       const deviceResp = await startDeviceCodeFlow(normalizedProvider);
 
@@ -1482,7 +1533,7 @@ async function cmdLogin(provider: string, flags: Record<string, string>): Promis
       process.exit(1);
     }
   } else {
-    // Browser-based OAuth flow with PKCE
+    // OpenAI browser-based OAuth flow with PKCE
     try {
       const { authUrl, tokenPromise } = await startOAuthFlow({
         provider: normalizedProvider,
