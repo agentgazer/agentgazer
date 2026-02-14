@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import LoadingSpinner from "../components/LoadingSpinner";
-import ErrorBanner from "../components/ErrorBanner";
 
 /* ---------- Types ---------- */
 
@@ -200,14 +199,6 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("settings.title")}</h1>
-
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
-
-      {success && (
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-          <p className="text-green-800 dark:text-green-200">{success}</p>
-        </div>
-      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         {/* Server Section */}
@@ -523,7 +514,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Save Button */}
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end gap-3">
         <button
           onClick={handleSave}
           disabled={saving}
@@ -531,6 +522,18 @@ export default function SettingsPage() {
         >
           {saving ? t("settings.saving") : t("settings.saveSettings")}
         </button>
+
+        {error && (
+          <div className="w-full bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+            <p className="text-red-800 dark:text-red-200 text-sm">{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="w-full bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+            <p className="text-green-800 dark:text-green-200 text-sm">{success}</p>
+          </div>
+        )}
       </div>
 
       {/* Config file path */}
