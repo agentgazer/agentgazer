@@ -181,12 +181,20 @@ async function handleMiniMaxOAuthStart(
     }
 
     // Store pending flow for polling
+    // MiniMax may return interval in milliseconds, cap to reasonable range (1-30 seconds)
+    let pollInterval = data.interval ?? 5;
+    if (pollInterval > 100) {
+      // Likely in milliseconds, convert to seconds
+      pollInterval = Math.ceil(pollInterval / 1000);
+    }
+    pollInterval = Math.max(1, Math.min(pollInterval, 30)); // Clamp to 1-30 seconds
+
     minimaxPendingFlows.set(sessionId, {
       codeVerifier,
       state,
       userCode: data.user_code,
       expiresAt: Date.now() + (data.expired_in ?? 600) * 1000,
-      interval: data.interval ?? 5,
+      interval: pollInterval,
       createdAt: Date.now(),
     });
 
@@ -240,8 +248,10 @@ async function startMiniMaxPolling(
         body: body.toString(),
       });
 
+      const responseText = await response.text();
+
       if (response.ok) {
-        const data = await response.json() as {
+        const data = JSON.parse(responseText) as {
           access_token: string;
           refresh_token?: string;
           expires_in?: number;
@@ -261,7 +271,13 @@ async function startMiniMaxPolling(
       }
 
       // Check for pending state
-      const errorData = await response.json().catch(() => ({})) as { error?: string };
+      let errorData: { error?: string } = {};
+      try {
+        errorData = JSON.parse(responseText);
+      } catch {
+        errorData = {};
+      }
+
       if (errorData.error === "authorization_pending" || errorData.error === "slow_down") {
         // Continue polling
         setTimeout(poll, (flow.interval || 5) * 1000);
