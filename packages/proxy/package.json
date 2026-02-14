@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/proxy",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "AgentGazer proxy server for buffering and forwarding agent events",
   "license": "AGPL-3.0",
   "main": "./dist/index.js",
@@ -48,8 +48,8 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentgazer/shared": "0.5.2",
-    "@agentgazer/server": "0.5.2"
+    "@agentgazer/shared": "0.5.3",
+    "@agentgazer/server": "0.5.3"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
