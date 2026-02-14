@@ -183,7 +183,7 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
     zhipu: "https://api.z.ai/api/paas/v4",
     "zhipu-coding-plan": "https://api.z.ai/api/coding/paas/v4",
     minimax: "https://api.minimax.io/v1",
-    "minimax-oauth": "https://api.minimax.io/v1",
+    "minimax-oauth": "https://api.minimax.io/anthropic",  // Uses Anthropic Messages API format
     baichuan: "https://api.baichuan-ai.com/v1",
   };
   return urls[provider] ?? null;
@@ -206,7 +206,7 @@ export function getProviderRootUrl(provider: ProviderName): string | null {
     zhipu: "https://api.z.ai",
     "zhipu-coding-plan": "https://api.z.ai",
     minimax: "https://api.minimax.io",
-    "minimax-oauth": "https://api.minimax.io",
+    "minimax-oauth": "https://api.minimax.io/anthropic",  // Uses Anthropic Messages API format
     baichuan: "https://api.baichuan-ai.com",
   };
   return urls[provider] ?? null;
@@ -238,7 +238,7 @@ export function getProviderChatEndpoint(provider: ProviderName): string | null {
     zhipu: "https://api.z.ai/api/paas/v4/chat/completions",
     "zhipu-coding-plan": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     minimax: "https://api.minimax.io/v1/text/chatcompletion_v2",
-    "minimax-oauth": "https://api.minimax.io/v1/text/chatcompletion_v2",
+    "minimax-oauth": "https://api.minimax.io/anthropic/v1/messages",  // Anthropic Messages format
     baichuan: "https://api.baichuan-ai.com/v1/chat/completions",
   };
   return endpoints[provider] ?? null;
@@ -306,11 +306,14 @@ export function parsePathPrefix(
 export function rewriteProviderPath(provider: ProviderName, path: string): string {
   switch (provider) {
     case "minimax":
-    case "minimax-oauth":
-      // MiniMax uses /v1/text/chatcompletion_v2 instead of /v1/chat/completions
+      // MiniMax API key uses /v1/text/chatcompletion_v2 (OpenAI-style)
       if (path === "/v1/chat/completions" || path.startsWith("/v1/chat/completions?")) {
         return path.replace("/v1/chat/completions", "/v1/text/chatcompletion_v2");
       }
+      break;
+    case "minimax-oauth":
+      // MiniMax Coding Plan uses Anthropic Messages API format at /v1/messages
+      // No rewriting needed - client should send Anthropic format directly
       break;
     // Zhipu base URL already includes /api/paas, so /v4/chat/completions works directly
     // Moonshot and Baichuan use standard OpenAI-compatible paths
@@ -379,7 +382,7 @@ export const OAUTH_CONFIG = {
     tokenEndpointCN: "https://api.minimaxi.com/oauth/token",
     scopes: ["group_id", "profile", "model.completion"],
     grantType: "urn:ietf:params:oauth:grant-type:user_code",
-    // API endpoint for MiniMax
-    apiEndpoint: "https://api.minimax.io/v1/text/chatcompletion_v2",
+    // API endpoint for MiniMax Coding Plan (Anthropic Messages format)
+    apiEndpoint: "https://api.minimax.io/anthropic/v1/messages",
   },
 } as const;
