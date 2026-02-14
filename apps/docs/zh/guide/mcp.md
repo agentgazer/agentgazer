@@ -2,12 +2,16 @@
 
 AgentGazer 提供 MCP (Model Context Protocol) 伺服器，讓 AI Agent 能夠查詢自己的成本和使用量數據。這創建了「成本感知 Agent」，能夠監控自己的花費並做出明智的決策。
 
+::: info 注意
+MCP 支援 Claude Code 和其他 MCP 相容的主機。OpenClaw 使用不同的插件系統（Skills），不直接支援 MCP 伺服器。
+:::
+
 ## 概述
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│   AI Agent (OpenClaw, Claude Code 等)                       │
+│   AI Agent (Claude Code, Cursor 等)                         │
 │        │                                                    │
 │        │ stdio                                              │
 │        ▼                                                    │
@@ -40,19 +44,9 @@ agentgazer-mcp init
 
 ## 設定
 
-### 透過 OpenClaw Dashboard
+### Claude Code
 
-最簡單的設定方式是透過 AgentGazer Dashboard：
-
-1. 開啟 AgentGazer Dashboard
-2. 前往「OpenClaw 整合」頁面
-3. 點擊「套用設定」
-
-這會自動設定 Provider 路由和 MCP 伺服器。
-
-### 手動設定
-
-新增至 OpenClaw 設定檔 (`~/.openclaw/openclaw.json`)：
+新增至 Claude Code 設定檔 (`~/.claude/settings.json`)：
 
 ```json
 {
@@ -202,7 +196,7 @@ Agent 可以在會話結束時報告花費：
      --agent-id dev-machine-1
    ```
 
-3. 在每台機器上新增至 OpenClaw 設定
+3. 在每台機器上新增至 Claude Code 設定 (`~/.claude/settings.json`)
 
 ## 疑難排解
 
@@ -223,6 +217,6 @@ agentgazer status
 
 ### MCP 未顯示在 Agent 中
 
-1. 確認設定檔存在：`~/.openclaw/openclaw.json`
-2. 檢查 MCP 伺服器設定是否存在
-3. 重新啟動 AI Agent 應用程式
+1. 確認設定檔存在：`~/.claude/settings.json`
+2. 檢查 `mcpServers.agentgazer` 設定是否存在
+3. 重新啟動 Claude Code

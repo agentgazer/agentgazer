@@ -4,11 +4,9 @@ import {
   providerApi,
   openclawApi,
   oauthApi,
-  getToken,
   type ProviderInfo,
   type OpenclawModels,
   type OpenclawConfigResponse,
-  type McpServerConfig,
 } from "../lib/api";
 import { useConnection } from "../contexts/ConnectionContext";
 import LoadingSpinner from "../components/LoadingSpinner";
@@ -32,23 +30,6 @@ function generateOpenclawConfig(
         models: [
           { id: "agentgazer-proxy", name: "AgentGazer Proxy" },
         ],
-      },
-    },
-  };
-}
-
-function generateMcpServersConfig(
-  serverHost: string = "localhost:18880",
-  agentName: string = "",
-  token: string = ""
-): Record<string, McpServerConfig> {
-  return {
-    agentgazer: {
-      command: "agentgazer-mcp",
-      env: {
-        AGENTGAZER_ENDPOINT: `http://${serverHost}`,
-        AGENTGAZER_TOKEN: token,
-        AGENTGAZER_AGENT_ID: agentName || "openclaw",
       },
     },
   };
@@ -106,9 +87,6 @@ export default function OpenClawPage() {
   const configuredProviders = providers.filter((p) => p.configured && p.active);
   const generatedConfig = generateOpenclawConfig(proxyHost, agentName);
   const primaryModel = "agentgazer/agentgazer-proxy";
-  // Server host for MCP (API server, not proxy)
-  const serverHost = proxyHost.replace(":18900", ":18880");
-  const mcpServersConfig = generateMcpServersConfig(serverHost, agentName, getToken() || "");
 
   function handleApplyClick() {
     // Show confirmation modal before applying
@@ -121,8 +99,8 @@ export default function OpenClawPage() {
     setError(null);
     setConfigSuccess(false);
     try {
-      // Apply models config, default model, and MCP servers in one call
-      await openclawApi.updateConfig(generatedConfig, primaryModel, mcpServersConfig);
+      // Apply models config and default model
+      await openclawApi.updateConfig(generatedConfig, primaryModel);
       setConfigSuccess(true);
       // Reload to show updated current config
       await loadData(false);
@@ -466,14 +444,6 @@ export default function OpenClawPage() {
         <pre className="overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
           {JSON.stringify({ models: generatedConfig }, null, 2)}
         </pre>
-
-        <h3 className="mt-4 mb-2 text-sm font-medium text-gray-300">mcpServers</h3>
-        <pre className="overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
-          {JSON.stringify({ mcpServers: mcpServersConfig }, null, 2)}
-        </pre>
-        <p className="mt-2 text-xs text-gray-500">
-          {t("openclaw.mcpServersHelp", { defaultValue: "MCP server enables AI agents to query their own cost and usage. Install @agentgazer/mcp on remote machines." })}
-        </p>
       </div>
 
       {/* Apply Configuration */}

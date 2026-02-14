@@ -2,12 +2,16 @@
 
 AgentGazer provides an MCP (Model Context Protocol) server that enables AI agents to query their own cost and usage data. This creates "cost-aware agents" that can monitor their spending and make informed decisions.
 
+::: info Note
+MCP is supported by Claude Code and other MCP-compatible hosts. OpenClaw uses a different plugin system (Skills) and does not support MCP servers directly.
+:::
+
 ## Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│   AI Agent (OpenClaw, Claude Code, etc.)                    │
+│   AI Agent (Claude Code, Cursor, etc.)                      │
 │        │                                                    │
 │        │ stdio                                              │
 │        ▼                                                    │
@@ -40,19 +44,9 @@ agentgazer-mcp init
 
 ## Configuration
 
-### Via OpenClaw Dashboard
+### Claude Code
 
-The easiest way to configure MCP is through the AgentGazer dashboard:
-
-1. Open AgentGazer dashboard
-2. Go to "OpenClaw Integration" page
-3. Click "Apply Configuration"
-
-This automatically configures both provider routing and MCP server.
-
-### Manual Configuration
-
-Add to your OpenClaw config (`~/.openclaw/openclaw.json`):
+Add to your Claude Code settings (`~/.claude/settings.json`):
 
 ```json
 {
@@ -202,7 +196,7 @@ For multi-machine deployments where agents run on different machines:
      --agent-id dev-machine-1
    ```
 
-3. Add to OpenClaw config on each machine
+3. Add to Claude Code settings on each machine (`~/.claude/settings.json`)
 
 ## Troubleshooting
 
@@ -223,6 +217,6 @@ agentgazer status
 
 ### MCP not showing in agent
 
-1. Verify config file exists: `~/.openclaw/openclaw.json`
-2. Check MCP server entry is present
-3. Restart your AI agent application
+1. Verify config file exists: `~/.claude/settings.json`
+2. Check `mcpServers.agentgazer` entry is present
+3. Restart Claude Code

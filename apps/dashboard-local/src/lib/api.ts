@@ -227,17 +227,10 @@ export const overviewApi = {
 // OpenClaw API Types
 // ---------------------------------------------------------------------------
 
-export interface McpServerConfig {
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-}
-
 export interface OpenclawConfigResponse {
   exists: boolean;
   models: OpenclawModels | null;
   agents: OpenclawAgents | null;
-  mcpServers: Record<string, McpServerConfig> | null;
   parseError?: boolean;
   raw?: string;
 }
@@ -270,11 +263,7 @@ export interface OpenclawProvider {
 export const openclawApi = {
   getConfig: () => api.get<OpenclawConfigResponse>("/api/openclaw/config"),
 
-  updateConfig: (
-    models: OpenclawModels,
-    primaryModel?: string,
-    mcpServers?: Record<string, McpServerConfig>
-  ) =>
+  updateConfig: (models: OpenclawModels, primaryModel?: string) =>
     api.put<{ success: boolean }>("/api/openclaw/config", {
       models,
       ...(primaryModel && {
@@ -284,7 +273,6 @@ export const openclawApi = {
           },
         },
       }),
-      ...(mcpServers && { mcpServers }),
     }),
 };
 
