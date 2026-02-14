@@ -9,6 +9,7 @@ export type ProviderName =
   | "zhipu"
   | "zhipu-coding-plan"
   | "minimax"
+  | "minimax-oauth"
   | "baichuan"
   | "agentgazer"
   | "unknown";
@@ -30,7 +31,8 @@ export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   moonshot: "Moonshot (Kimi)",
   zhipu: "Zhipu (GLM-4)",
   "zhipu-coding-plan": "Zhipu (GLM Coding Plan)",
-  minimax: "MiniMax (abab)",
+  minimax: "MiniMax (API Key)",
+  "minimax-oauth": "MiniMax (Coding Plan)",
   baichuan: "Baichuan",
   agentgazer: "AgentGazer (Proxy)",
 };
@@ -47,6 +49,7 @@ export const KNOWN_PROVIDER_NAMES: ProviderName[] = [
   "zhipu",
   "zhipu-coding-plan",
   "minimax",
+  "minimax-oauth",
   "baichuan",
   "agentgazer",
 ];
@@ -66,6 +69,7 @@ export const SELECTABLE_PROVIDER_NAMES: ProviderName[] = [
   "zhipu",
   "zhipu-coding-plan",
   "minimax",
+  "minimax-oauth",
   "baichuan",
 ];
 
@@ -179,6 +183,7 @@ export function getProviderBaseUrl(provider: ProviderName): string | null {
     zhipu: "https://api.z.ai/api/paas/v4",
     "zhipu-coding-plan": "https://api.z.ai/api/coding/paas/v4",
     minimax: "https://api.minimax.io/v1",
+    "minimax-oauth": "https://api.minimax.io/v1",
     baichuan: "https://api.baichuan-ai.com/v1",
   };
   return urls[provider] ?? null;
@@ -201,6 +206,7 @@ export function getProviderRootUrl(provider: ProviderName): string | null {
     zhipu: "https://api.z.ai",
     "zhipu-coding-plan": "https://api.z.ai",
     minimax: "https://api.minimax.io",
+    "minimax-oauth": "https://api.minimax.io",
     baichuan: "https://api.baichuan-ai.com",
   };
   return urls[provider] ?? null;
@@ -232,6 +238,7 @@ export function getProviderChatEndpoint(provider: ProviderName): string | null {
     zhipu: "https://api.z.ai/api/paas/v4/chat/completions",
     "zhipu-coding-plan": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     minimax: "https://api.minimax.io/v1/text/chatcompletion_v2",
+    "minimax-oauth": "https://api.minimax.io/v1/text/chatcompletion_v2",
     baichuan: "https://api.baichuan-ai.com/v1/chat/completions",
   };
   return endpoints[provider] ?? null;
@@ -256,6 +263,7 @@ export function getProviderAuthHeader(
     case "zhipu":
     case "zhipu-coding-plan":
     case "minimax":
+    case "minimax-oauth":
     case "baichuan":
       return { name: "authorization", value: `Bearer ${apiKey}` };
     case "anthropic":
@@ -298,6 +306,7 @@ export function parsePathPrefix(
 export function rewriteProviderPath(provider: ProviderName, path: string): string {
   switch (provider) {
     case "minimax":
+    case "minimax-oauth":
       // MiniMax uses /v1/text/chatcompletion_v2 instead of /v1/chat/completions
       if (path === "/v1/chat/completions" || path.startsWith("/v1/chat/completions?")) {
         return path.replace("/v1/chat/completions", "/v1/text/chatcompletion_v2");
@@ -329,14 +338,14 @@ export function parseAgentPath(
  * Check if a provider uses OAuth authentication instead of API keys.
  */
 export function isOAuthProvider(provider: ProviderName): boolean {
-  return provider === "openai-oauth";
+  return provider === "openai-oauth" || provider === "minimax-oauth";
 }
 
 /**
  * Check if a provider uses subscription billing (cost = $0).
  */
 export function isSubscriptionProvider(provider: ProviderName): boolean {
-  return provider === "openai-oauth" || provider === "zhipu-coding-plan";
+  return provider === "openai-oauth" || provider === "zhipu-coding-plan" || provider === "minimax-oauth";
 }
 
 /**
@@ -359,5 +368,18 @@ export const OAUTH_CONFIG = {
     },
     // API endpoint for Codex (NOT standard OpenAI API)
     apiEndpoint: "https://chatgpt.com/backend-api/codex/responses",
+  },
+  "minimax-oauth": {
+    clientId: "78257093-7e40-4613-99e0-527b14b39113",
+    // MiniMax uses device code flow (user_code)
+    codeEndpoint: "https://api.minimax.io/oauth/code",
+    tokenEndpoint: "https://api.minimax.io/oauth/token",
+    // For China region, use api.minimaxi.com instead
+    codeEndpointCN: "https://api.minimaxi.com/oauth/code",
+    tokenEndpointCN: "https://api.minimaxi.com/oauth/token",
+    scopes: ["group_id", "profile", "model.completion"],
+    grantType: "urn:ietf:params:oauth:grant-type:user_code",
+    // API endpoint for MiniMax
+    apiEndpoint: "https://api.minimax.io/v1/text/chatcompletion_v2",
   },
 } as const;

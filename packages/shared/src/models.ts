@@ -99,6 +99,13 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "minimax-m2",
     "m2-her",
   ],
+  // MiniMax OAuth (Coding Plan subscription) - same models
+  "minimax-oauth": [
+    "minimax-m2.1",
+    "minimax-m2.1-lightning",
+    "minimax-m2",
+    "m2-her",
+  ],
 };
 
 /**
