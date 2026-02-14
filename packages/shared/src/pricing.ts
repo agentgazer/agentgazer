@@ -85,6 +85,7 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "kimi-k2-thinking": { inputPerMToken: 0.60, outputPerMToken: 2.50 },
 
   // Zhipu (GLM) / Z.ai
+  "glm-5": { inputPerMToken: 1.00, outputPerMToken: 4.00 },
   "glm-4.7": { inputPerMToken: 0.60, outputPerMToken: 2.20 },
   "glm-4.7-flashx": { inputPerMToken: 0.07, outputPerMToken: 0.40 },
   "glm-4.7-flash": { inputPerMToken: 0, outputPerMToken: 0 },
@@ -100,7 +101,9 @@ const PRICING_TABLE: Record<string, ModelPricing> = {
   "minimax-m1": { inputPerMToken: 0.40, outputPerMToken: 2.20 },
   "minimax-m2": { inputPerMToken: 0.255, outputPerMToken: 1.00 },
   "minimax-m2.1": { inputPerMToken: 0.27, outputPerMToken: 0.95 },
+  "minimax-m2.1-lightning": { inputPerMToken: 0.14, outputPerMToken: 0.48 },
   "minimax-m2-her": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
+  "m2-her": { inputPerMToken: 0.30, outputPerMToken: 1.20 },
 
   // Baichuan
   "Baichuan4-Air": { inputPerMToken: 0.49, outputPerMToken: 0.99 },

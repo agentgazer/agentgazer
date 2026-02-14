@@ -94,10 +94,10 @@ export const SELECTABLE_MODELS: Record<string, string[]> = {
     "glm-4.5-air",
   ],
   minimax: [
-    "MiniMax-M2.1",
-    "MiniMax-M2.1-lightning",
-    "MiniMax-M2",
-    "M2-her",
+    "minimax-m2.1",
+    "minimax-m2.1-lightning",
+    "minimax-m2",
+    "m2-her",
   ],
 };
 

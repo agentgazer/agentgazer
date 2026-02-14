@@ -4,6 +4,7 @@ import {
   getModelPricing,
   listSupportedModels,
 } from "../pricing.js";
+import { SELECTABLE_MODELS } from "../models.js";
 
 describe("getModelPricing", () => {
   it("returns pricing for gpt-4o", () => {
@@ -396,5 +397,27 @@ describe("listSupportedModels", () => {
       expect(pricing!.inputPerMToken).toBeGreaterThanOrEqual(0);
       expect(pricing!.outputPerMToken).toBeGreaterThanOrEqual(0);
     });
+  });
+});
+
+describe("SELECTABLE_MODELS pricing coverage", () => {
+  it("every selectable model has pricing", () => {
+    const missingPricing: { provider: string; model: string }[] = [];
+
+    for (const [provider, models] of Object.entries(SELECTABLE_MODELS)) {
+      for (const model of models) {
+        const pricing = getModelPricing(model);
+        if (!pricing) {
+          missingPricing.push({ provider, model });
+        }
+      }
+    }
+
+    if (missingPricing.length > 0) {
+      const missing = missingPricing
+        .map((m) => `${m.provider}: ${m.model}`)
+        .join(", ");
+      throw new Error(`Models missing pricing: ${missing}`);
+    }
   });
 });
