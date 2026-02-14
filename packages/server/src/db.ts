@@ -1412,7 +1412,7 @@ export function getDailyTrends(db: Database.Database, days = 7): DailyTrends {
 }
 
 export interface RecentEvent {
-  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent";
+  type: "kill_switch" | "budget_warning" | "high_error_rate" | "new_agent" | "security";
   agent_id: string;
   message: string;
   timestamp: string;
@@ -1574,6 +1574,30 @@ export function getRecentEvents(db: Database.Database, limit = 10): RecentEvent[
       message: `${errorRate.toFixed(1)}% errors in last hour`,
       timestamp: normalizeTimestamp(r.timestamp),
       details: { error_rate: errorRate },
+    });
+  }
+
+  // 5. Critical security events (self_protection, prompt_injection, tool_blocked)
+  const securityEvents = db.prepare(`
+    SELECT agent_id, event_type, rule_name, created_at
+    FROM security_events
+    WHERE severity = 'critical' AND created_at >= ?
+    ORDER BY created_at DESC
+    LIMIT 10
+  `).all(oneDayAgo) as { agent_id: string; event_type: string; rule_name: string | null; created_at: string }[];
+
+  for (const se of securityEvents) {
+    const messageMap: Record<string, string> = {
+      self_protection: `Self-protection blocked: ${se.rule_name || "internal access"}`,
+      prompt_injection: `Prompt injection blocked: ${se.rule_name || "pattern detected"}`,
+      tool_blocked: `Tool blocked: ${se.rule_name || "restricted tool"}`,
+    };
+    events.push({
+      type: "security",
+      agent_id: se.agent_id,
+      message: messageMap[se.event_type] || `Security event: ${se.event_type}`,
+      timestamp: normalizeTimestamp(se.created_at),
+      details: { event_type: se.event_type, rule_name: se.rule_name },
     });
   }
 
