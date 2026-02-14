@@ -8,19 +8,30 @@ export interface AgentGazerClientConfig {
   agentId: string;
 }
 
+export interface CostComparison {
+  period: string;
+  totalCost: number;
+  requestCount: number;
+  cost_change_pct: number | null;
+}
+
 export interface TokenUsage {
+  period: string;
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
 }
 
 export interface CostData {
+  period: string;
   totalCost: number;
+  requestCount: number;
   currency: string;
   breakdown?: Array<{
     model: string;
     cost: number;
   }>;
+  comparison?: CostComparison;
 }
 
 export interface BudgetStatus {
@@ -90,7 +101,9 @@ export class AgentGazerClient {
   }
 
   /**
-   * Get token usage for the current agent
+   * Get token usage for the current agent.
+   * Defaults to "today" if no period specified.
+   * Valid periods: 1h, today, 24h, 7d, 30d, all
    */
   async getTokenUsage(params?: {
     period?: string;
@@ -102,11 +115,13 @@ export class AgentGazerClient {
     if (params?.model) query.set("model", params.model);
 
     const result = await this.fetch<{
+      period: string;
       inputTokens: number;
       outputTokens: number;
     }>(`/api/stats/tokens?${query}`);
 
     return {
+      period: result.period,
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
       totalTokens: result.inputTokens + result.outputTokens,
@@ -114,7 +129,10 @@ export class AgentGazerClient {
   }
 
   /**
-   * Get cost for the current agent
+   * Get cost for the current agent.
+   * Defaults to "today" if no period specified.
+   * Valid periods: 1h, today, 24h, 7d, 30d, all
+   * Includes comparison with previous period and request count.
    */
   async getCost(params?: {
     period?: string;

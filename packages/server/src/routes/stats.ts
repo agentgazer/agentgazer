@@ -5,13 +5,16 @@ import { getModelPricing, calculateCost } from "@agentgazer/shared";
 
 const router = Router();
 
-type Range = "1h" | "24h" | "7d" | "30d" | "custom";
+// Unified period type across all stats APIs
+type Period = "1h" | "today" | "24h" | "7d" | "30d" | "all" | "custom";
 
-function computeFromTime(range: Range, from?: string, to?: string): { from: string; to: string } {
+const VALID_PERIODS = new Set<string>(["1h", "today", "24h", "7d", "30d", "all", "custom"]);
+
+function computeTimeRange(period: Period, from?: string, to?: string): { from: string; to: string } {
   const now = new Date();
   const toTime = to ? new Date(to) : now;
 
-  if (range === "custom") {
+  if (period === "custom") {
     if (!from) {
       // Default to 24h if custom range without from
       const d = new Date(toTime);
@@ -21,8 +24,19 @@ function computeFromTime(range: Range, from?: string, to?: string): { from: stri
     return { from: new Date(from).toISOString(), to: toTime.toISOString() };
   }
 
+  if (period === "all") {
+    // All time - use epoch
+    return { from: new Date(0).toISOString(), to: toTime.toISOString() };
+  }
+
+  if (period === "today") {
+    // From midnight local time to now
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return { from: midnight.toISOString(), to: toTime.toISOString() };
+  }
+
   const d = new Date(toTime);
-  switch (range) {
+  switch (period) {
     case "1h":
       d.setHours(d.getHours() - 1);
       break;
@@ -38,6 +52,34 @@ function computeFromTime(range: Range, from?: string, to?: string): { from: stri
   }
 
   return { from: d.toISOString(), to: toTime.toISOString() };
+}
+
+/**
+ * Compute the previous period's time range for comparison.
+ * For "today" → yesterday, for "24h" → previous 24h, etc.
+ */
+function computePreviousPeriodRange(period: Period): { from: string; to: string } | null {
+  if (period === "all" || period === "custom") {
+    return null; // No comparison for all-time or custom ranges
+  }
+
+  const now = new Date();
+
+  if (period === "today") {
+    // Yesterday: from yesterday midnight to today midnight
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayMidnight = new Date(todayMidnight);
+    yesterdayMidnight.setDate(yesterdayMidnight.getDate() - 1);
+    return { from: yesterdayMidnight.toISOString(), to: todayMidnight.toISOString() };
+  }
+
+  // For rolling periods, shift back by the same duration
+  const currentRange = computeTimeRange(period);
+  const durationMs = new Date(currentRange.to).getTime() - new Date(currentRange.from).getTime();
+  const prevTo = new Date(currentRange.from);
+  const prevFrom = new Date(prevTo.getTime() - durationMs);
+
+  return { from: prevFrom.toISOString(), to: prevTo.toISOString() };
 }
 
 function percentile(sorted: number[], p: number): number | null {
@@ -64,12 +106,11 @@ interface TokenSeriesEntry {
 router.get("/api/stats/overview", (req, res) => {
   const db = req.app.locals.db as Database.Database;
 
-  const VALID_RANGES = new Set<string>(["1h", "24h", "7d", "30d"]);
   const rangeParam = req.query.range as string | undefined;
-  const range: Range = (rangeParam && VALID_RANGES.has(rangeParam) ? rangeParam : "24h") as Range;
+  const period: Period = (rangeParam && VALID_PERIODS.has(rangeParam) ? rangeParam : "24h") as Period;
   const modelFilter = req.query.model as string | undefined;
 
-  const timeRange = computeFromTime(range);
+  const timeRange = computeTimeRange(period);
 
   // Build query conditions
   const conditions: string[] = [
@@ -132,10 +173,10 @@ router.get("/api/stats/overview", (req, res) => {
   // Active models count
   const activeModels = costByModelRows.length;
 
-  // Cost time series — bucket appropriately by range
-  // 1h: 5-minute buckets, 24h: hourly buckets, 7d/30d: daily buckets
+  // Cost time series — bucket appropriately by period
+  // 1h: 5-minute buckets, today/24h: hourly buckets, 7d/30d/all: daily buckets
   let costSeriesSQL: string;
-  if (range === "1h") {
+  if (period === "1h") {
     // 5-minute buckets for 1h range
     costSeriesSQL = `SELECT
          strftime('%Y-%m-%dT%H:', timestamp) || printf('%02d', (CAST(strftime('%M', timestamp) AS INTEGER) / 5) * 5) || ':00Z' AS timestamp,
@@ -145,7 +186,7 @@ router.get("/api/stats/overview", (req, res) => {
        ${where}
        GROUP BY strftime('%Y-%m-%dT%H:', timestamp) || printf('%02d', (CAST(strftime('%M', timestamp) AS INTEGER) / 5) * 5)
        ORDER BY timestamp ASC`;
-  } else if (range === "24h") {
+  } else if (period === "today" || period === "24h") {
     // Hourly buckets for 24h range
     costSeriesSQL = `SELECT
          strftime('%Y-%m-%dT%H:00:00Z', timestamp) AS timestamp,
@@ -187,13 +228,12 @@ router.get("/api/stats/:agentId", (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const { agentId } = req.params;
 
-  const VALID_RANGES = new Set<string>(["1h", "24h", "7d", "30d", "custom"]);
   const rangeParam = req.query.range as string | undefined;
-  const range: Range = (rangeParam && VALID_RANGES.has(rangeParam) ? rangeParam : "24h") as Range;
+  const period: Period = (rangeParam && VALID_PERIODS.has(rangeParam) ? rangeParam : "24h") as Period;
   const fromParam = req.query.from as string | undefined;
   const toParam = req.query.to as string | undefined;
 
-  const timeRange = computeFromTime(range, fromParam, toParam);
+  const timeRange = computeTimeRange(period, fromParam, toParam);
 
   // Query all events for this agent in the time range
   const allEvents = db
@@ -216,7 +256,9 @@ router.get("/api/stats/:agentId", (req, res) => {
   // Cost
   const totalCost = llmEvents.reduce((sum, e) => sum + (e.cost_usd ?? 0), 0);
 
-  // Tokens
+  // Tokens (with input/output breakdown)
+  const tokensIn = llmEvents.reduce((sum, e) => sum + (e.tokens_in ?? 0), 0);
+  const tokensOut = llmEvents.reduce((sum, e) => sum + (e.tokens_out ?? 0), 0);
   const totalTokens = llmEvents.reduce((sum, e) => sum + (e.tokens_total ?? 0), 0);
 
   // Latency percentiles
@@ -273,18 +315,57 @@ router.get("/api/stats/:agentId", (req, res) => {
     }
   }
 
+  // Compute comparison with previous period
+  const prevRange = computePreviousPeriodRange(period);
+  let comparison: {
+    period: string;
+    total_cost: number;
+    total_requests: number;
+    cost_change_pct: number | null;
+  } | null = null;
+
+  if (prevRange) {
+    const prevEvents = db
+      .prepare(
+        `SELECT * FROM agent_events
+         WHERE agent_id = ? AND timestamp >= ? AND timestamp <= ?`,
+      )
+      .all(agentId, prevRange.from, prevRange.to) as EventRow[];
+
+    const prevLlmEvents = prevEvents.filter(
+      (e) => e.event_type === "llm_call" || e.event_type === "completion",
+    );
+    const prevTotalCost = prevLlmEvents.reduce((sum, e) => sum + (e.cost_usd ?? 0), 0);
+    const prevTotalRequests = prevEvents.length;
+
+    const costChangePct = prevTotalCost > 0
+      ? ((totalCost - prevTotalCost) / prevTotalCost) * 100
+      : null;
+
+    comparison = {
+      period: period === "today" ? "yesterday" : `previous_${period}`,
+      total_cost: prevTotalCost,
+      total_requests: prevTotalRequests,
+      cost_change_pct: costChangePct !== null ? Math.round(costChangePct * 10) / 10 : null,
+    };
+  }
+
   res.json({
+    period,
     total_requests: totalRequests,
     total_errors: totalErrors,
     error_rate: errorRate,
     total_cost: totalCost,
     total_tokens: totalTokens,
+    tokens_in: tokensIn,
+    tokens_out: tokensOut,
     p50_latency: p50Latency,
     p99_latency: p99Latency,
     cost_by_model: costByModel,
     token_series: tokenSeries,
     blocked_count: blockedCount,
     block_reasons: blockReasons,
+    comparison,
   });
 });
 
@@ -292,32 +373,19 @@ router.get("/api/stats/:agentId", (req, res) => {
 router.get("/api/stats/tokens", (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const agentId = req.query.agentId as string | undefined;
-  const period = req.query.period as string | undefined;
+  const periodParam = req.query.period as string | undefined;
   const model = req.query.model as string | undefined;
 
-  // Build time range from period
-  const now = new Date();
-  let fromTime: Date;
-  switch (period) {
-    case "today":
-      fromTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      break;
-    case "7d":
-      fromTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      break;
-    case "30d":
-      fromTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      break;
-    default:
-      // All time - use epoch
-      fromTime = new Date(0);
-  }
+  // Default to "today" for MCP (more intuitive for cost awareness)
+  const period: Period = (periodParam && VALID_PERIODS.has(periodParam) ? periodParam : "today") as Period;
+  const timeRange = computeTimeRange(period);
 
   const conditions: string[] = [
     "(event_type = 'llm_call' OR event_type = 'completion')",
     "timestamp >= ?",
+    "timestamp <= ?",
   ];
-  const params: unknown[] = [fromTime.toISOString()];
+  const params: unknown[] = [timeRange.from, timeRange.to];
 
   if (agentId) {
     conditions.push("agent_id = ?");
@@ -340,38 +408,30 @@ router.get("/api/stats/tokens", (req, res) => {
     )
     .get(...params) as { inputTokens: number; outputTokens: number };
 
-  res.json(result);
+  res.json({
+    period,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+  });
 });
 
 // GET /api/stats/cost - Cost for MCP
 router.get("/api/stats/cost", (req, res) => {
   const db = req.app.locals.db as Database.Database;
   const agentId = req.query.agentId as string | undefined;
-  const period = req.query.period as string | undefined;
+  const periodParam = req.query.period as string | undefined;
   const breakdown = req.query.breakdown === "true";
 
-  // Build time range from period
-  const now = new Date();
-  let fromTime: Date;
-  switch (period) {
-    case "today":
-      fromTime = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      break;
-    case "7d":
-      fromTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      break;
-    case "30d":
-      fromTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      break;
-    default:
-      fromTime = new Date(0);
-  }
+  // Default to "today" for MCP (more intuitive for cost awareness)
+  const period: Period = (periodParam && VALID_PERIODS.has(periodParam) ? periodParam : "today") as Period;
+  const timeRange = computeTimeRange(period);
 
   const conditions: string[] = [
     "(event_type = 'llm_call' OR event_type = 'completion')",
     "timestamp >= ?",
+    "timestamp <= ?",
   ];
-  const params: unknown[] = [fromTime.toISOString()];
+  const params: unknown[] = [timeRange.from, timeRange.to];
 
   if (agentId) {
     conditions.push("agent_id = ?");
@@ -382,18 +442,64 @@ router.get("/api/stats/cost", (req, res) => {
 
   const totalResult = db
     .prepare(
-      `SELECT COALESCE(SUM(cost_usd), 0) AS totalCost
+      `SELECT
+         COALESCE(SUM(cost_usd), 0) AS totalCost,
+         COUNT(*) AS requestCount
        FROM agent_events
        ${where}`,
     )
-    .get(...params) as { totalCost: number };
+    .get(...params) as { totalCost: number; requestCount: number };
+
+  // Compute comparison with previous period
+  const prevRange = computePreviousPeriodRange(period);
+  let comparison: {
+    period: string;
+    totalCost: number;
+    requestCount: number;
+    cost_change_pct: number | null;
+  } | null = null;
+
+  if (prevRange) {
+    const prevConditions = [...conditions];
+    prevConditions[1] = "timestamp >= ?";
+    prevConditions[2] = "timestamp <= ?";
+    const prevParams = [prevRange.from, prevRange.to];
+    if (agentId) prevParams.push(agentId);
+    const prevWhere = `WHERE ${prevConditions.join(" AND ")}`;
+
+    const prevResult = db
+      .prepare(
+        `SELECT
+           COALESCE(SUM(cost_usd), 0) AS totalCost,
+           COUNT(*) AS requestCount
+         FROM agent_events
+         ${prevWhere}`,
+      )
+      .get(...prevParams) as { totalCost: number; requestCount: number };
+
+    const costChangePct = prevResult.totalCost > 0
+      ? ((totalResult.totalCost - prevResult.totalCost) / prevResult.totalCost) * 100
+      : null;
+
+    comparison = {
+      period: period === "today" ? "yesterday" : `previous_${period}`,
+      totalCost: prevResult.totalCost,
+      requestCount: prevResult.requestCount,
+      cost_change_pct: costChangePct !== null ? Math.round(costChangePct * 10) / 10 : null,
+    };
+  }
 
   const response: {
+    period: string;
     totalCost: number;
+    requestCount: number;
     currency: string;
     breakdown?: Array<{ model: string; cost: number }>;
+    comparison?: typeof comparison;
   } = {
+    period,
     totalCost: totalResult.totalCost,
+    requestCount: totalResult.requestCount,
     currency: "USD",
   };
 
@@ -410,6 +516,10 @@ router.get("/api/stats/cost", (req, res) => {
       )
       .all(...params) as Array<{ model: string; cost: number }>;
     response.breakdown = breakdownRows;
+  }
+
+  if (comparison) {
+    response.comparison = comparison;
   }
 
   res.json(response);

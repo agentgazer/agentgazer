@@ -3,15 +3,26 @@ import { formatNumber, formatCurrency, formatLatency, timeAgo } from "../utils/f
 import { confirm, selectProvider } from "../utils/prompt.js";
 import { readConfig, getAlertDefaults, updateAlertDefaults, getServerPort } from "../config.js";
 
+interface StatsComparison {
+  period: string;
+  total_cost: number;
+  total_requests: number;
+  cost_change_pct: number | null;
+}
+
 interface StatsResponse {
+  period: string;
   total_requests: number;
   total_errors: number;
   error_rate: number;
   total_cost: number;
   total_tokens: number;
+  tokens_in: number;
+  tokens_out: number;
   p50_latency: number | null;
   p99_latency: number | null;
   cost_by_model: { model: string; provider: string; cost: number; count: number }[];
+  comparison: StatsComparison | null;
 }
 
 interface ModelRule {
@@ -175,15 +186,18 @@ async function showStats(name: string, flags: Record<string, string>, port: numb
     if (outputFormat === "json") {
       const jsonOutput = {
         agent_id: name,
-        range,
+        period: data.period,
         total_requests: data.total_requests,
         total_errors: data.total_errors,
         error_rate: data.total_requests > 0 ? data.total_errors / data.total_requests : 0,
         total_cost_usd: data.total_cost,
         total_tokens: data.total_tokens,
+        tokens_in: data.tokens_in,
+        tokens_out: data.tokens_out,
         p50_latency_ms: data.p50_latency,
         p99_latency_ms: data.p99_latency,
         cost_by_model: data.cost_by_model || [],
+        comparison: data.comparison,
       };
       console.log(JSON.stringify(jsonOutput, null, 2));
       return;
@@ -193,14 +207,30 @@ async function showStats(name: string, flags: Record<string, string>, port: numb
     const errorPct =
       data.total_requests > 0 ? ((data.total_errors / data.total_requests) * 100).toFixed(2) : "0.00";
 
+    // Format comparison trends
+    const costTrend = data.comparison?.cost_change_pct != null
+      ? ` (${data.comparison.cost_change_pct >= 0 ? "+" : ""}${data.comparison.cost_change_pct}% vs ${data.comparison.period})`
+      : "";
+    const requestTrend = data.comparison
+      ? (() => {
+          const prevReq = data.comparison.total_requests;
+          if (prevReq === 0) return "";
+          const changePct = ((data.total_requests - prevReq) / prevReq) * 100;
+          return ` (${changePct >= 0 ? "+" : ""}${Math.round(changePct * 10) / 10}% vs ${data.comparison.period})`;
+        })()
+      : "";
+
+    // Format token breakdown
+    const tokenBreakdown = `${formatNumber(data.total_tokens)} (in: ${formatNumber(data.tokens_in)} / out: ${formatNumber(data.tokens_out)})`;
+
     console.log(`
-  Agent Statistics: "${name}" (last ${range})
+  Agent Statistics: "${name}" (${data.period})
   ───────────────────────────────────────
 
-  Requests:   ${formatNumber(data.total_requests)}
+  Requests:   ${formatNumber(data.total_requests)}${requestTrend}
   Errors:     ${formatNumber(data.total_errors)} (${errorPct}%)
-  Cost:       ${formatCurrency(data.total_cost)}
-  Tokens:     ${formatNumber(data.total_tokens)}
+  Cost:       ${formatCurrency(data.total_cost)}${costTrend}
+  Tokens:     ${tokenBreakdown}
 
   Latency:    p50 = ${formatLatency(data.p50_latency)}   p99 = ${formatLatency(data.p99_latency)}`);
 

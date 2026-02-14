@@ -239,7 +239,7 @@ Options (for start):
 Config file: ~/.agentgazer/config.json (optional settings: port, proxyPort, autoOpen, retentionDays)
 
 Options (for agent/provider stat):
-  --range <period>           Time range: 1h, 24h, 7d, 30d (default: 24h)
+  --range <period>           Time range: 1h, today, 24h, 7d, 30d, all (default: 24h)
   -o, --output <format>      Output format: table, json (default: table)
 
 Options (for delete commands):
@@ -265,7 +265,7 @@ Options (for events):
   -a, --agent <name>         Filter by agent ID
   -t, --type <type>          Filter by event type
   -p, --provider <name>      Filter by provider
-  -s, --since <duration>     Time range: 1h, 24h, 7d, 30d (default: 24h)
+  -s, --since <duration>     Time range: 1h, today, 24h, 7d, 30d, all (default: 24h)
   -n, --limit <number>       Max events (default: 50, max: 1000)
   -o, --output <format>      Output: table, json, csv (default: table)
       --search <term>        Search in model/provider/error
