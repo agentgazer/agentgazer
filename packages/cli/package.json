@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/cli",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "type": "module",
   "description": "AgentGazer — From Observability to Control. Monitor, govern, and protect your AI agents.",
   "license": "AGPL-3.0",
@@ -49,9 +49,9 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentgazer/proxy": "0.5.3",
-    "@agentgazer/server": "0.5.3",
-    "@agentgazer/shared": "0.5.3",
+    "@agentgazer/proxy": "0.5.4",
+    "@agentgazer/server": "0.5.4",
+    "@agentgazer/shared": "0.5.4",
     "ink": "^4.4.1",
     "ink-table": "^3.0.0",
     "inquirer": "^12.3.2",
