@@ -11,4 +11,4 @@
 ### 2. Verify integration
 
 - [x] 2.1 Run existing tests to ensure no regressions
-- [ ] 2.2 Manual test: trigger security event, verify `request_id` matches payload `event_id`
+- [x] 2.2 Manual test: trigger security event, verify `request_id` matches payload `event_id`
