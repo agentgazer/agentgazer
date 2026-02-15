@@ -86,14 +86,14 @@ Proxy 支援路徑前綴路由，將請求自動轉發到對應的 Provider：
 如果你已經用 `agentgazer providers set openai <key>` 儲存了 API Key，使用路徑前綴讓 Proxy 自動注入：
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:18900/openai/v1
+export OPENAI_BASE_URL=http://localhost:18900/agents/my-agent/agentgazer
 ```
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/my-agent/agentgazer",
   apiKey: "dummy",  // 任意值，會被 Proxy 覆蓋
 });
 ```
@@ -162,16 +162,16 @@ const openai = new OpenAI({
 - 希望 agent ID 在 URL 中可見
 - 使用 curl 或簡單的 HTTP 用戶端
 
-### x-agent-id Header
+### x-agent-id Header（替代方式）
 
-使用 `x-agent-id` header 識別 Agent：
+你也可以使用 `x-agent-id` header 搭配明確的 provider 路由：
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/default/openai",
   apiKey: "dummy",
   defaultHeaders: {
-    "x-agent-id": "my-agent-name",
+    "x-agent-id": "my-agent-name",  // 覆蓋 URL 中的 "default"
   },
 });
 ```

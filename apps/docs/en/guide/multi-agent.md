@@ -35,19 +35,16 @@ This approach:
 
 ## Solution 2: x-agent-id Header
 
-Add the `x-agent-id` header to each request to identify which agent made it:
+Use the agent name in the URL path to identify each agent:
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/coding-assistant/agentgazer",
   apiKey: "dummy",
-  defaultHeaders: {
-    "x-agent-id": "coding-assistant",
-  },
 });
 ```
 
-Each agent uses a different `x-agent-id` value. The Proxy routes all requests to the same provider but records metrics separately per agent.
+Each agent has its own URL path. The Proxy records metrics separately per agent.
 
 ## Example: Two Agents Sharing One Proxy
 
@@ -57,11 +54,8 @@ Each agent uses a different `x-agent-id` value. The Proxy routes all requests to
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/coding-assistant/agentgazer",
   apiKey: "dummy",
-  defaultHeaders: {
-    "x-agent-id": "coding-assistant",
-  },
 });
 
 // All requests attributed to "coding-assistant"
@@ -77,11 +71,8 @@ await openai.chat.completions.create({
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:18900/anthropic",
+  baseURL: "http://localhost:18900/agents/research-assistant/agentgazer",
   apiKey: "dummy",
-  defaultHeaders: {
-    "x-agent-id": "research-assistant",
-  },
 });
 
 // All requests attributed to "research-assistant"
@@ -111,9 +102,8 @@ With this setup, the AgentGazer Dashboard shows:
 ## Using with curl
 
 ```bash
-curl http://localhost:18900/openai/v1/chat/completions \
+curl http://localhost:18900/agents/my-custom-agent/openai \
   -H "Content-Type: application/json" \
-  -H "x-agent-id: my-custom-agent" \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
@@ -123,11 +113,8 @@ curl http://localhost:18900/openai/v1/chat/completions \
 import openai
 
 client = openai.OpenAI(
-    base_url="http://localhost:18900/openai/v1",
+    base_url="http://localhost:18900/agents/python-agent/agentgazer",
     api_key="dummy",
-    default_headers={
-        "x-agent-id": "python-agent",
-    },
 )
 
 response = client.chat.completions.create(

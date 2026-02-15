@@ -3,12 +3,12 @@
 ## 事件沒有出現在儀表板
 
 1. **確認 Proxy 正在運行**：執行 `agentgazer doctor` 檢查服務狀態
-2. **檢查 baseURL**：確認 LLM client 指向 `http://localhost:18900/{provider}` 或 `/agents/{agent}/{provider}`
+2. **檢查 baseURL**：確認 LLM client 指向 `http://localhost:18900/agents/{agent}/agentgazer` 或 `/agents/{agent}/{provider}`
 3. **查看 Proxy 日誌**：執行 `agentgazer start -v` 取得詳細輸出來查看請求處理狀況
 
 ## Proxy 無法偵測 Provider
 
-1. **使用路徑前綴路由**：這是最可靠的方式。例如將 base URL 設為 `http://localhost:18900/openai/v1`
+1. **使用 agentgazer 虛擬 provider**：將 base URL 設為 `http://localhost:18900/agents/my-agent/agentgazer`，並在 Dashboard 中設定目標 provider
 2. **使用 x-target-url**：在請求中加入 `x-target-url` header 明確指定目標
 3. **檢查 Provider 偵測順序**：路徑前綴 → Host header → 路徑模式 → x-target-url
 4. **查看 Proxy 日誌**：Proxy 會在 console 輸出偵測結果與警告訊息

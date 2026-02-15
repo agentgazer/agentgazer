@@ -10,3 +10,6 @@ dist/
 npm-debug.log*
 .vercel
 .env
+
+# Intro video (generated locally)
+apps/intro-video/

@@ -86,14 +86,14 @@ The Proxy supports path prefix routing, which automatically forwards requests to
 If you've stored your API Key with `agentgazer providers set openai <key>`, use the path prefix for automatic injection:
 
 ```bash
-export OPENAI_BASE_URL=http://localhost:18900/openai/v1
+export OPENAI_BASE_URL=http://localhost:18900/agents/my-agent/agentgazer
 ```
 
 ```typescript
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/my-agent/agentgazer",
   apiKey: "dummy",  // Any value — will be overwritten by Proxy
 });
 ```
@@ -162,16 +162,16 @@ This is useful when:
 - You want the agent ID visible in the URL
 - You're using curl or simple HTTP clients
 
-### x-agent-id Header
+### x-agent-id Header (Alternative)
 
-Use the `x-agent-id` header to identify the agent:
+You can also use the `x-agent-id` header with explicit provider routing:
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/default/openai",
   apiKey: "dummy",
   defaultHeaders: {
-    "x-agent-id": "my-agent-name",
+    "x-agent-id": "my-agent-name",  // Overrides "default" in URL
   },
 });
 ```

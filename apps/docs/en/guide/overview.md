@@ -61,9 +61,9 @@ agentgazer providers set anthropic sk-ant-xxx
 Keys are encrypted locally (AES-256-GCM) and never leave your machine. When you use the Proxy with path prefix routing (`/openai/...`, `/anthropic/...`), keys are automatically injected into requests — no need to configure each agent separately.
 
 ```typescript
-// No API key needed in code — Proxy injects it automatically
+// Point to AgentGazer proxy with your agent name
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/my-agent/agentgazer",
   apiKey: "dummy",  // Will be replaced by stored key
 });
 ```

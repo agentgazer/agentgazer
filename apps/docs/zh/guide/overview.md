@@ -61,9 +61,9 @@ agentgazer providers set anthropic sk-ant-xxx
 金鑰在本機加密儲存（AES-256-GCM），永遠不會離開你的機器。當你使用 Proxy 的路徑前綴路由（`/openai/...`、`/anthropic/...`）時，金鑰會自動注入請求 — 不需要在每個 Agent 中分別設定。
 
 ```typescript
-// 程式碼中不需要 API Key — Proxy 自動注入
+// 使用 AgentGazer proxy，加上你的 agent 名稱
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/my-agent/agentgazer",
   apiKey: "dummy",  // 會被儲存的金鑰取代
 });
 ```

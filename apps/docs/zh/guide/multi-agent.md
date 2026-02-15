@@ -35,21 +35,18 @@ const anthropic = new Anthropic({
 - Agent ID 在 logs 和 URL 中可見
 - 首次請求時自動建立 Agent
 
-## 解法 2：x-agent-id Header
+## 解法 2：URL 路徑中的 Agent 名稱
 
-在每個請求中加上 `x-agent-id` header 來識別是哪個 Agent 發出的：
+在 URL 路徑中加上 agent 名稱來識別每個 Agent：
 
 ```typescript
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/coding-assistant/agentgazer",
   apiKey: "dummy",
-  defaultHeaders: {
-    "x-agent-id": "coding-assistant",
-  },
 });
 ```
 
-每個 Agent 使用不同的 `x-agent-id` 值。Proxy 會把所有請求轉發到同一個 Provider，但分開記錄各 Agent 的指標。
+每個 Agent 有自己的 URL 路徑。Proxy 會分開記錄各 Agent 的指標。
 
 ## 範例：兩個 Agent 共用一個 Proxy
 
@@ -59,11 +56,8 @@ const openai = new OpenAI({
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: "http://localhost:18900/openai/v1",
+  baseURL: "http://localhost:18900/agents/coding-assistant/agentgazer",
   apiKey: "dummy",
-  defaultHeaders: {
-    "x-agent-id": "coding-assistant",
-  },
 });
 
 // 所有請求歸到 "coding-assistant"
@@ -79,11 +73,8 @@ await openai.chat.completions.create({
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({
-  baseURL: "http://localhost:18900/anthropic",
+  baseURL: "http://localhost:18900/agents/research-assistant/agentgazer",
   apiKey: "dummy",
-  defaultHeaders: {
-    "x-agent-id": "research-assistant",
-  },
 });
 
 // 所有請求歸到 "research-assistant"
@@ -113,9 +104,8 @@ agentgazer start
 ## 用 curl 測試
 
 ```bash
-curl http://localhost:18900/openai/v1/chat/completions \
+curl http://localhost:18900/agents/my-custom-agent/openai \
   -H "Content-Type: application/json" \
-  -H "x-agent-id: my-custom-agent" \
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'
 ```
 
@@ -125,11 +115,8 @@ curl http://localhost:18900/openai/v1/chat/completions \
 import openai
 
 client = openai.OpenAI(
-    base_url="http://localhost:18900/openai/v1",
+    base_url="http://localhost:18900/agents/python-agent/agentgazer",
     api_key="dummy",
-    default_headers={
-        "x-agent-id": "python-agent",
-    },
 )
 
 response = client.chat.completions.create(

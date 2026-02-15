@@ -3,12 +3,12 @@
 ## Events are not appearing in the dashboard
 
 1. **Verify the Proxy is running**: Run `agentgazer doctor` to check service status
-2. **Check your baseURL**: Ensure your LLM client points to `http://localhost:18900/{provider}` or `/agents/{agent}/{provider}`
+2. **Check your baseURL**: Ensure your LLM client points to `http://localhost:18900/agents/{agent}/agentgazer` or `/agents/{agent}/{provider}`
 3. **Check Proxy logs**: Run `agentgazer start -v` for verbose output to see request handling
 
 ## Proxy cannot detect the Provider
 
-1. **Use path prefix routing**: This is the most reliable method. For example, set the base URL to `http://localhost:18900/openai/v1`
+1. **Use the agentgazer virtual provider**: Set the base URL to `http://localhost:18900/agents/my-agent/agentgazer` and configure the target provider in Dashboard
 2. **Use x-target-url**: Add the `x-target-url` header to explicitly specify the target
 3. **Check the Provider detection order**: Path prefix -> Host header -> Path pattern -> x-target-url
 4. **Check the Proxy logs**: The Proxy outputs detection results and warnings to the console

@@ -36,7 +36,7 @@ This starts a local Express+SQLite server, an LLM proxy, and a web dashboard —
 
 ## How it works
 
-Point your LLM client's base URL at `http://localhost:18900`. The proxy forwards requests to the real provider, extracts usage metrics from responses (including SSE streams), and records them locally.
+Point your LLM client's base URL at `http://localhost:18900/agents/{your-agent}/agentgazer`. The proxy forwards requests to the real provider, extracts usage metrics from responses (including SSE streams), and records them locally.
 
 All data is stored in a local SQLite database (`~/.agentgazer/data.db`) and exposed through a REST API and web dashboard.
 
@@ -98,8 +98,8 @@ Configure globally or per-agent in the Dashboard.
 # Start AgentGazer
 agentgazer start
 
-# Point your OpenAI client at the proxy (simplified routing)
-export OPENAI_BASE_URL=http://localhost:18900/agents/my-agent/openai
+# Point your OpenAI client at the proxy
+export OPENAI_BASE_URL=http://localhost:18900/agents/my-agent/agentgazer
 
 # Use your LLM client as normal — calls are recorded automatically
 ```
