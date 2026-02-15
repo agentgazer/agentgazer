@@ -62,7 +62,7 @@ function getTimeRangeFrom(range: string): string | undefined {
 }
 
 function getStatusColor(statusCode: number | null, eventType: string): string {
-  if (eventType === "error" || eventType === "kill_switch" || eventType === "blocked") {
+  if (eventType === "error" || eventType === "kill_switch" || eventType === "blocked" || eventType === "security_blocked") {
     return "text-red-400";
   }
   if (statusCode === null) return "text-gray-400";
