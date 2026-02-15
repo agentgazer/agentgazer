@@ -16,6 +16,7 @@ COPY packages/cli/package.json       packages/cli/package.json
 COPY packages/server/package.json    packages/server/package.json
 COPY packages/proxy/package.json     packages/proxy/package.json
 COPY packages/shared/package.json    packages/shared/package.json
+COPY packages/mcp/package.json       packages/mcp/package.json
 COPY apps/dashboard-local/package.json apps/dashboard-local/package.json
 
 # Install all dependencies (including devDependencies needed for build)
