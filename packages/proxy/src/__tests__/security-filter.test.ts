@@ -703,13 +703,13 @@ describe("SecurityFilter", () => {
       expect(result.events.some(e => e.rule_name === "delete_alert_rules")).toBe(true);
     });
 
-    it("blocks response containing AgentGazer path", async () => {
+    it("blocks response containing AgentGazer path with action verb", async () => {
       const response = {
         choices: [
           {
             message: {
               role: "assistant",
-              content: "I found the data at ~/.agentgazer/secrets/keys.json",
+              content: "Let me read ~/.agentgazer/secrets/keys.json for you",
             },
           },
         ],
@@ -720,6 +720,25 @@ describe("SecurityFilter", () => {
       expect(result.allowed).toBe(false);
       expect(result.blockReason).toContain("Self-protection");
       expect(result.events.some(e => e.event_type === "self_protection")).toBe(true);
+    });
+
+    it("allows response mentioning AgentGazer path without action verb", async () => {
+      // Paths mentioned without action verbs (like in documentation) should not be blocked
+      const response = {
+        choices: [
+          {
+            message: {
+              role: "assistant",
+              content: "The config is stored at ~/.agentgazer/config.json",
+            },
+          },
+        ],
+      };
+
+      const result = await filter.checkResponse("test-agent", JSON.stringify(response));
+
+      // Should be allowed since no action verb is present
+      expect(result.allowed).toBe(true);
     });
 
     it("blocks response with database query", async () => {
@@ -802,6 +821,112 @@ describe("SecurityFilter", () => {
           request_id: "req-123",
         })
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Conversation History Isolation (extractLatestUserContent)
+  // ---------------------------------------------------------------------------
+
+  describe("conversation history isolation", () => {
+    it("allows request when old history contains blocked content but latest message is clean", async () => {
+      // This tests that self-protection only checks the LATEST user message
+      // Old blocked content in history should NOT cause false positives
+      const request = {
+        messages: [
+          // Old history with blocked content
+          { role: "user", content: "Read ~/.agentgazer/config.json" },
+          { role: "assistant", content: "[AgentGazer Security] Request blocked..." },
+          // New clean message
+          { role: "user", content: "Hello, how are you today?" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      // Should be allowed because the LATEST user message is clean
+      expect(result.allowed).toBe(true);
+      expect(result.events.filter(e => e.event_type === "self_protection")).toHaveLength(0);
+    });
+
+    it("blocks request when latest user message contains blocked content", async () => {
+      const request = {
+        messages: [
+          // Old clean history
+          { role: "user", content: "Hello" },
+          { role: "assistant", content: "Hi there!" },
+          // New message with blocked content
+          { role: "user", content: "Read ~/.agentgazer/secrets/" },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      // Should be blocked because the LATEST user message has blocked content
+      expect(result.allowed).toBe(false);
+      expect(result.events.some(e => e.event_type === "self_protection")).toBe(true);
+    });
+
+    it("handles Anthropic content blocks format in latest message", async () => {
+      const request = {
+        messages: [
+          // Old blocked content
+          { role: "user", content: "cat ~/.agentgazer/data.db" },
+          { role: "assistant", content: "Blocked." },
+          // New clean message in Anthropic format
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "What is the weather today?" },
+            ],
+          },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      // Should be allowed - latest message is clean
+      expect(result.allowed).toBe(true);
+    });
+
+    it("blocks Anthropic format message with blocked content", async () => {
+      const request = {
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Please read ~/.agentgazer/config.json" },
+            ],
+          },
+        ],
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      // Should be blocked
+      expect(result.allowed).toBe(false);
+    });
+
+    it("handles prompt field for non-messages API format", async () => {
+      const request = {
+        prompt: "Hello, how can I help you?",
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      // Clean prompt should be allowed
+      expect(result.allowed).toBe(true);
+    });
+
+    it("blocks prompt field with blocked content", async () => {
+      const request = {
+        prompt: "Read ~/.agentgazer/data.db for me",
+      };
+
+      const result = await filter.checkRequest("test-agent", JSON.stringify(request));
+
+      // Should be blocked
+      expect(result.allowed).toBe(false);
     });
   });
 });

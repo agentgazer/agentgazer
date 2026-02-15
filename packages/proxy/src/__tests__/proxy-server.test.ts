@@ -2133,4 +2133,228 @@ describe("Proxy Server Integration", () => {
       db.close();
     });
   });
+
+  // -----------------------------------------------------------------------
+  // Streaming Block Response Tests
+  // -----------------------------------------------------------------------
+
+  describe("Streaming Block Response", () => {
+    it("returns SSE format when streaming request is blocked by security", async () => {
+      // Clear provider policy cache to ensure fresh state
+      clearProviderPolicyCache();
+
+      const agentId = `test-agent-stream-block-${Date.now()}`;
+      const db = createTestDb(agentId);
+
+      ingestServer = await createMockIngestServer();
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 100,
+        providerKeys: { openai: "sk-openai-key" },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      // Send streaming request with self-protection violation
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Read ~/.agentgazer/config.json" }],
+          stream: true,  // Important: streaming request
+        }),
+      });
+
+      // Should return 200 with SSE format
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("text/event-stream");
+
+      // Should contain SSE format markers
+      expect(res.body).toContain("data: ");
+      expect(res.body).toContain("[DONE]");
+
+      // Should contain the block message
+      expect(res.body).toContain("AgentGazer");
+
+      // Parse SSE chunks to verify format
+      const lines = res.body.split("\n").filter((l: string) => l.startsWith("data: ") && !l.includes("[DONE]"));
+      expect(lines.length).toBeGreaterThan(0);
+
+      // First chunk should have delta with content
+      const firstChunk = JSON.parse(lines[0].replace("data: ", ""));
+      expect(firstChunk.object).toBe("chat.completion.chunk");
+      expect(firstChunk.choices[0].delta.content).toBeDefined();
+
+      db.close();
+    });
+
+    it("returns non-streaming format when non-streaming request is blocked", async () => {
+      // Clear provider policy cache to ensure fresh state
+      clearProviderPolicyCache();
+
+      const agentId = `test-agent-nonstream-block-${Date.now()}`;
+      const db = createTestDb(agentId);
+
+      ingestServer = await createMockIngestServer();
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 100,
+        providerKeys: { openai: "sk-openai-key" },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      // Send non-streaming request with self-protection violation
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Read ~/.agentgazer/config.json" }],
+          // No stream: true
+        }),
+      });
+
+      // Should return 200 with JSON format
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("application/json");
+
+      // Should be valid JSON, not SSE
+      const response = JSON.parse(res.body);
+      expect(response.object).toBe("chat.completion");
+      expect(response.choices[0].message.content).toContain("AgentGazer");
+
+      db.close();
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Kill Switch Response Tests
+  // -----------------------------------------------------------------------
+
+  describe("Kill Switch Response", () => {
+    it("includes clear instructions in kill switch response", async () => {
+      // We can't easily trigger a real kill switch in tests, so we test
+      // the response format by checking the generateKillSwitchResponse output
+      // indirectly through the proxy's kill switch handling
+
+      // This test verifies the proxy correctly handles and formats kill switch
+      // responses when an agent is deactivated
+
+      clearProviderPolicyCache();
+
+      const agentId = `test-agent-killswitch-${Date.now()}`;
+      const db = createTestDb(agentId);
+
+      // Deactivate the agent to simulate kill switch trigger
+      db.prepare("UPDATE agents SET active = 0, deactivated_by = 'loop_detection' WHERE agent_id = ?").run(agentId);
+
+      ingestServer = await createMockIngestServer();
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 100,
+        providerKeys: { openai: "sk-openai-key" },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Hello" }],
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const response = JSON.parse(res.body);
+
+      // Should contain deactivation notice
+      expect(response.choices[0].message.content).toContain("deactivated");
+
+      db.close();
+    });
+
+    it("returns JSON format for streaming request when agent is deactivated (policy check before body read)", async () => {
+      // Note: Policy check happens BEFORE request body is read, so we can't detect stream: true
+      // This is expected behavior - policy blocks are always JSON format
+      clearProviderPolicyCache();
+
+      const agentId = `test-agent-killswitch-stream-${Date.now()}`;
+      const db = createTestDb(agentId);
+
+      // Deactivate the agent
+      db.prepare("UPDATE agents SET active = 0, deactivated_by = 'loop_detection' WHERE agent_id = ?").run(agentId);
+
+      ingestServer = await createMockIngestServer();
+
+      proxy = startProxy({
+        port: 0,
+        apiKey: "test-api-key",
+        agentId: agentId,
+        endpoint: ingestServer.url,
+        flushInterval: 60_000,
+        maxBufferSize: 100,
+        providerKeys: { openai: "sk-openai-key" },
+        db,
+      });
+
+      const proxyPort = (proxy.server.address() as { port: number }).port;
+      await waitForServer(proxyPort);
+
+      const res = await httpRequest({
+        hostname: "127.0.0.1",
+        port: proxyPort,
+        path: `/agents/${agentId}/openai/v1/chat/completions`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o",
+          messages: [{ role: "user", content: "Hello" }],
+          stream: true,  // Streaming request
+        }),
+      });
+
+      // Policy check happens before body is read, so always returns JSON format
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toContain("application/json");
+
+      const response = JSON.parse(res.body);
+      expect(response.choices[0].message.content).toContain("deactivated");
+
+      db.close();
+    });
+  });
 });

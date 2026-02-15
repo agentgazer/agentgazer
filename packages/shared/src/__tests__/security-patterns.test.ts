@@ -396,17 +396,25 @@ describe("checkSelfProtection", () => {
     });
 
     it("detects .agentgazer/data.db", () => {
-      const content = "sqlite3 .agentgazer/data.db";
+      const content = "open .agentgazer/data.db";
       const matches = checkSelfProtection(content);
       expect(matches.length).toBeGreaterThan(0);
       expect(matches[0].pattern.name).toBe("agentgazer_data_db");
     });
 
     it("detects .agentgazer/config.json", () => {
-      const content = "Reading .agentgazer/config.json";
+      const content = "read .agentgazer/config.json";
       const matches = checkSelfProtection(content);
       expect(matches.length).toBeGreaterThan(0);
       expect(matches[0].pattern.name).toBe("agentgazer_config_json");
+    });
+
+    it("does not match without action verb", () => {
+      // Mentioning paths without action verbs should not trigger self-protection
+      // This prevents false positives in documentation
+      const content = "The config is stored at .agentgazer/config.json";
+      const matches = checkSelfProtection(content);
+      expect(matches.length).toBe(0);
     });
 
     it("detects .agentgazer/secrets", () => {
