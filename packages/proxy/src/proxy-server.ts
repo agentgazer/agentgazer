@@ -1218,6 +1218,46 @@ function recordBlockedEvent(
   }
 }
 
+/**
+ * Record a security blocked event to the database.
+ * This creates an agent_event so security blocks appear in the Logs page.
+ */
+function recordSecurityBlockedEvent(
+  db: Database.Database | undefined,
+  agentId: string,
+  provider: ProviderName,
+  eventId: string,
+  blockReason: string,
+): void {
+  if (!db) return;
+
+  try {
+    // Ensure agent exists
+    upsertAgent(db, agentId, false);
+
+    // Insert security_blocked event
+    const event: InsertEventRow = {
+      id: eventId,  // Use same eventId as security_events.request_id
+      agent_id: agentId,
+      event_type: "security_blocked",
+      provider,
+      model: null,
+      tokens_in: null,
+      tokens_out: null,
+      tokens_total: null,
+      cost_usd: null,
+      latency_ms: null,
+      status_code: 200,  // We return 200 with blocked message
+      source: "proxy",
+      timestamp: new Date().toISOString(),
+      tags: { block_reason: blockReason },
+    };
+    insertEvents(db, [event]);
+  } catch (err) {
+    log.error("Failed to record security blocked event", { err: String(err) });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Proxy server
 // ---------------------------------------------------------------------------
@@ -1993,6 +2033,16 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     if (!securityRequestResult.allowed) {
       log.info(`[PROXY] Request blocked by security: ${securityRequestResult.blockReason}`);
+
+      // Record security_blocked event in agent_events for Logs page visibility
+      recordSecurityBlockedEvent(
+        db,
+        effectiveAgentId,
+        provider,
+        eventId,
+        securityRequestResult.blockReason || "Security policy violation",
+      );
+
       const blockedResponse = generateSecurityBlockedResponse(
         securityRequestResult.blockReason || "Security policy violation",
         provider,
