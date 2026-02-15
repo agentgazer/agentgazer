@@ -48,8 +48,8 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@agentgazer/shared": "0.5.5",
-    "@agentgazer/server": "0.5.5"
+    "@agentgazer/shared": "0.6.0",
+    "@agentgazer/server": "0.6.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
