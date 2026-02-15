@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/mcp",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "AgentGazer MCP server for AI agent cost awareness",
   "license": "AGPL-3.0",
   "type": "module",

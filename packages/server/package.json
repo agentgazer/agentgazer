@@ -1,6 +1,6 @@
 {
   "name": "@agentgazer/server",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "AgentGazer local server with Express and SQLite",
   "license": "AGPL-3.0",
   "main": "./dist/index.js",
