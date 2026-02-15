@@ -23,6 +23,46 @@ POST http://localhost:18900/agents/{agent-name}/{provider}
 | `zhipu` | Zhipu GLM Chat |
 | `minimax` | MiniMax Chat |
 | `baichuan` | Baichuan Chat |
+| `agentgazer` | **Virtual Provider** (auto-detect) |
+
+## AgentGazer Virtual Provider (Recommended) {#virtual-provider}
+
+The `agentgazer` virtual provider simplifies onboarding by auto-creating agents on first request:
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:18900/agents/my-bot/agentgazer",
+  apiKey: "dummy",
+});
+```
+
+### How It Works
+
+1. **First Request**: Send any request with model `agentgazer-proxy`
+2. **Auto-Create**: The proxy creates the agent and returns a success message
+3. **Configure**: Go to Dashboard → Agents → Model Settings to set the target provider
+4. **Ready**: Subsequent requests are routed to your configured provider
+
+### First Request Example
+
+```typescript
+// This creates the agent and confirms connection
+const response = await openai.chat.completions.create({
+  model: "agentgazer-proxy",  // Special model for connection test
+  messages: [{ role: "user", content: "test" }],
+});
+// Returns: "AgentGazer connected successfully for agent 'my-bot'..."
+```
+
+### Benefits
+
+- **No provider knowledge required** — Start without knowing which provider you'll use
+- **Centralized configuration** — Change providers in Dashboard, not in code
+- **Cross-provider routing** — Route different models to different providers
+
+::: tip When to Use
+Use `agentgazer` for new projects or when you want Dashboard-based provider configuration. Use explicit providers (`openai`, `anthropic`) when you need direct control in code.
+:::
 
 ### Example: OpenAI via Simplified Routing
 

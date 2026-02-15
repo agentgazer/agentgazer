@@ -20,6 +20,7 @@ AgentGazer 支援兩種 LLM Provider 認證方式：
 | 智譜 (GLM-4) | API Key | api.z.ai |
 | 智譜 Coding Plan | **OAuth** | api.z.ai |
 | MiniMax | API Key | api.minimax.chat |
+| MiniMax Coding Plan | **OAuth** | api.minimax.chat |
 | 百川 | API Key | api.baichuan-ai.com |
 | 零一萬物 | API Key | api.lingyiwanwu.com |
 
@@ -54,6 +55,7 @@ agentgazer logout openai-oauth
 |----------|------|------|
 | OpenAI Codex | `agentgazer login openai-oauth` | OpenAI 訂閱（ChatGPT Plus/Pro） |
 | 智譜 Coding Plan | `agentgazer login zhipu-coding-plan` | 智譜 GLM 訂閱 |
+| MiniMax Coding Plan | `agentgazer login minimax-oauth` | MiniMax 訂閱服務 |
 
 ## 作業系統層級安全儲存
 

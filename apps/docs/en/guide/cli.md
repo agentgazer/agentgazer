@@ -34,7 +34,7 @@
 | `agent <name> deactive` | Deactivate an Agent | `--port` |
 | `agent <name> killswitch on\|off` | Toggle kill switch | `--port` |
 | `agent <name> delete` | Delete Agent and all data | `--port`, `--yes` |
-| `agent <name> stat` | Show Agent statistics | `--port`, `--range` |
+| `agent <name> stat` | Show Agent statistics | `--port`, `--range`, `-o` |
 | `agent <name> model` | List model overrides | `--port` |
 | `agent <name> model-override <model>` | Set model override | `--port` |
 | `agent <name> alerts` | List all alerts for this Agent | `--port` |
@@ -119,6 +119,9 @@ agentgazer agent my-bot killswitch off
 # Show statistics
 agentgazer agent my-bot stat
 agentgazer agent my-bot stat --range 7d
+
+# Output as JSON (for scripting/MCP integration)
+agentgazer agent my-bot stat -o json
 
 # View model overrides
 agentgazer agent my-bot model

@@ -168,3 +168,64 @@ This allows you to change which model/provider OpenClaw uses without editing its
 ### API Key Handling
 
 Set `apiKey` to any non-empty value (e.g., `"managed-by-agentgazer"`). The proxy injects the real key stored via `agentgazer provider add`.
+
+## Cost Awareness Skill {#cost-skill}
+
+When you click **Apply Configuration** in the Dashboard, AgentGazer automatically installs a cost awareness skill for OpenClaw.
+
+### What Gets Installed
+
+The Apply action creates:
+
+```
+~/.openclaw/skills/agentgazer/
+├── SKILL.md          # Skill metadata and instructions
+└── scripts/
+    └── cost.sh       # Script to query AgentGazer stats
+```
+
+### Using the Skill
+
+After installation, you can ask OpenClaw about your AI spending:
+
+```
+User: /cost
+OpenClaw: Your AgentGazer stats for the last 24 hours:
+          - Total cost: $12.45
+          - Requests: 847
+          - Tokens: 1.2M (in: 800K, out: 400K)
+```
+
+### Skill Commands
+
+| Command | Description |
+|---------|-------------|
+| `/cost` | Show cost summary for current period |
+| `/cost 7d` | Show cost for last 7 days |
+| `/cost compare` | Compare current period vs previous |
+
+### Manual Installation
+
+If you didn't use Dashboard Apply, manually create the skill:
+
+```bash
+mkdir -p ~/.openclaw/skills/agentgazer/scripts
+
+# Create SKILL.md
+cat > ~/.openclaw/skills/agentgazer/SKILL.md << 'EOF'
+---
+name: agentgazer
+description: Query AgentGazer for cost and usage stats
+---
+
+Use the cost.sh script to get spending information.
+EOF
+
+# Create cost.sh
+cat > ~/.openclaw/skills/agentgazer/scripts/cost.sh << 'EOF'
+#!/bin/bash
+agentgazer agent openclaw stat -o json
+EOF
+
+chmod +x ~/.openclaw/skills/agentgazer/scripts/cost.sh
+```

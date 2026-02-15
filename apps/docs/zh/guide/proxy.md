@@ -23,6 +23,46 @@ POST http://localhost:18900/agents/{agent-name}/{provider}
 | `zhipu` | 智譜 GLM Chat |
 | `minimax` | MiniMax Chat |
 | `baichuan` | 百川 Chat |
+| `agentgazer` | **虛擬 Provider**（自動偵測） |
+
+## AgentGazer 虛擬 Provider（推薦）{#virtual-provider}
+
+`agentgazer` 虛擬 provider 透過首次請求自動建立 agent，簡化接入流程：
+
+```typescript
+const openai = new OpenAI({
+  baseURL: "http://localhost:18900/agents/my-bot/agentgazer",
+  apiKey: "dummy",
+});
+```
+
+### 運作方式
+
+1. **首次請求**：發送任意請求，model 設為 `agentgazer-proxy`
+2. **自動建立**：Proxy 建立 agent 並回傳成功訊息
+3. **設定路由**：到 Dashboard → Agents → Model Settings 設定目標 provider
+4. **開始使用**：後續請求自動路由到你設定的 provider
+
+### 首次請求範例
+
+```typescript
+// 這會建立 agent 並確認連線
+const response = await openai.chat.completions.create({
+  model: "agentgazer-proxy",  // 用於連線測試的特殊 model
+  messages: [{ role: "user", content: "test" }],
+});
+// 回傳: "AgentGazer connected successfully for agent 'my-bot'..."
+```
+
+### 優點
+
+- **不需要知道 provider** — 不用決定要用哪個 provider 就能開始
+- **集中設定** — 在 Dashboard 改 provider，不用改程式碼
+- **跨 provider 路由** — 不同 model 可路由到不同 provider
+
+::: tip 何時使用
+新專案或想用 Dashboard 管理 provider 設定時使用 `agentgazer`。需要在程式碼中直接控制時使用明確的 provider（`openai`, `anthropic`）。
+:::
 
 ### 範例：透過簡化路由使用 OpenAI
 

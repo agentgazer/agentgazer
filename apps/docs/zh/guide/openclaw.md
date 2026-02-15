@@ -168,3 +168,64 @@ Proxy 攔截請求、提取指標、再轉發到真正的 Provider。**Prompt �
 ### API 金鑰處理
 
 將 `apiKey` 設為任意非空值（例如 `"managed-by-agentgazer"`）。Proxy 會注入透過 `agentgazer provider add` 儲存的真實金鑰。
+
+## 費用感知 Skill {#cost-skill}
+
+當你在 Dashboard 點擊 **套用設定** 時，AgentGazer 會自動為 OpenClaw 安裝費用感知 skill。
+
+### 安裝內容
+
+套用動作會建立：
+
+```
+~/.openclaw/skills/agentgazer/
+├── SKILL.md          # Skill 元資料和說明
+└── scripts/
+    └── cost.sh       # 查詢 AgentGazer 統計的腳本
+```
+
+### 使用 Skill
+
+安裝後，你可以詢問 OpenClaw 關於 AI 花費：
+
+```
+User: /cost
+OpenClaw: 你的 AgentGazer 統計（過去 24 小時）：
+          - 總費用：$12.45
+          - 請求數：847
+          - Token 數：1.2M（輸入：800K，輸出：400K）
+```
+
+### Skill 指令
+
+| 指令 | 說明 |
+|------|------|
+| `/cost` | 顯示當前時段的費用摘要 |
+| `/cost 7d` | 顯示過去 7 天的費用 |
+| `/cost compare` | 比較當前時段與上一時段 |
+
+### 手動安裝
+
+如果你沒有使用 Dashboard 套用，手動建立 skill：
+
+```bash
+mkdir -p ~/.openclaw/skills/agentgazer/scripts
+
+# 建立 SKILL.md
+cat > ~/.openclaw/skills/agentgazer/SKILL.md << 'EOF'
+---
+name: agentgazer
+description: 查詢 AgentGazer 費用和使用統計
+---
+
+使用 cost.sh 腳本取得花費資訊。
+EOF
+
+# 建立 cost.sh
+cat > ~/.openclaw/skills/agentgazer/scripts/cost.sh << 'EOF'
+#!/bin/bash
+agentgazer agent openclaw stat -o json
+EOF
+
+chmod +x ~/.openclaw/skills/agentgazer/scripts/cost.sh
+```

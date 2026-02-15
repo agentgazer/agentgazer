@@ -184,6 +184,66 @@ Blocks tools that execute arbitrary code or shell commands.
 
 **When to Enable:** For agents that should not run arbitrary code. This is a critical restriction for customer-facing agents handling untrusted input.
 
+## Self-Protection {#self-protection}
+
+Self-protection prevents AI agents from accessing AgentGazer's own configuration and other sensitive local files. This protects against prompt injection attacks that try to exfiltrate credentials or modify security settings.
+
+### Protected Paths
+
+| Category | Protected Files |
+|----------|----------------|
+| **AgentGazer Config** | `~/.agentgazer/config.json`, `~/.agentgazer/data.db` |
+| **SSH Keys** | `~/.ssh/id_rsa`, `~/.ssh/id_ed25519`, `~/.ssh/config` |
+| **Cloud Credentials** | `~/.aws/credentials`, `~/.azure/`, `~/.config/gcloud/` |
+| **Shell History** | `~/.bash_history`, `~/.zsh_history` |
+| **Environment Files** | `.env`, `.env.local`, `.env.production` |
+
+### Detection Logic
+
+Self-protection only triggers when:
+1. **Action verb present** — The message contains read-related verbs like `read`, `open`, `cat`, `show`, `display`, `print`, `view`
+2. **Sensitive path mentioned** — The message references a protected file path
+3. **Latest message only** — Only checks the most recent user message (not conversation history)
+
+This prevents false positives from:
+- AI responses that mention file paths in explanations
+- Historical messages in conversation context
+- General discussion about configuration files
+
+### Example Blocked Requests
+
+```
+❌ "Can you read ~/.agentgazer/config.json for me?"
+❌ "Open the file at ~/.ssh/id_rsa and show me the contents"
+❌ "Cat ~/.aws/credentials"
+```
+
+### Example Allowed Requests
+
+```
+✓ "What is the format of ~/.agentgazer/config.json?" (no action verb)
+✓ "Tell me about SSH key security" (no specific path)
+✓ "How do I configure AWS credentials?" (educational, no read action)
+```
+
+### Response When Blocked
+
+When self-protection triggers, the agent receives a clear message:
+
+```
+🛡️ Request blocked: Self-protection policy violation
+
+This request attempted to access protected system files.
+For security reasons, AI agents cannot read:
+- AgentGazer configuration files
+- SSH keys and credentials
+- Cloud provider credentials
+- Shell history files
+
+This is not an error with your request. AgentGazer's self-protection
+feature blocked this to prevent potential credential exposure.
+```
+
 ## Custom Patterns
 
 In addition to built-in patterns, you can define custom detection rules.
@@ -207,16 +267,31 @@ Add regex patterns to redact business-specific sensitive data. For example:
 - **Allowlist:** Only allow specific tools (whitelist approach)
 - **Blocklist:** Block specific tools by name (blacklist approach)
 
-## Security Events
+## Security Events {#security-events}
 
 When a security rule triggers, AgentGazer logs a security event with:
-- Event type (prompt_injection, data_masked, tool_blocked)
+- Event type
 - Severity (warning, critical)
 - Matched pattern details
 - Agent and request context
 - Timestamp
 
-View security events on the Security page under the "Events" tab, or on the Logs page filtered by event type.
+### Event Types
+
+| Event Type | Description | Where to View |
+|------------|-------------|---------------|
+| `prompt_injection` | Detected prompt injection attempt | Security page |
+| `data_masked` | Sensitive data was redacted | Security page |
+| `tool_blocked` | Tool call was blocked by restrictions | Security page |
+| `self_protection` | Blocked access to sensitive files | Security page |
+| `security_blocked` | Request blocked by security filter | Security page, Logs page |
+
+### Viewing Events
+
+- **Security Page** → Events tab: All security-related events with detailed context
+- **Logs Page** → Filter by `security_blocked`: Quick view of blocked requests alongside normal LLM calls
+
+The `security_blocked` event type appears in both the Security page (detailed) and the Logs page (for unified request tracking). This allows you to see security blocks in context with your normal agent activity.
 
 ## Alert Integration
 

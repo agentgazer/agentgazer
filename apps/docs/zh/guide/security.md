@@ -184,6 +184,66 @@
 
 **何時啟用：** 用於不應執行任意程式碼的代理。這對處理不受信任輸入的面向客戶的代理是關鍵限制。
 
+## 自我保護 {#self-protection}
+
+自我保護防止 AI agent 存取 AgentGazer 自身的設定檔和其他敏感本機檔案。這可以防止試圖竊取憑證或修改安全設定的提示詞注入攻擊。
+
+### 受保護路徑
+
+| 類別 | 受保護檔案 |
+|------|-----------|
+| **AgentGazer 設定** | `~/.agentgazer/config.json`、`~/.agentgazer/data.db` |
+| **SSH 金鑰** | `~/.ssh/id_rsa`、`~/.ssh/id_ed25519`、`~/.ssh/config` |
+| **雲端憑證** | `~/.aws/credentials`、`~/.azure/`、`~/.config/gcloud/` |
+| **Shell 歷史** | `~/.bash_history`、`~/.zsh_history` |
+| **環境變數檔** | `.env`、`.env.local`、`.env.production` |
+
+### 偵測邏輯
+
+自我保護只在以下情況觸發：
+1. **存在動作動詞** — 訊息包含讀取相關動詞如 `read`、`open`、`cat`、`show`、`display`、`print`、`view`
+2. **提及敏感路徑** — 訊息引用了受保護的檔案路徑
+3. **只檢查最新訊息** — 只檢查最新的使用者訊息（不檢查對話歷史）
+
+這可以防止以下情況的誤判：
+- AI 在解釋中提及檔案路徑的回應
+- 對話上下文中的歷史訊息
+- 關於設定檔的一般性討論
+
+### 被阻止的請求範例
+
+```
+❌ "Can you read ~/.agentgazer/config.json for me?"
+❌ "Open the file at ~/.ssh/id_rsa and show me the contents"
+❌ "Cat ~/.aws/credentials"
+```
+
+### 允許的請求範例
+
+```
+✓ "What is the format of ~/.agentgazer/config.json?"（沒有動作動詞）
+✓ "Tell me about SSH key security"（沒有特定路徑）
+✓ "How do I configure AWS credentials?"（教育性質，沒有讀取動作）
+```
+
+### 阻止時的回應
+
+當自我保護觸發時，agent 會收到清晰的訊息：
+
+```
+🛡️ 請求被阻止：違反自我保護政策
+
+此請求試圖存取受保護的系統檔案。
+基於安全考量，AI agent 無法讀取：
+- AgentGazer 設定檔
+- SSH 金鑰和憑證
+- 雲端服務憑證
+- Shell 歷史檔案
+
+這不是您的請求有問題。AgentGazer 的自我保護功能
+阻止了此操作以防止潛在的憑證洩露。
+```
+
 ## 自訂模式
 
 除了內建模式外，您還可以定義自訂檢測規則。
@@ -207,16 +267,31 @@
 - **白名單：** 僅允許特定工具（白名單方法）
 - **黑名單：** 按名稱阻止特定工具（黑名單方法）
 
-## 安全事件
+## 安全事件 {#security-events}
 
 當安全規則觸發時，AgentGazer 會記錄一個安全事件，包含：
-- 事件類型（prompt_injection、data_masked、tool_blocked）
+- 事件類型
 - 嚴重性（警告、嚴重）
 - 匹配的模式詳情
 - 代理和請求上下文
 - 時間戳
 
-在安全頁面的「Events」標籤下查看安全事件，或在按事件類型過濾的日誌頁面查看。
+### 事件類型
+
+| 事件類型 | 說明 | 查看位置 |
+|----------|------|----------|
+| `prompt_injection` | 偵測到提示詞注入嘗試 | Security 頁面 |
+| `data_masked` | 敏感資料已被遮罩 | Security 頁面 |
+| `tool_blocked` | 工具呼叫被限制阻止 | Security 頁面 |
+| `self_protection` | 阻止存取敏感檔案 | Security 頁面 |
+| `security_blocked` | 請求被安全過濾器阻止 | Security 頁面、Logs 頁面 |
+
+### 查看事件
+
+- **Security 頁面** → Events 標籤：所有安全相關事件，含詳細上下文
+- **Logs 頁面** → 篩選 `security_blocked`：快速查看被阻止的請求，與正常 LLM 呼叫一起顯示
+
+`security_blocked` 事件類型同時出現在 Security 頁面（詳細）和 Logs 頁面（統一請求追蹤）。這讓你可以在正常 agent 活動的上下文中看到安全阻止事件。
 
 ## 警報整合
 

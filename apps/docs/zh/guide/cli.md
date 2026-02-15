@@ -34,7 +34,7 @@
 | `agent <name> deactive` | 停用 Agent | `--port` |
 | `agent <name> killswitch on\|off` | 切換緊急停止開關 | `--port` |
 | `agent <name> delete` | 刪除 Agent 及所有資料 | `--port`、`--yes` |
-| `agent <name> stat` | 顯示 Agent 統計數據 | `--port`、`--range` |
+| `agent <name> stat` | 顯示 Agent 統計數據 | `--port`、`--range`、`-o` |
 | `agent <name> model` | 列出模型覆蓋設定 | `--port` |
 | `agent <name> model-override <model>` | 設定模型覆蓋 | `--port` |
 | `agent <name> alerts` | 列出此 Agent 的所有告警 | `--port` |
@@ -119,6 +119,9 @@ agentgazer agent my-bot killswitch off
 # 顯示統計數據
 agentgazer agent my-bot stat
 agentgazer agent my-bot stat --range 7d
+
+# 輸出為 JSON（用於腳本或 MCP 整合）
+agentgazer agent my-bot stat -o json
 
 # 查看模型覆蓋設定
 agentgazer agent my-bot model

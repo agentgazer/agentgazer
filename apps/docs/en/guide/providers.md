@@ -20,6 +20,7 @@ AgentGazer supports two authentication methods for LLM providers:
 | Zhipu (GLM-4) | API Key | api.z.ai |
 | Zhipu Coding Plan | **OAuth** | api.z.ai |
 | MiniMax | API Key | api.minimax.chat |
+| MiniMax Coding Plan | **OAuth** | api.minimax.chat |
 | Baichuan | API Key | api.baichuan-ai.com |
 | Yi | API Key | api.lingyiwanwu.com |
 
@@ -54,6 +55,7 @@ agentgazer logout openai-oauth
 |----------|---------|-------------|
 | OpenAI Codex | `agentgazer login openai-oauth` | OpenAI subscription (ChatGPT Plus/Pro) |
 | Zhipu Coding Plan | `agentgazer login zhipu-coding-plan` | Zhipu GLM subscription |
+| MiniMax Coding Plan | `agentgazer login minimax-oauth` | MiniMax subscription service |
 
 ## OS-Level Secure Storage
 
