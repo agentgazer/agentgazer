@@ -1,4 +1,31 @@
 import { defineConfig, devices } from "@playwright/test";
+import { execSync } from "child_process";
+import { existsSync, readFileSync } from "fs";
+import { homedir } from "os";
+import { join } from "path";
+
+// Auto-load token from config if not set
+function getTestToken(): string | undefined {
+  if (process.env.TEST_TOKEN) {
+    return process.env.TEST_TOKEN;
+  }
+
+  // Try to read from AgentGazer config
+  const configPath = join(homedir(), ".agentgazer", "config.json");
+  if (existsSync(configPath)) {
+    try {
+      const config = JSON.parse(readFileSync(configPath, "utf-8"));
+      return config.token;
+    } catch {
+      // Ignore errors
+    }
+  }
+
+  return undefined;
+}
+
+// Set TEST_TOKEN for all tests
+process.env.TEST_TOKEN = getTestToken();
 
 export default defineConfig({
   testDir: "./e2e",
