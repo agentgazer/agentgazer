@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../lib/api";
 import { usePolling } from "../hooks/usePolling";
 import { relativeTime, formatCost } from "../lib/format";
+import CopyButton from "./CopyButton";
 
 interface Event {
   id: string;
@@ -273,14 +274,19 @@ export default function RequestLog({ agentId }: RequestLogProps) {
 
                   {/* Request */}
                   <div>
-                    <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      {t("requestLog.request")}
+                    <div className="mb-2 flex items-center justify-between">
+                      <h4 className="text-xs font-semibold uppercase text-gray-400">
+                        {t("requestLog.request")}
+                        {selectedPayload.request_body && (
+                          <span className="ml-2 font-normal normal-case text-gray-500">
+                            ({selectedPayload.request_body.length.toLocaleString()} {t("requestLog.chars")})
+                          </span>
+                        )}
+                      </h4>
                       {selectedPayload.request_body && (
-                        <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.request_body.length.toLocaleString()} {t("requestLog.chars")})
-                        </span>
+                        <CopyButton text={formatJSON(selectedPayload.request_body)} />
                       )}
-                    </h4>
+                    </div>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.request_body
                         ? formatJSON(selectedPayload.request_body)
@@ -290,14 +296,19 @@ export default function RequestLog({ agentId }: RequestLogProps) {
 
                   {/* Response */}
                   <div>
-                    <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      {t("requestLog.response")}
+                    <div className="mb-2 flex items-center justify-between">
+                      <h4 className="text-xs font-semibold uppercase text-gray-400">
+                        {t("requestLog.response")}
+                        {selectedPayload.response_body && (
+                          <span className="ml-2 font-normal normal-case text-gray-500">
+                            ({selectedPayload.response_body.length.toLocaleString()} {t("requestLog.chars")})
+                          </span>
+                        )}
+                      </h4>
                       {selectedPayload.response_body && (
-                        <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.response_body.length.toLocaleString()} {t("requestLog.chars")})
-                        </span>
+                        <CopyButton text={formatJSON(selectedPayload.response_body)} />
                       )}
-                    </h4>
+                    </div>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.response_body
                         ? formatJSON(selectedPayload.response_body)

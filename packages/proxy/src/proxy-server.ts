@@ -296,6 +296,64 @@ function sendJson(
   res.end(payload);
 }
 
+/**
+ * Send a blocked response in SSE streaming format.
+ * This ensures streaming clients (like Claude Code, OpenClaw) receive the blocked message properly.
+ */
+function sendStreamingBlockedResponse(
+  res: http.ServerResponse,
+  blockedResponse: Record<string, unknown>
+): void {
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+  });
+
+  // Convert to streaming chunk format
+  const choices = blockedResponse.choices as Array<{ message?: { content?: string } }> | undefined;
+  const content = choices?.[0]?.message?.content || "[Security] Request blocked";
+
+  // Send as a single delta chunk
+  const chunk = {
+    id: blockedResponse.id,
+    object: "chat.completion.chunk",
+    created: blockedResponse.created,
+    model: blockedResponse.model,
+    choices: [
+      {
+        index: 0,
+        delta: {
+          role: "assistant",
+          content: content,
+        },
+        finish_reason: null,
+      },
+    ],
+  };
+  res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+
+  // Send finish chunk
+  const finishChunk = {
+    id: blockedResponse.id,
+    object: "chat.completion.chunk",
+    created: blockedResponse.created,
+    model: blockedResponse.model,
+    choices: [
+      {
+        index: 0,
+        delta: {},
+        finish_reason: "stop",
+      },
+    ],
+  };
+  res.write(`data: ${JSON.stringify(finishChunk)}\n\n`);
+
+  // Send done marker
+  res.write("data: [DONE]\n\n");
+  res.end();
+}
+
 // ---------------------------------------------------------------------------
 // Request body normalization — remove/transform unsupported fields per provider
 // ---------------------------------------------------------------------------
@@ -1004,6 +1062,89 @@ function generateBlockedResponse(
   }
   // Default to OpenAI format (used by most providers)
   return generateOpenAIBlockedResponse(reason, message);
+}
+
+/**
+ * Generate a kill switch response that clearly informs the agent about the loop detection.
+ * This ensures the agent can immediately communicate the situation to the user.
+ */
+function generateKillSwitchResponse(
+  provider: ProviderName,
+  agentId: string,
+  score: number,
+  details: { similarPrompts: number; similarResponses: number; repeatedToolCalls: number },
+): Record<string, unknown> {
+  const timestamp = new Date().toISOString();
+
+  const message = `🛑 **AgentGazer Kill Switch Activated**
+
+**Agent:** ${agentId}
+**Loop Score:** ${score.toFixed(1)}
+**Time:** ${timestamp}
+
+---
+
+**CRITICAL: Please inform the user immediately:**
+
+This agent has been **automatically deactivated** because an infinite loop was detected. This protection prevents runaway API costs.
+
+**Loop Detection Details:**
+- Similar prompts detected: ${details.similarPrompts}
+- Similar responses detected: ${details.similarResponses}
+- Repeated tool calls: ${details.repeatedToolCalls}
+
+**What the user should know:**
+- The agent is now deactivated and cannot make further requests
+- This is a safety measure to prevent excessive API charges
+- All recent requests have been logged for review
+
+**To resume:**
+1. Go to AgentGazer Dashboard → Agents → ${agentId}
+2. Review the incident details
+3. Re-enable the agent if appropriate
+
+**Do not retry.** The agent is deactivated and all requests will be blocked until manually re-enabled.`;
+
+  if (provider === "anthropic") {
+    return {
+      id: `msg_killswitch_${Date.now()}`,
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text: message }],
+      model: "agentgazer-kill-switch",
+      stop_reason: "end_turn",
+      usage: { input_tokens: 0, output_tokens: 0 },
+      agentgazer_kill_switch: {
+        triggered: true,
+        agent_id: agentId,
+        score: score,
+        details: details,
+        timestamp: timestamp,
+      },
+    };
+  }
+
+  return {
+    id: `chatcmpl-killswitch-${Date.now()}`,
+    object: "chat.completion",
+    created: Math.floor(Date.now() / 1000),
+    model: "agentgazer-kill-switch",
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: message },
+        finish_reason: "stop",
+      },
+    ],
+    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+    agentgazer_kill_switch: {
+      triggered: true,
+      agent_id: agentId,
+      score: score,
+      details: details,
+      timestamp: timestamp,
+    },
+  };
 }
 
 /**
@@ -1737,6 +1878,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
     if (killSwitchConfig.enabled) {
       try {
         const bodyJson = JSON.parse(requestBody.toString("utf-8"));
+        const killSwitchIsStreaming = bodyJson.stream === true;
         const { promptHash, toolCalls } = loopDetector.recordRequest(effectiveAgentId, bodyJson);
         const loopCheck = loopDetector.checkLoop(effectiveAgentId, promptHash, toolCalls);
 
@@ -1744,6 +1886,16 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           log.warn(`[PROXY] Kill Switch triggered for agent "${effectiveAgentId}": score=${loopCheck.score.toFixed(2)}`);
           const message = `Agent loop detected (score: ${loopCheck.score.toFixed(1)}). Agent deactivated to prevent runaway costs.`;
 
+          // Generate the kill switch response FIRST (before deactivating)
+          // This ensures the agent/user receives a clear explanation
+          const killSwitchResponse = generateKillSwitchResponse(
+            provider,
+            effectiveAgentId,
+            loopCheck.score,
+            loopCheck.details,
+          );
+
+          // Record events and deactivate agent
           if (db) {
             try {
               updateAgentPolicy(db, effectiveAgentId, { active: false, deactivated_by: "kill_switch" });
@@ -1807,8 +1959,12 @@ export function startProxy(options: ProxyOptions): ProxyServer {
             }
           }
 
-          const blockedResponse = generateBlockedResponse(provider, "inactive", message);
-          sendJson(res, 200, blockedResponse);
+          // Send the response (streaming or non-streaming)
+          if (killSwitchIsStreaming) {
+            sendStreamingBlockedResponse(res, killSwitchResponse);
+          } else {
+            sendJson(res, 200, killSwitchResponse);
+          }
           return;
         }
       } catch {
@@ -1818,6 +1974,15 @@ export function startProxy(options: ProxyOptions): ProxyServer {
 
     // Generate eventId early for correlation: security_events, agent_events, event_payloads
     const eventId = crypto.randomUUID();
+
+    // Check if request is streaming (needed for proper blocked response format)
+    let requestIsStreaming = false;
+    try {
+      const bodyJson = JSON.parse(requestBody.toString("utf-8"));
+      requestIsStreaming = bodyJson.stream === true;
+    } catch {
+      // Not JSON, assume non-streaming
+    }
 
     // Security request check (data masking + tool restrictions)
     const securityRequestResult = await securityFilter.checkRequest(
@@ -1832,7 +1997,13 @@ export function startProxy(options: ProxyOptions): ProxyServer {
         securityRequestResult.blockReason || "Security policy violation",
         provider,
       );
-      sendJson(res, 200, blockedResponse);
+
+      if (requestIsStreaming) {
+        // Send as SSE streaming response so streaming clients can handle it
+        sendStreamingBlockedResponse(res, blockedResponse);
+      } else {
+        sendJson(res, 200, blockedResponse);
+      }
       return;
     }
 
@@ -2738,6 +2909,7 @@ export function startProxy(options: ProxyOptions): ProxyServer {
           effectiveAgentId,
           finalResponseBody.toString("utf-8"),
           eventId,
+          modifiedRequestBody.toString("utf-8"),  // Pass original request body for context
         );
 
         if (!securityResponseResult.allowed) {

@@ -130,9 +130,11 @@ export class SecurityFilter {
     requestId?: string,
   ): Promise<SecurityCheckResult> {
     // Self-protection check runs FIRST and ALWAYS (no config needed)
-    const selfProtectionResult = this.checkSelfProtectionViolation(requestBody);
+    // Only check the LATEST user message to avoid false positives from conversation history
+    const latestUserContent = this.extractLatestUserContent(requestBody);
+    const selfProtectionResult = this.checkSelfProtectionViolation(latestUserContent || requestBody);
     if (selfProtectionResult) {
-      await this.recordEvents(agentId, selfProtectionResult.events, requestId);
+      await this.recordEvents(agentId, selfProtectionResult.events, requestId, requestBody);
       return selfProtectionResult;
     }
 
@@ -164,8 +166,8 @@ export class SecurityFilter {
       );
 
       if (blockEvent) {
-        // Record events to server
-        await this.recordEvents(agentId, events, requestId);
+        // Record events to server (include request body for blocked events)
+        await this.recordEvents(agentId, events, requestId, requestBody);
         return {
           allowed: false,
           events,
@@ -173,7 +175,7 @@ export class SecurityFilter {
         };
       }
 
-      // Record events to server (non-blocking)
+      // Record events to server (non-blocking - don't include full request body)
       if (events.length > 0) {
         await this.recordEvents(agentId, events, requestId);
       }
@@ -199,11 +201,12 @@ export class SecurityFilter {
     agentId: string,
     responseBody: string,
     requestId?: string,
+    originalRequestBody?: string,
   ): Promise<SecurityCheckResult> {
     // Self-protection check runs FIRST and ALWAYS (no config needed)
     const selfProtectionResult = this.checkSelfProtectionViolation(responseBody);
     if (selfProtectionResult) {
-      await this.recordEvents(agentId, selfProtectionResult.events, requestId);
+      await this.recordEvents(agentId, selfProtectionResult.events, requestId, originalRequestBody);
       return selfProtectionResult;
     }
 
@@ -227,8 +230,8 @@ export class SecurityFilter {
       );
 
       if (blockEvent) {
-        // Record events to server
-        await this.recordEvents(agentId, events, requestId);
+        // Record events to server (include request body for blocked events)
+        await this.recordEvents(agentId, events, requestId, originalRequestBody);
         return {
           allowed: false,
           events,
@@ -236,7 +239,7 @@ export class SecurityFilter {
         };
       }
 
-      // Record events to server (non-blocking)
+      // Record events to server (non-blocking - don't include full request body)
       if (events.length > 0) {
         await this.recordEvents(agentId, events, requestId);
       }
@@ -555,6 +558,57 @@ export class SecurityFilter {
   // Helpers
   // ---------------------------------------------------------------------------
 
+  /**
+   * Extract the latest user message content from a request body.
+   * This is used to check only the new user input for self-protection violations,
+   * avoiding false positives from conversation history that may contain
+   * previously blocked content or documentation.
+   */
+  private extractLatestUserContent(requestBody: string): string | null {
+    try {
+      const body = JSON.parse(requestBody);
+      const messages = body.messages as Array<{ role?: string; content?: string | unknown[] }> | undefined;
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        // No messages array, check prompt field instead
+        if (typeof body.prompt === "string") {
+          return body.prompt;
+        }
+        return null;
+      }
+
+      // Find the last user message
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (msg.role === "user") {
+          // Handle string content
+          if (typeof msg.content === "string") {
+            return msg.content;
+          }
+          // Handle content blocks (Anthropic format)
+          if (Array.isArray(msg.content)) {
+            const textParts: string[] = [];
+            for (const block of msg.content) {
+              if (typeof block === "object" && block !== null) {
+                const b = block as { type?: string; text?: string };
+                if (b.type === "text" && b.text) {
+                  textParts.push(b.text);
+                }
+              }
+            }
+            if (textParts.length > 0) {
+              return textParts.join("\n");
+            }
+          }
+        }
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   private truncateSnippet(text: string, maxLength = 100): string {
     if (text.length <= maxLength) return text;
     return text.slice(0, maxLength - 3) + "...";
@@ -564,7 +618,14 @@ export class SecurityFilter {
     agentId: string,
     events: SecurityEventData[],
     requestId?: string,
+    requestBody?: string,
   ): Promise<void> {
+    // Truncate request body if too large (max 50KB)
+    const MAX_REQUEST_BODY_SIZE = 50 * 1024;
+    const truncatedBody = requestBody && requestBody.length > MAX_REQUEST_BODY_SIZE
+      ? requestBody.slice(0, MAX_REQUEST_BODY_SIZE) + "\n[...truncated]"
+      : requestBody;
+
     // Record to DB if available
     if (this.db) {
       for (const event of events) {
@@ -578,6 +639,7 @@ export class SecurityFilter {
             matched_pattern: event.matched_pattern,
             snippet: event.snippet,
             request_id: requestId,
+            request_body: truncatedBody,
           });
         } catch (err) {
           log.error("Failed to record security event", { err: String(err) });
@@ -600,6 +662,7 @@ export class SecurityFilter {
               agent_id: agentId,
               ...event,
               request_id: requestId,
+              request_body: truncatedBody,
             }),
           });
         } catch (err) {
@@ -616,22 +679,46 @@ export class SecurityFilter {
 
 /**
  * Generate a blocked response in OpenAI format for security blocks.
+ * The response is designed to be immediately recognizable by AI agents
+ * so they can inform the user about the security block.
  */
 export function generateSecurityBlockedResponse(
   reason: string,
   provider: string,
   isSelfProtection = false,
 ): Record<string, unknown> {
-  // Self-protection blocks have a specific message
-  const message = isSelfProtection
-    ? `[AgentGazer Security] Access to AgentGazer internal data is not permitted. This request has been blocked to protect system integrity.`
-    : `[Security] Request blocked: ${reason}`;
+  // Build a clear, actionable message for the agent
+  const blockType = isSelfProtection ? "Self-Protection" : "Security Policy";
+  const timestamp = new Date().toISOString();
+
+  const message = `⚠️ **AgentGazer Security Block**
+
+**Type:** ${blockType}
+**Reason:** ${reason}
+**Time:** ${timestamp}
+
+---
+
+**IMPORTANT: Please inform the user immediately:**
+
+Your request was blocked by AgentGazer security filter. ${
+    isSelfProtection
+      ? "The request attempted to access AgentGazer internal configuration or data, which is not permitted to protect system integrity."
+      : `The request violated a security policy: ${reason}`
+  }
+
+**What the user should know:**
+- This is a security protection measure, not an error
+- The blocked request was logged for review
+- If this block seems incorrect, check AgentGazer Dashboard → Security → Events
+
+**Do not retry the same request.** Instead, inform the user about this security block.`;
 
   return {
     id: `chatcmpl-security-blocked-${Date.now()}`,
     object: "chat.completion",
     created: Math.floor(Date.now() / 1000),
-    model: "security-filter",
+    model: "agentgazer-security-filter",
     choices: [
       {
         index: 0,
@@ -646,6 +733,13 @@ export function generateSecurityBlockedResponse(
       prompt_tokens: 0,
       completion_tokens: 0,
       total_tokens: 0,
+    },
+    // Additional metadata for programmatic detection
+    agentgazer_security: {
+      blocked: true,
+      block_type: isSelfProtection ? "self_protection" : "security_policy",
+      reason: reason,
+      timestamp: timestamp,
     },
   };
 }

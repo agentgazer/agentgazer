@@ -217,6 +217,8 @@
       "action": "操作",
       "rule": "规则",
       "payload": "Payload",
+      "pattern": "模式",
+      "snippet": "片段",
       "noEvents": "未找到安全事件",
       "showingOf": "显示 {{count}} 条，共 {{total}} 条",
       "promptInjection": "提示词注入",
@@ -234,7 +236,8 @@
       "response": "Response",
       "noRequestBody": "（无 Request Body）",
       "noResponseBody": "（无 Response Body）",
-      "chars": "字符"
+      "chars": "字符",
+      "blockedNote": "此请求已被阻止，因此没有响应内容。"
     },
     "tooltips": {
       "ignoreInstructions": {

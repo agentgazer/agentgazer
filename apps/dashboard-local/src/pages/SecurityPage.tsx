@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { relativeTime } from "../lib/format";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
+import CopyButton from "../components/CopyButton";
 
 /* ---------- Types ---------- */
 
@@ -59,13 +60,14 @@ interface SecurityConfig {
 interface SecurityEvent {
   id: string;
   agent_id: string;
-  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked" | "self_protection";
   severity: "info" | "warning" | "critical";
   action_taken: "logged" | "alerted" | "blocked" | "masked";
   rule_name: string | null;
   matched_pattern: string | null;
   snippet: string | null;
   request_id: string | null;
+  request_body: string | null;
   created_at: string;
 }
 
@@ -128,6 +130,7 @@ export default function SecurityPage() {
 
   // Payload modal
   const [selectedPayload, setSelectedPayload] = useState<PayloadData | null>(null);
+  const [selectedSecurityEvent, setSelectedSecurityEvent] = useState<SecurityEvent | null>(null);
   const [payloadLoading, setPayloadLoading] = useState<string | null>(null);
   const [payloadError, setPayloadError] = useState<string | null>(null);
 
@@ -203,12 +206,27 @@ export default function SecurityPage() {
   };
 
   // Load payload for security event
-  const loadPayload = useCallback(async (requestId: string) => {
-    setPayloadLoading(requestId);
+  const loadPayload = useCallback(async (event: SecurityEvent) => {
+    // If the event has request_body directly, show it without API call
+    if (event.request_body) {
+      setSelectedSecurityEvent(event);
+      setSelectedPayload(null);
+      setPayloadError(null);
+      return;
+    }
+
+    // Otherwise try to load from payloads API
+    if (!event.request_id) {
+      setPayloadError(t("security.payload.notFound"));
+      return;
+    }
+
+    setPayloadLoading(event.request_id);
     setPayloadError(null);
     try {
-      const payload = await api.get<PayloadData>(`/api/payloads/${requestId}`);
+      const payload = await api.get<PayloadData>(`/api/payloads/${event.request_id}`);
       setSelectedPayload(payload);
+      setSelectedSecurityEvent(null);
     } catch (err) {
       if (err instanceof Error && err.message.includes("404")) {
         setPayloadError(t("security.payload.notFound"));
@@ -860,9 +878,9 @@ export default function SecurityPage() {
                         {event.rule_name || "-"}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-center">
-                        {event.request_id ? (
+                        {(event.request_body || event.request_id) ? (
                           <button
-                            onClick={() => loadPayload(event.request_id!)}
+                            onClick={() => loadPayload(event)}
                             disabled={payloadLoading === event.request_id}
                             className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-indigo-300 disabled:opacity-50"
                             title={t("security.events.viewPayload")}
@@ -897,11 +915,12 @@ export default function SecurityPage() {
       )}
 
       {/* Payload Modal */}
-      {(selectedPayload || payloadError) && (
+      {(selectedPayload || selectedSecurityEvent || payloadError) && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
           onClick={() => {
             setSelectedPayload(null);
+            setSelectedSecurityEvent(null);
             setPayloadError(null);
           }}
         >
@@ -917,6 +936,7 @@ export default function SecurityPage() {
               <button
                 onClick={() => {
                   setSelectedPayload(null);
+                  setSelectedSecurityEvent(null);
                   setPayloadError(null);
                 }}
                 className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-700 hover:text-gray-200"
@@ -933,6 +953,63 @@ export default function SecurityPage() {
                 <div className="rounded bg-red-900/50 px-4 py-3 text-sm text-red-300">
                   {payloadError}
                 </div>
+              ) : selectedSecurityEvent ? (
+                <div className="space-y-4">
+                  {/* Security event info */}
+                  <div className="text-xs text-gray-500">
+                    {t("security.events.agent")}: {selectedSecurityEvent.agent_id} | {t("security.events.type")}: {selectedSecurityEvent.event_type} | {selectedSecurityEvent.created_at}
+                  </div>
+
+                  {/* Matched info */}
+                  {(selectedSecurityEvent.rule_name || selectedSecurityEvent.matched_pattern) && (
+                    <div className="rounded bg-yellow-900/30 px-3 py-2 text-xs">
+                      {selectedSecurityEvent.rule_name && (
+                        <div className="text-yellow-300">
+                          <span className="font-medium">{t("security.events.rule")}:</span> {selectedSecurityEvent.rule_name}
+                        </div>
+                      )}
+                      {selectedSecurityEvent.matched_pattern && (
+                        <div className="text-yellow-400 font-mono mt-1">
+                          <span className="font-medium font-sans">{t("security.events.pattern")}:</span> {selectedSecurityEvent.matched_pattern}
+                        </div>
+                      )}
+                      {selectedSecurityEvent.snippet && (
+                        <div className="text-yellow-200 mt-1">
+                          <span className="font-medium">{t("security.events.snippet")}:</span> {selectedSecurityEvent.snippet}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Request Body */}
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <h4 className="text-xs font-semibold uppercase text-gray-400">
+                        {t("security.payload.request")}
+                        {selectedSecurityEvent.request_body && (
+                          <span className="ml-2 font-normal normal-case text-gray-500">
+                            ({selectedSecurityEvent.request_body.length.toLocaleString()} {t("security.payload.chars")})
+                          </span>
+                        )}
+                      </h4>
+                      {selectedSecurityEvent.request_body && (
+                        <CopyButton text={formatJSON(selectedSecurityEvent.request_body)} />
+                      )}
+                    </div>
+                    <pre className="max-h-96 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
+                      {selectedSecurityEvent.request_body
+                        ? formatJSON(selectedSecurityEvent.request_body)
+                        : t("security.payload.noRequestBody")}
+                    </pre>
+                  </div>
+
+                  {/* Note about blocked requests */}
+                  {selectedSecurityEvent.action_taken === "blocked" && (
+                    <div className="rounded bg-gray-900 px-3 py-2 text-xs text-gray-500">
+                      {t("security.payload.blockedNote")}
+                    </div>
+                  )}
+                </div>
               ) : selectedPayload && (
                 <div className="space-y-4">
                   {/* Meta info */}
@@ -942,14 +1019,19 @@ export default function SecurityPage() {
 
                   {/* Request */}
                   <div>
-                    <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      {t("security.payload.request")}
+                    <div className="mb-2 flex items-center justify-between">
+                      <h4 className="text-xs font-semibold uppercase text-gray-400">
+                        {t("security.payload.request")}
+                        {selectedPayload.request_body && (
+                          <span className="ml-2 font-normal normal-case text-gray-500">
+                            ({selectedPayload.request_body.length.toLocaleString()} {t("security.payload.chars")})
+                          </span>
+                        )}
+                      </h4>
                       {selectedPayload.request_body && (
-                        <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.request_body.length.toLocaleString()} {t("security.payload.chars")})
-                        </span>
+                        <CopyButton text={formatJSON(selectedPayload.request_body)} />
                       )}
-                    </h4>
+                    </div>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.request_body
                         ? formatJSON(selectedPayload.request_body)
@@ -959,14 +1041,19 @@ export default function SecurityPage() {
 
                   {/* Response */}
                   <div>
-                    <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                      {t("security.payload.response")}
+                    <div className="mb-2 flex items-center justify-between">
+                      <h4 className="text-xs font-semibold uppercase text-gray-400">
+                        {t("security.payload.response")}
+                        {selectedPayload.response_body && (
+                          <span className="ml-2 font-normal normal-case text-gray-500">
+                            ({selectedPayload.response_body.length.toLocaleString()} {t("security.payload.chars")})
+                          </span>
+                        )}
+                      </h4>
                       {selectedPayload.response_body && (
-                        <span className="ml-2 font-normal normal-case text-gray-500">
-                          ({selectedPayload.response_body.length.toLocaleString()} {t("security.payload.chars")})
-                        </span>
+                        <CopyButton text={formatJSON(selectedPayload.response_body)} />
                       )}
-                    </h4>
+                    </div>
                     <pre className="max-h-64 overflow-auto rounded bg-gray-900 p-3 text-xs text-gray-300">
                       {selectedPayload.response_body
                         ? formatJSON(selectedPayload.response_body)

@@ -6,9 +6,17 @@ import { getModelPricing, calculateCost } from "@agentgazer/shared";
 const router = Router();
 
 // Unified period type across all stats APIs
-type Period = "1h" | "today" | "24h" | "7d" | "30d" | "all" | "custom";
+// Supports fixed periods and arbitrary Nd/Nh formats (e.g., 3d, 12h, 5d, 48h)
+type Period = string;
 
-const VALID_PERIODS = new Set<string>(["1h", "today", "24h", "7d", "30d", "all", "custom"]);
+// Pattern: Nd (days) or Nh (hours) - e.g., 3d, 12h, 5d, 48h
+const ARBITRARY_PERIOD_REGEX = /^(\d+)([dh])$/;
+
+function isValidPeriod(period: string): boolean {
+  const fixedPeriods = new Set(["1h", "today", "24h", "7d", "30d", "all", "custom"]);
+  if (fixedPeriods.has(period)) return true;
+  return ARBITRARY_PERIOD_REGEX.test(period);
+}
 
 function computeTimeRange(period: Period, from?: string, to?: string): { from: string; to: string } {
   const now = new Date();
@@ -36,6 +44,21 @@ function computeTimeRange(period: Period, from?: string, to?: string): { from: s
   }
 
   const d = new Date(toTime);
+
+  // Check for arbitrary Nd/Nh format first
+  const match = period.match(ARBITRARY_PERIOD_REGEX);
+  if (match) {
+    const value = parseInt(match[1], 10);
+    const unit = match[2];
+    if (unit === "d") {
+      d.setDate(d.getDate() - value);
+    } else {
+      d.setHours(d.getHours() - value);
+    }
+    return { from: d.toISOString(), to: toTime.toISOString() };
+  }
+
+  // Handle fixed periods (fallback for 1h, 24h, 7d, 30d)
   switch (period) {
     case "1h":
       d.setHours(d.getHours() - 1);
@@ -56,7 +79,7 @@ function computeTimeRange(period: Period, from?: string, to?: string): { from: s
 
 /**
  * Compute the previous period's time range for comparison.
- * For "today" → yesterday, for "24h" → previous 24h, etc.
+ * For "today" → yesterday, for "24h" → previous 24h, for "3d" → previous 3d, etc.
  */
 function computePreviousPeriodRange(period: Period): { from: string; to: string } | null {
   if (period === "all" || period === "custom") {
@@ -73,13 +96,22 @@ function computePreviousPeriodRange(period: Period): { from: string; to: string 
     return { from: yesterdayMidnight.toISOString(), to: todayMidnight.toISOString() };
   }
 
-  // For rolling periods, shift back by the same duration
+  // For rolling periods (including arbitrary Nd/Nh), shift back by the same duration
   const currentRange = computeTimeRange(period);
   const durationMs = new Date(currentRange.to).getTime() - new Date(currentRange.from).getTime();
   const prevTo = new Date(currentRange.from);
   const prevFrom = new Date(prevTo.getTime() - durationMs);
 
   return { from: prevFrom.toISOString(), to: prevTo.toISOString() };
+}
+
+/**
+ * Generate the previous period label for display.
+ * For "3d" → "previous_3d", for "12h" → "previous_12h", etc.
+ */
+function getPreviousPeriodLabel(period: Period): string {
+  if (period === "today") return "yesterday";
+  return `previous_${period}`;
 }
 
 function percentile(sorted: number[], p: number): number | null {
@@ -107,7 +139,7 @@ router.get("/api/stats/overview", (req, res) => {
   const db = req.app.locals.db as Database.Database;
 
   const rangeParam = req.query.range as string | undefined;
-  const period: Period = (rangeParam && VALID_PERIODS.has(rangeParam) ? rangeParam : "24h") as Period;
+  const period: Period = (rangeParam && isValidPeriod(rangeParam) ? rangeParam : "24h") as Period;
   const modelFilter = req.query.model as string | undefined;
 
   const timeRange = computeTimeRange(period);
@@ -229,7 +261,7 @@ router.get("/api/stats/:agentId", (req, res) => {
   const { agentId } = req.params;
 
   const rangeParam = req.query.range as string | undefined;
-  const period: Period = (rangeParam && VALID_PERIODS.has(rangeParam) ? rangeParam : "24h") as Period;
+  const period: Period = (rangeParam && isValidPeriod(rangeParam) ? rangeParam : "24h") as Period;
   const fromParam = req.query.from as string | undefined;
   const toParam = req.query.to as string | undefined;
 
@@ -343,7 +375,7 @@ router.get("/api/stats/:agentId", (req, res) => {
       : null;
 
     comparison = {
-      period: period === "today" ? "yesterday" : `previous_${period}`,
+      period: getPreviousPeriodLabel(period),
       total_cost: prevTotalCost,
       total_requests: prevTotalRequests,
       cost_change_pct: costChangePct !== null ? Math.round(costChangePct * 10) / 10 : null,
@@ -377,7 +409,7 @@ router.get("/api/stats/tokens", (req, res) => {
   const model = req.query.model as string | undefined;
 
   // Default to "today" for MCP (more intuitive for cost awareness)
-  const period: Period = (periodParam && VALID_PERIODS.has(periodParam) ? periodParam : "today") as Period;
+  const period: Period = (periodParam && isValidPeriod(periodParam) ? periodParam : "today") as Period;
   const timeRange = computeTimeRange(period);
 
   const conditions: string[] = [
@@ -423,7 +455,7 @@ router.get("/api/stats/cost", (req, res) => {
   const breakdown = req.query.breakdown === "true";
 
   // Default to "today" for MCP (more intuitive for cost awareness)
-  const period: Period = (periodParam && VALID_PERIODS.has(periodParam) ? periodParam : "today") as Period;
+  const period: Period = (periodParam && isValidPeriod(periodParam) ? periodParam : "today") as Period;
   const timeRange = computeTimeRange(period);
 
   const conditions: string[] = [
@@ -482,7 +514,7 @@ router.get("/api/stats/cost", (req, res) => {
       : null;
 
     comparison = {
-      period: period === "today" ? "yesterday" : `previous_${period}`,
+      period: getPreviousPeriodLabel(period),
       totalCost: prevResult.totalCost,
       requestCount: prevResult.requestCount,
       cost_change_pct: costChangePct !== null ? Math.round(costChangePct * 10) / 10 : null,

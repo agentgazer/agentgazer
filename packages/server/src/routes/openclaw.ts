@@ -204,7 +204,11 @@ Get stats for a specific time range:
 \`\`\`bash
 bash {baseDir}/scripts/cost.sh 7d   # Last 7 days
 bash {baseDir}/scripts/cost.sh 30d  # Last 30 days
+bash {baseDir}/scripts/cost.sh 3d   # Last 3 days
+bash {baseDir}/scripts/cost.sh 12h  # Last 12 hours
 \`\`\`
+
+Supported formats: \`1h\`, \`today\`, \`24h\`, \`7d\`, \`30d\`, \`all\`, or any \`Nd\`/\`Nh\` format (e.g., \`3d\`, \`48h\`).
 
 ## What you can query
 
@@ -235,7 +239,8 @@ This is automatically configured when using AgentGazer Dashboard's OpenClaw inte
       const costScript = `#!/bin/bash
 # AgentGazer cost query script for OpenClaw
 # Usage: bash cost.sh [range]
-#   range: 1h, 24h, 7d, 30d (default: 24h)
+#   range: 1h, today, 24h, 7d, 30d, all, or Nd/Nh format (e.g., 3d, 12h)
+#   default: 24h
 
 RANGE="\${1:-24h}"
 CONFIG="$HOME/.agentgazer/mcp-config.json"

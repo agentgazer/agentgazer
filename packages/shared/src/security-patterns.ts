@@ -762,32 +762,51 @@ export interface SelfProtectionPattern {
   pattern: RegExp;
 }
 
+// Action verbs that indicate actual file access intent
+// These are used to build context-aware patterns that distinguish between
+// documentation (mentioning a path) and actual access attempts
+const FILE_ACTION_VERBS = "read|cat|head|tail|less|more|open|edit|write|rm|delete|remove|access|get|fetch|load|view|show|display|print|output|execute|run|source|include|import";
+
 export const SELF_PROTECTION_PATTERNS: SelfProtectionPattern[] = [
-  // Path access patterns
+  // Path access patterns - require action context to avoid false positives on documentation
+  // Pattern: <action verb> ... <path> (with up to 50 chars between)
   {
     name: "agentgazer_home_path",
     category: "path_access",
-    pattern: /~\/\.agentgazer\//i,
+    pattern: new RegExp(`(${FILE_ACTION_VERBS})\\s.{0,50}~\\/\\.agentgazer\\/`, "i"),
   },
   {
     name: "agentgazer_home_var",
     category: "path_access",
-    pattern: /\$HOME\/\.agentgazer\//i,
+    pattern: new RegExp(`(${FILE_ACTION_VERBS})\\s.{0,50}\\$HOME\\/\\.agentgazer\\/`, "i"),
   },
   {
     name: "agentgazer_data_db",
     category: "path_access",
-    pattern: /\.agentgazer\/data\.db/i,
+    pattern: new RegExp(`(${FILE_ACTION_VERBS})\\s.{0,50}\\.agentgazer\\/data\\.db`, "i"),
   },
   {
     name: "agentgazer_config_json",
     category: "path_access",
-    pattern: /\.agentgazer\/config\.json/i,
+    pattern: new RegExp(`(${FILE_ACTION_VERBS})\\s.{0,50}\\.agentgazer\\/config\\.json`, "i"),
   },
   {
     name: "agentgazer_secrets",
     category: "path_access",
-    pattern: /\.agentgazer\/secrets/i,
+    pattern: new RegExp(`(${FILE_ACTION_VERBS})\\s.{0,50}\\.agentgazer\\/secrets`, "i"),
+  },
+  // Also catch tool_use blocks targeting these paths (MCP/Anthropic format)
+  {
+    name: "tool_access_agentgazer",
+    category: "path_access",
+    pattern: /tool_use[^}]*\.agentgazer\//i,
+  },
+  // Catch file path arguments in JSON tool calls (requires "type": or "name": nearby to indicate tool call context)
+  // This avoids matching documentation examples in markdown code blocks
+  {
+    name: "json_tool_path_agentgazer",
+    category: "path_access",
+    pattern: /"(type|name)":\s*"[^"]*"[^}]{0,200}"(path|file|filename|filepath|file_path)":\s*"[^"]*\.agentgazer\//i,
   },
 
   // Database query patterns

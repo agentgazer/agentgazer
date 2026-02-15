@@ -217,6 +217,8 @@
       "action": "操作",
       "rule": "規則",
       "payload": "Payload",
+      "pattern": "模式",
+      "snippet": "片段",
       "noEvents": "找不到安全事件",
       "showingOf": "顯示 {{count}} 筆，共 {{total}} 筆",
       "promptInjection": "提示詞注入",
@@ -234,7 +236,8 @@
       "response": "Response",
       "noRequestBody": "（無 Request Body）",
       "noResponseBody": "（無 Response Body）",
-      "chars": "chars"
+      "chars": "chars",
+      "blockedNote": "此請求已被阻止，因此沒有回應內容。"
     },
     "tooltips": {
       "ignoreInstructions": {

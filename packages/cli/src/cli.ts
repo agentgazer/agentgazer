@@ -239,7 +239,9 @@ Options (for start):
 Config file: ~/.agentgazer/config.json (optional settings: port, proxyPort, autoOpen, retentionDays)
 
 Options (for agent/provider stat):
-  --range <period>           Time range: 1h, today, 24h, 7d, 30d, all (default: 24h)
+  --range <period>           Time range: 1h, today, 24h, 7d, 30d, all, or Nd/Nh format
+                             Examples: 3d (last 3 days), 12h (last 12 hours)
+                             Default: 24h
   -o, --output <format>      Output format: table, json (default: table)
 
 Options (for delete commands):

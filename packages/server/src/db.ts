@@ -115,6 +115,13 @@ function runMigrations(db: Database.Database): void {
     db.exec("ALTER TABLE agent_model_rules ADD COLUMN target_provider TEXT");
   }
 
+  // Migration: Add request_body column to security_events table
+  const securityEventCols = db.prepare("PRAGMA table_info(security_events)").all() as { name: string }[];
+  const securityEventColNames = securityEventCols.map((c) => c.name);
+  if (!securityEventColNames.includes("request_body")) {
+    db.exec("ALTER TABLE security_events ADD COLUMN request_body TEXT");
+  }
+
   // Migration: Add security_event to alert_rules CHECK constraint
   // SQLite doesn't support ALTER CHECK, so we need to recreate the table
   // Check if the constraint already includes 'security_event' by trying to insert and rolling back
@@ -336,6 +343,7 @@ const SCHEMA = `
     matched_pattern TEXT,
     snippet TEXT,
     request_id TEXT,
+    request_body TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
 
@@ -1901,13 +1909,14 @@ export function upsertSecurityConfig(
 export interface SecurityEventRow {
   id: string;
   agent_id: string;
-  event_type: "prompt_injection" | "data_masked" | "tool_blocked";
+  event_type: "prompt_injection" | "data_masked" | "tool_blocked" | "self_protection";
   severity: "info" | "warning" | "critical";
   action_taken: "logged" | "alerted" | "blocked" | "masked";
   rule_name: string | null;
   matched_pattern: string | null;
   snippet: string | null;
   request_id: string | null;
+  request_body: string | null;
   created_at: string;
 }
 
@@ -1920,6 +1929,7 @@ export interface InsertSecurityEvent {
   matched_pattern?: string;
   snippet?: string;
   request_id?: string;
+  request_body?: string;
 }
 
 /**
@@ -1934,8 +1944,8 @@ export function insertSecurityEvent(
   db.prepare(`
     INSERT INTO security_events (
       id, agent_id, event_type, severity, action_taken,
-      rule_name, matched_pattern, snippet, request_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      rule_name, matched_pattern, snippet, request_id, request_body
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     event.agent_id,
@@ -1946,6 +1956,7 @@ export function insertSecurityEvent(
     event.matched_pattern ?? null,
     event.snippet ?? null,
     event.request_id ?? null,
+    event.request_body ?? null,
   );
 
   return id;

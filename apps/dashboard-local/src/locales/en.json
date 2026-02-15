@@ -217,6 +217,8 @@
       "action": "Action",
       "rule": "Rule",
       "payload": "Payload",
+      "pattern": "Pattern",
+      "snippet": "Snippet",
       "noEvents": "No security events found",
       "showingOf": "Showing {{count}} of {{total}} events",
       "promptInjection": "Prompt Injection",
@@ -234,7 +236,8 @@
       "response": "Response",
       "noRequestBody": "(No request body)",
       "noResponseBody": "(No response body)",
-      "chars": "chars"
+      "chars": "chars",
+      "blockedNote": "This request was blocked, so there is no response body."
     },
     "tooltips": {
       "ignoreInstructions": {

@@ -4,6 +4,7 @@ import { api, type EventRow } from "../lib/api";
 import { formatTimestamp } from "../lib/format";
 import LoadingSpinner from "../components/LoadingSpinner";
 import ErrorBanner from "../components/ErrorBanner";
+import CopyButton from "../components/CopyButton";
 
 interface EvidencePayload {
   id: string;
@@ -290,14 +291,19 @@ export default function IncidentPage() {
                   <div className="px-4 pb-4 space-y-4">
                     {/* Request */}
                     <div>
-                      <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                        Request
+                      <div className="mb-2 flex items-center justify-between">
+                        <h4 className="text-xs font-semibold uppercase text-gray-400">
+                          Request
+                          {payload.request_body && (
+                            <span className="ml-2 font-normal normal-case text-gray-500">
+                              ({payload.request_body.length.toLocaleString()} chars)
+                            </span>
+                          )}
+                        </h4>
                         {payload.request_body && (
-                          <span className="ml-2 font-normal normal-case text-gray-500">
-                            ({payload.request_body.length.toLocaleString()} chars)
-                          </span>
+                          <CopyButton text={formatJSON(payload.request_body)} />
                         )}
-                      </h4>
+                      </div>
                       <pre className="max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-300">
                         {payload.request_body
                           ? formatJSON(payload.request_body)
@@ -307,14 +313,19 @@ export default function IncidentPage() {
 
                     {/* Response */}
                     <div>
-                      <h4 className="mb-2 text-xs font-semibold uppercase text-gray-400">
-                        Response
+                      <div className="mb-2 flex items-center justify-between">
+                        <h4 className="text-xs font-semibold uppercase text-gray-400">
+                          Response
+                          {payload.response_body && (
+                            <span className="ml-2 font-normal normal-case text-gray-500">
+                              ({payload.response_body.length.toLocaleString()} chars)
+                            </span>
+                          )}
+                        </h4>
                         {payload.response_body && (
-                          <span className="ml-2 font-normal normal-case text-gray-500">
-                            ({payload.response_body.length.toLocaleString()} chars)
-                          </span>
+                          <CopyButton text={formatJSON(payload.response_body)} />
                         )}
-                      </h4>
+                      </div>
                       <pre className="max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-300">
                         {payload.response_body
                           ? formatJSON(payload.response_body)
