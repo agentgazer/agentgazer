@@ -42,7 +42,7 @@ export async function cmdProvider(action: string, args: string[], flags: Record<
       } else {
         console.error("Usage: agentgazer provider add [provider] [key]");
         console.error("       agentgazer provider <name> <action>");
-        console.error("Actions: active, deactive, test-connection, delete, models, stat");
+        console.error("Actions: active, deactivate, test-connection, delete, models, stat");
         process.exit(1);
       }
   }
@@ -59,7 +59,8 @@ async function handleProviderAction(
     case "active":
       await activateProvider(name, port);
       break;
-    case "deactive":
+    case "deactivate":
+    case "deactive": // backward-compatible alias
       await deactivateProvider(name, port);
       break;
     case "test-connection":
@@ -76,7 +77,7 @@ async function handleProviderAction(
       break;
     default:
       console.error(`Unknown action: ${action}`);
-      console.error("Available actions: active, deactive, test-connection, delete, models, stat");
+      console.error("Available actions: active, deactivate, test-connection, delete, models, stat");
       process.exit(1);
   }
 }

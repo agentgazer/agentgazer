@@ -1,9 +1,0 @@
-[project]
-id = "agenttrace"
-name = "AgentTrace"
-
-[auth]
-enabled = true
-
-[auth.external.github]
-enabled = true

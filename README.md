@@ -14,6 +14,7 @@ Most observability tools just **watch**. AgentGazer **controls**.
 | **Model Override** | ❌ | ❌ | ❌ | ✅ |
 | **Kill Switch** | ❌ | ❌ | ❌ | ✅ |
 | **Security Shield** | ❌ | ❌ | ❌ | ✅ |
+| **MCP Integration** | ❌ | ❌ | ❌ | ✅ |
 | Self-hosted | ❌ | ✅ | ❌ | ✅ |
 | Zero SaaS cost | ❌ | ❌ | ❌ | ✅ |
 
@@ -86,6 +87,39 @@ Multi-layer defense for AI agents:
 Actions: `log` (record only), `alert` (notify + log), `block` (reject request).
 
 Configure globally or per-agent in the Dashboard.
+
+### 🤖 MCP Integration — Cost-aware AI agents
+
+AgentGazer includes an [MCP](https://modelcontextprotocol.io/) (Model Context Protocol) server that lets AI agents query their own cost and usage data. Agents can check their budget, estimate costs before expensive operations, and report spending — all without leaving the conversation.
+
+**Tools:** `get_token_usage`, `get_cost`, `get_budget_status`, `estimate_cost`, `whoami`
+
+```bash
+# Install (already included with AgentGazer CLI)
+agentgazer-mcp init
+
+# Or install standalone for remote agents
+npm install -g @agentgazer/mcp
+```
+
+Add to Claude Code settings (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "agentgazer": {
+      "command": "agentgazer-mcp",
+      "env": {
+        "AGENTGAZER_ENDPOINT": "http://localhost:18880",
+        "AGENTGAZER_TOKEN": "your-token-here",
+        "AGENTGAZER_AGENT_ID": "my-agent"
+      }
+    }
+  }
+}
+```
+
+See the [MCP documentation](https://agentgazer.com/en/guide/mcp) for detailed setup and usage.
 
 ## Quick start
 
@@ -297,6 +331,7 @@ This builds and runs AgentGazer with persistent storage. The dashboard is availa
 | `agentgazer` | CLI entry point — starts server, proxy, and dashboard |
 | `@agentgazer/server` | Express API server with SQLite storage |
 | `@agentgazer/proxy` | Transparent LLM proxy with metric extraction |
+| `@agentgazer/mcp` | MCP server for cost-aware AI agents |
 | `@agentgazer/shared` | Shared types, schemas, provider detection, and pricing |
 
 ## Cost tracking

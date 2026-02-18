@@ -201,7 +201,7 @@ Commands:
 
   agents                      List all registered agents
   agent <name> active         Activate an agent
-  agent <name> deactive       Deactivate an agent
+  agent <name> deactivate     Deactivate an agent
   agent <name> killswitch on|off  Toggle kill switch
   agent <name> delete         Delete agent and all data
   agent <name> stat           Show agent statistics
@@ -215,7 +215,7 @@ Commands:
   providers                   List all configured providers
   provider add [name] [key]   Add provider (interactive if args omitted)
   provider <name> active      Activate a provider
-  provider <name> deactive    Deactivate a provider
+  provider <name> deactivate  Deactivate a provider
   provider <name> test-connection  Test API key validity
   provider <name> delete      Delete provider and key
   provider <name> models      List available models

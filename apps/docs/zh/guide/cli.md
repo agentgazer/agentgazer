@@ -31,7 +31,7 @@
 |------|------|------|
 | `agents` | 列出所有已註冊的 Agent | `--port` |
 | `agent <name> active` | 啟用 Agent | `--port` |
-| `agent <name> deactive` | 停用 Agent | `--port` |
+| `agent <name> deactivate` | 停用 Agent | `--port` |
 | `agent <name> killswitch on\|off` | 切換緊急停止開關 | `--port` |
 | `agent <name> delete` | 刪除 Agent 及所有資料 | `--port`、`--yes` |
 | `agent <name> stat` | 顯示 Agent 統計數據 | `--port`、`--range`、`-o` |
@@ -49,7 +49,7 @@
 | `providers` | 列出所有已設定的 Provider | `--port` |
 | `provider add [name] [key]` | 新增 Provider（省略參數時進入互動模式） | — |
 | `provider <name> active` | 啟用 Provider | `--port` |
-| `provider <name> deactive` | 停用 Provider | `--port` |
+| `provider <name> deactivate` | 停用 Provider | `--port` |
 | `provider <name> test-connection` | 測試 API Key 有效性 | — |
 | `provider <name> delete` | 刪除 Provider 及 API Key | `--yes` |
 | `provider <name> models` | 列出可用模型 | — |
@@ -110,7 +110,7 @@ agentgazer agents
 
 # 啟用/停用 Agent
 agentgazer agent my-bot active
-agentgazer agent my-bot deactive
+agentgazer agent my-bot deactivate
 
 # 切換緊急停止開關
 agentgazer agent my-bot killswitch on
@@ -196,7 +196,7 @@ agentgazer provider add openai sk-xxxxxxxxxxxxx
 
 # 啟用/停用 Provider
 agentgazer provider openai active
-agentgazer provider openai deactive
+agentgazer provider openai deactivate
 
 # 測試連線
 agentgazer provider openai test-connection

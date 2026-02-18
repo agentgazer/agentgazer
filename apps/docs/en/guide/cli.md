@@ -31,7 +31,7 @@
 |---------|-------------|-------|
 | `agents` | List all registered Agents | `--port` |
 | `agent <name> active` | Activate an Agent | `--port` |
-| `agent <name> deactive` | Deactivate an Agent | `--port` |
+| `agent <name> deactivate` | Deactivate an Agent | `--port` |
 | `agent <name> killswitch on\|off` | Toggle kill switch | `--port` |
 | `agent <name> delete` | Delete Agent and all data | `--port`, `--yes` |
 | `agent <name> stat` | Show Agent statistics | `--port`, `--range`, `-o` |
@@ -49,7 +49,7 @@
 | `providers` | List all configured Providers | `--port` |
 | `provider add [name] [key]` | Add Provider (interactive if args omitted) | — |
 | `provider <name> active` | Activate a Provider | `--port` |
-| `provider <name> deactive` | Deactivate a Provider | `--port` |
+| `provider <name> deactivate` | Deactivate a Provider | `--port` |
 | `provider <name> test-connection` | Test API key validity | — |
 | `provider <name> delete` | Delete Provider and API key | `--yes` |
 | `provider <name> models` | List available models | — |
@@ -110,7 +110,7 @@ agentgazer agents
 
 # Activate/deactivate an agent
 agentgazer agent my-bot active
-agentgazer agent my-bot deactive
+agentgazer agent my-bot deactivate
 
 # Toggle kill switch
 agentgazer agent my-bot killswitch on
@@ -196,7 +196,7 @@ agentgazer provider add openai sk-xxxxxxxxxxxxx
 
 # Activate/deactivate a provider
 agentgazer provider openai active
-agentgazer provider openai deactive
+agentgazer provider openai deactivate
 
 # Test connection
 agentgazer provider openai test-connection

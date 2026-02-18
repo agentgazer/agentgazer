@@ -73,7 +73,8 @@ export async function cmdAgent(
     case "active":
       await activateAgent(name, port);
       break;
-    case "deactive":
+    case "deactivate":
+    case "deactive": // backward-compatible alias
       await deactivateAgent(name, port);
       break;
     case "killswitch":
@@ -99,7 +100,7 @@ export async function cmdAgent(
       break;
     default:
       console.error(`Unknown action: ${action}`);
-      console.error("Available actions: active, deactive, killswitch, delete, stat, model, model-override, alerts, alert");
+      console.error("Available actions: active, deactivate, killswitch, delete, stat, model, model-override, alerts, alert");
       process.exit(1);
   }
 }
