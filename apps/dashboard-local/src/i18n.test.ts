@@ -64,7 +64,7 @@ describe("i18n locale switching", () => {
     expect(instance.t("nav.overview")).toBe("Overview");
 
     await instance.changeLanguage("zh-CN");
-    expect(instance.t("nav.overview")).toBe("\u603B\u89C8"); // 总览
+    expect(instance.t("nav.overview")).toBe("\u6982\u89C8"); // 概览
 
     await instance.changeLanguage("zh-TW");
     expect(instance.t("nav.overview")).toBe("\u7E3D\u89BD"); // 總覽

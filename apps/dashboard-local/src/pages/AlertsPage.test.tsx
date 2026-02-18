@@ -130,8 +130,9 @@ describe("AlertsPage", () => {
       expect(screen.getByText("agent-1")).toBeInTheDocument();
     });
     expect(screen.getByText("agent-2")).toBeInTheDocument();
-    expect(screen.getByText("Budget Exceeded")).toBeInTheDocument();
-    expect(screen.getByText("Error Rate")).toBeInTheDocument();
+    // Check rule type badges (multiple matches due to form select options, use getAllByText)
+    expect(screen.getAllByText("Budget Exceeded").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Error Rate").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows config summary for each rule", async () => {

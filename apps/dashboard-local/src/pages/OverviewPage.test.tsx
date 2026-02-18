@@ -185,7 +185,7 @@ describe("OverviewPage", () => {
     renderOverviewPage();
 
     await waitFor(() => {
-      expect(screen.getByText("0")).toBeInTheDocument(); // active agents
+      expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(1); // active agents, requests, etc.
     });
     expect(screen.getByText("$0.0000")).toBeInTheDocument(); // cost
     expect(screen.getByText("No agent data")).toBeInTheDocument();

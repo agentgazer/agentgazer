@@ -21,5 +21,5 @@
 
 ## 4. Verification
 
-- [ ] 4.1 Run `npm run test` in dashboard and verify all tests pass
-- [ ] 4.2 Verify tests run in CI environment (no browser dependency)
+- [x] 4.1 Run `npm run test` in dashboard and verify all tests pass — 8 files, 70 tests, all green
+- [x] 4.2 Verify tests run in CI environment (no browser dependency) — jsdom only, no Playwright needed
