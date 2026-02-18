@@ -96,7 +96,7 @@ describe("api client", () => {
   });
 
   it("api.post sends POST request with body", async () => {
-    localStorageMock.getItem.mockReturnValue(null);
+    localStorageMock.getItem.mockReturnValue(null as unknown as string);
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -116,7 +116,7 @@ describe("api client", () => {
   });
 
   it("api.del sends DELETE request", async () => {
-    localStorageMock.getItem.mockReturnValue(null);
+    localStorageMock.getItem.mockReturnValue(null as unknown as string);
 
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -134,7 +134,7 @@ describe("api client", () => {
   });
 
   it("throws error on non-ok response", async () => {
-    localStorageMock.getItem.mockReturnValue(null);
+    localStorageMock.getItem.mockReturnValue(null as unknown as string);
 
     mockFetch.mockResolvedValueOnce({
       ok: false,

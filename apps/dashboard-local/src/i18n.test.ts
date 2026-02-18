@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 
