@@ -829,7 +829,8 @@ function checkAgentPolicy(
     }
   }
 
-  // Check allowed hours
+  // Check allowed hours (uses server local time intentionally — operators set
+  // hours relative to their own timezone, not UTC)
   if (policy.allowed_hours_start !== null && policy.allowed_hours_end !== null) {
     const now = new Date();
     const currentHour = now.getHours();

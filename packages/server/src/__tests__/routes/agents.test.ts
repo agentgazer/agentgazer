@@ -307,6 +307,20 @@ describe("agents routes", () => {
 
       expect(global.fetch).toHaveBeenCalled();
     });
+
+    it("calls correct proxy URL (port 18900) to clear loop detector window", async () => {
+      createAgent("my-agent", "My Agent");
+      updateAgentPolicy(db, "my-agent", { active: false });
+
+      await request(app)
+        .put("/api/agents/my-agent/policy")
+        .send({ active: true });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining("http://127.0.0.1:18900/internal/agents/"),
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
   });
 
   describe("GET /api/agents/:agentId/kill-switch", () => {

@@ -61,6 +61,10 @@ function runMigrations(db: Database.Database): void {
     db.exec("ALTER TABLE alert_rules ADD COLUMN telegram_config TEXT");
   }
 
+  if (!alertColNames.includes("webhook_secret")) {
+    db.exec("ALTER TABLE alert_rules ADD COLUMN webhook_secret TEXT");
+  }
+
   // Migration: Add repeat/recovery columns to alert_rules table
   if (!alertColNames.includes("repeat_enabled")) {
     db.exec("ALTER TABLE alert_rules ADD COLUMN repeat_enabled INTEGER NOT NULL DEFAULT 1");
@@ -180,6 +184,66 @@ function runMigrations(db: Database.Database): void {
       CREATE INDEX IF NOT EXISTS idx_alert_rules_agent_id ON alert_rules(agent_id);
     `);
   }
+
+  // Migration: Add security_blocked and security_event to agent_events CHECK constraint
+  // SQLite doesn't support ALTER CHECK, so we need to recreate the table
+  try {
+    const testId = "test-migration-event-type-" + Date.now();
+    db.prepare(`
+      INSERT INTO agent_events (id, agent_id, event_type, source, timestamp)
+      VALUES (?, 'test-agent', 'security_blocked', 'proxy', datetime('now'))
+    `).run(testId);
+    // If we get here, the constraint already includes security_blocked
+    db.prepare("DELETE FROM agent_events WHERE id = ?").run(testId);
+  } catch {
+    // Constraint doesn't include security_blocked - need to recreate the table
+    db.exec(`
+      CREATE TABLE agent_events_new (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        agent_id TEXT NOT NULL,
+        event_type TEXT NOT NULL CHECK (event_type IN ('llm_call', 'completion', 'heartbeat', 'error', 'custom', 'blocked', 'kill_switch', 'security_blocked', 'security_event')),
+        provider TEXT,
+        model TEXT,
+        requested_model TEXT,
+        tokens_in INTEGER,
+        tokens_out INTEGER,
+        tokens_total INTEGER,
+        cost_usd REAL,
+        latency_ms INTEGER,
+        ttft_ms INTEGER,
+        status_code INTEGER,
+        error_message TEXT,
+        tags TEXT DEFAULT '{}',
+        source TEXT NOT NULL CHECK (source IN ('sdk', 'proxy')),
+        timestamp TEXT NOT NULL,
+        trace_id TEXT,
+        span_id TEXT,
+        parent_span_id TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      INSERT INTO agent_events_new (
+        id, agent_id, event_type, provider, model, requested_model,
+        tokens_in, tokens_out, tokens_total, cost_usd,
+        latency_ms, ttft_ms, status_code, error_message, tags,
+        source, timestamp, trace_id, span_id, parent_span_id, created_at
+      )
+      SELECT
+        id, agent_id, event_type, provider, model, requested_model,
+        tokens_in, tokens_out, tokens_total, cost_usd,
+        latency_ms, ttft_ms, status_code, error_message, tags,
+        source, timestamp, trace_id, span_id, parent_span_id, created_at
+      FROM agent_events;
+
+      DROP TABLE agent_events;
+      ALTER TABLE agent_events_new RENAME TO agent_events;
+
+      CREATE INDEX IF NOT EXISTS idx_agent_events_agent_id ON agent_events(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_agent_events_timestamp ON agent_events(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_agent_events_type ON agent_events(event_type);
+      CREATE INDEX IF NOT EXISTS idx_agent_events_trace ON agent_events(trace_id);
+    `);
+  }
 }
 
 const SCHEMA = `
@@ -204,7 +268,7 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS agent_events (
     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     agent_id TEXT NOT NULL,
-    event_type TEXT NOT NULL CHECK (event_type IN ('llm_call', 'completion', 'heartbeat', 'error', 'custom', 'blocked', 'kill_switch')),
+    event_type TEXT NOT NULL CHECK (event_type IN ('llm_call', 'completion', 'heartbeat', 'error', 'custom', 'blocked', 'kill_switch', 'security_blocked', 'security_event')),
     provider TEXT,
     model TEXT,
     requested_model TEXT,
@@ -635,11 +699,11 @@ export function getEventById(db: Database.Database, eventId: string): EventRow |
 }
 
 /**
- * Calculate an agent's total spending for today (server local time).
+ * Calculate an agent's total spending for today (UTC).
  */
 export function getDailySpend(db: Database.Database, agentId: string): number {
   const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  today.setUTCHours(0, 0, 0, 0);
   const startOfDay = today.toISOString();
 
   const result = db.prepare(`
@@ -1671,8 +1735,8 @@ const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
   data_masking: {
     replacement: "[AgentGazer Redacted]",
     rules: {
-      api_keys: false,
-      credit_cards: false,
+      api_keys: true,             // Enabled by default for security
+      credit_cards: true,          // Enabled by default for security
       personal_data: false,
       crypto: false,
       env_vars: false,

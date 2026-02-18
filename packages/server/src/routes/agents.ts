@@ -18,7 +18,7 @@ const router = Router();
 const log = createLogger("routes/agents");
 
 // Proxy URL for internal API calls (clear-window)
-const PROXY_URL = process.env.AGENTGAZER_PROXY_URL ?? "http://127.0.0.1:4000";
+const PROXY_URL = process.env.AGENTGAZER_PROXY_URL ?? "http://127.0.0.1:18900";
 
 /**
  * Call proxy's internal API to clear loop detector window for an agent.
