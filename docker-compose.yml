@@ -7,7 +7,7 @@ services:
       - "18880:18880"
       - "18900:18900"
     volumes:
-      - agentgazer-data:/root/.agentgazer
+      - agentgazer-data:/home/agentgazer/.agentgazer
     # environment:
     #   AGENTGAZER_SECRET_BACKEND: machine  # default; uses encrypted file with machine-derived key
 

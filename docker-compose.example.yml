@@ -13,7 +13,7 @@ services:
       - "8080:8080"  # Dashboard + API
       - "4000:4000"  # LLM Proxy
     volumes:
-      - agentgazer-data:/app/data
+      - agentgazer-data:/home/agentgazer/.agentgazer
     restart: unless-stopped
     environment:
       # Optional: Email alerts via SMTP
