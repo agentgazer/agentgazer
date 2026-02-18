@@ -133,16 +133,6 @@ This script automatically detects your platform, downloads Node.js if needed, an
 brew install agentgazer/tap/agentgazer
 ```
 
-**Option C: npm (requires Node.js >= 18)**
-
-```bash
-# Direct execution
-npx agentgazer
-
-# Or global install
-npm install -g agentgazer
-```
-
 ### 3.2 Uninstalling
 
 ```bash
@@ -152,9 +142,6 @@ curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/
 
 # If installed via Homebrew
 brew uninstall agentgazer
-
-# If installed via npm
-npm uninstall -g agentgazer
 ```
 
 > Note: Uninstalling does **not** remove your data (`~/.agentgazer/config.json`, `~/.agentgazer/data.db`). The curl uninstaller will prompt you; for other methods, manually remove `~/.agentgazer/` if desired.

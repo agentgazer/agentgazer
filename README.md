@@ -27,9 +27,6 @@ curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/
 
 # Homebrew (macOS / Linux)
 brew install agentgazer/tap/agentgazer
-
-# npm (requires Node.js >= 18)
-npx agentgazer
 ```
 
 This starts a local Express+SQLite server, an LLM proxy, and a web dashboard — no cloud dependencies.

@@ -133,16 +133,6 @@ curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/
 brew install agentgazer/tap/agentgazer
 ```
 
-**方式 C：npm（需要 Node.js >= 18）**
-
-```bash
-# 直接執行
-npx agentgazer
-
-# 或全域安裝
-npm install -g agentgazer
-```
-
 ### 3.2 解除安裝
 
 ```bash
@@ -152,9 +142,6 @@ curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/
 
 # 若透過 Homebrew 安裝
 brew uninstall agentgazer
-
-# 若透過 npm 安裝
-npm uninstall -g agentgazer
 ```
 
 > 注意：解除安裝**不會**移除使用者資料（`~/.agentgazer/config.json`、`~/.agentgazer/data.db`）。curl 解除安裝程式會詢問是否移除；其他方式請手動刪除 `~/.agentgazer/`。

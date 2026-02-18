@@ -16,13 +16,6 @@ Works on macOS and Linux. Automatically downloads Node.js if needed.
 brew install agentgazer/tap/agentgazer
 ```
 
-**Option C: npm (requires Node.js >= 18)**
-
-```bash
-npx agentgazer          # Direct execution
-npm install -g agentgazer   # Or global install
-```
-
 ## Initial Setup
 
 Run the setup wizard:
@@ -68,9 +61,6 @@ agentgazer uninstall
 
 # Homebrew
 brew uninstall agentgazer
-
-# npm
-npm uninstall -g agentgazer
 ```
 
 User data (`~/.agentgazer/`) is preserved. Remove manually if needed.

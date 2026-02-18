@@ -5,7 +5,11 @@ From Observability to Control. Monitor, govern, and protect your AI agents.
 ## Install
 
 ```bash
-npm install -g agentgazer
+# One-line install (recommended)
+curl -fsSL https://raw.githubusercontent.com/agentgazer/agentgazer/main/scripts/install.sh | sh
+
+# Or via Homebrew
+brew install agentgazer/tap/agentgazer
 ```
 
 ## Quick start
