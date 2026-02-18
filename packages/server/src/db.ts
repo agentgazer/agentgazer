@@ -61,10 +61,6 @@ function runMigrations(db: Database.Database): void {
     db.exec("ALTER TABLE alert_rules ADD COLUMN telegram_config TEXT");
   }
 
-  if (!alertColNames.includes("webhook_secret")) {
-    db.exec("ALTER TABLE alert_rules ADD COLUMN webhook_secret TEXT");
-  }
-
   // Migration: Add repeat/recovery columns to alert_rules table
   if (!alertColNames.includes("repeat_enabled")) {
     db.exec("ALTER TABLE alert_rules ADD COLUMN repeat_enabled INTEGER NOT NULL DEFAULT 1");
@@ -183,6 +179,16 @@ function runMigrations(db: Database.Database): void {
       -- Recreate index
       CREATE INDEX IF NOT EXISTS idx_alert_rules_agent_id ON alert_rules(agent_id);
     `);
+  }
+
+  // Migration: Add webhook_secret column to alert_rules table
+  // This runs after the table recreation migration above to handle both old and recreated tables
+  {
+    const updatedAlertCols = db.prepare("PRAGMA table_info(alert_rules)").all() as { name: string }[];
+    const updatedAlertColNames = updatedAlertCols.map((c) => c.name);
+    if (!updatedAlertColNames.includes("webhook_secret")) {
+      db.exec("ALTER TABLE alert_rules ADD COLUMN webhook_secret TEXT");
+    }
   }
 
   // Migration: Add security_blocked and security_event to agent_events CHECK constraint

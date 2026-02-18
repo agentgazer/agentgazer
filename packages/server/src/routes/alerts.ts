@@ -15,6 +15,7 @@ interface AlertRuleRow {
   email: string | null;
   smtp_config: string | null;
   telegram_config: string | null;
+  webhook_secret: string | null;
   repeat_enabled: number;
   repeat_interval_minutes: number;
   recovery_notify: number;
@@ -59,6 +60,7 @@ function parseAlertRule(row: AlertRuleRow) {
     email: row.email,
     smtp_config: smtpConfig,
     telegram_config: telegramConfig,
+    webhook_secret: row.webhook_secret ?? null,
     repeat_enabled: row.repeat_enabled === 1,
     repeat_interval_minutes: row.repeat_interval_minutes ?? 15,
     recovery_notify: row.recovery_notify === 1,
@@ -142,6 +144,7 @@ router.post("/api/alerts", (req, res) => {
     enabled?: boolean;
     notification_type?: string;
     webhook_url?: string;
+    webhook_secret?: string;
     email?: string;
     smtp_config?: Record<string, unknown>;
     telegram_config?: Record<string, unknown>;
@@ -244,8 +247,8 @@ router.post("/api/alerts", (req, res) => {
   const budgetPeriod = body.budget_period ?? null;
 
   db.prepare(
-    `INSERT INTO alert_rules (id, agent_id, rule_type, config, enabled, notification_type, webhook_url, email, smtp_config, telegram_config, repeat_enabled, repeat_interval_minutes, recovery_notify, state, budget_period, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?, ?)`,
+    `INSERT INTO alert_rules (id, agent_id, rule_type, config, enabled, notification_type, webhook_url, webhook_secret, email, smtp_config, telegram_config, repeat_enabled, repeat_interval_minutes, recovery_notify, state, budget_period, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'normal', ?, ?, ?)`,
   ).run(
     id,
     body.agent_id,
@@ -254,6 +257,7 @@ router.post("/api/alerts", (req, res) => {
     enabled,
     notificationType,
     body.webhook_url ?? null,
+    body.webhook_secret ?? null,
     body.email ?? null,
     body.smtp_config ? JSON.stringify(body.smtp_config) : null,
     body.telegram_config ? JSON.stringify(body.telegram_config) : null,
@@ -280,6 +284,7 @@ router.put("/api/alerts/:id", (req, res) => {
     enabled?: boolean;
     notification_type?: string;
     webhook_url?: string;
+    webhook_secret?: string;
     email?: string;
     smtp_config?: Record<string, unknown>;
     telegram_config?: Record<string, unknown>;
@@ -328,6 +333,7 @@ router.put("/api/alerts/:id", (req, res) => {
   }
 
   const webhookUrl = body.webhook_url !== undefined ? (body.webhook_url || null) : existing.webhook_url;
+  const webhookSecret = body.webhook_secret !== undefined ? (body.webhook_secret || null) : existing.webhook_secret;
   const email = body.email !== undefined ? body.email : existing.email;
   const smtpConfig = body.smtp_config !== undefined
     ? (body.smtp_config ? JSON.stringify(body.smtp_config) : null)
@@ -342,9 +348,9 @@ router.put("/api/alerts/:id", (req, res) => {
 
   db.prepare(
     `UPDATE alert_rules
-     SET agent_id = ?, rule_type = ?, config = ?, enabled = ?, notification_type = ?, webhook_url = ?, email = ?, smtp_config = ?, telegram_config = ?, repeat_enabled = ?, repeat_interval_minutes = ?, recovery_notify = ?, budget_period = ?, updated_at = ?
+     SET agent_id = ?, rule_type = ?, config = ?, enabled = ?, notification_type = ?, webhook_url = ?, webhook_secret = ?, email = ?, smtp_config = ?, telegram_config = ?, repeat_enabled = ?, repeat_interval_minutes = ?, recovery_notify = ?, budget_period = ?, updated_at = ?
      WHERE id = ?`,
-  ).run(agentId, ruleType, config, enabled, notificationType, webhookUrl, email, smtpConfig, telegramConfig, repeatEnabled, repeatIntervalMinutes, recoveryNotify, budgetPeriod, now, id);
+  ).run(agentId, ruleType, config, enabled, notificationType, webhookUrl, webhookSecret, email, smtpConfig, telegramConfig, repeatEnabled, repeatIntervalMinutes, recoveryNotify, budgetPeriod, now, id);
 
   const row = db.prepare("SELECT * FROM alert_rules WHERE id = ?").get(id) as AlertRuleRow;
   res.json(parseAlertRule(row));

@@ -58,22 +58,133 @@ function getMachineId(): string {
   return os.hostname();
 }
 
+/**
+ * Load or generate a random salt for key derivation.
+ * The salt is persisted in `~/.agentgazer/config.json` under `_machineKeySalt`.
+ */
+function loadOrCreateSalt(configDir: string): Buffer {
+  const configPath = path.join(configDir, "config.json");
+
+  // Try to read existing salt from config
+  try {
+    if (fs.existsSync(configPath)) {
+      const configData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (typeof configData._machineKeySalt === "string" && configData._machineKeySalt.length > 0) {
+        return Buffer.from(configData._machineKeySalt, "hex");
+      }
+    }
+  } catch {
+    // Config doesn't exist or is invalid — we'll create a new salt
+  }
+
+  // Generate a new random salt (32 bytes)
+  const salt = crypto.randomBytes(32);
+
+  // Persist to config
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true });
+  }
+  let configData: Record<string, unknown> = {};
+  try {
+    if (fs.existsSync(configPath)) {
+      configData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    }
+  } catch { /* start fresh */ }
+
+  configData._machineKeySalt = salt.toString("hex");
+  fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), "utf-8");
+
+  return salt;
+}
+
 export class MachineKeyStore implements SecretStore {
   private filePath: string;
   private key: Buffer;
   private cache: SecretsData | null = null;
 
-  constructor(filePath: string) {
-    this.filePath = filePath;
+  /**
+   * Derive a key from machine identity using the given salt.
+   */
+  private static deriveKey(salt: Buffer): Buffer {
     const machineId = getMachineId();
     const username = os.userInfo().username;
-    const salt = Buffer.from("agentgazer-machine-key-v1");
-    this.key = crypto.scryptSync(
+    return crypto.scryptSync(
       `${machineId}:${username}`,
       salt,
       32,
-      { N: 16384, r: 8, p: 1 }
+      { N: 16384, r: 8, p: 1 },
     );
+  }
+
+  constructor(filePath: string) {
+    this.filePath = filePath;
+    const configDir = path.dirname(filePath);
+    const salt = loadOrCreateSalt(configDir);
+    this.key = MachineKeyStore.deriveKey(salt);
+
+    // Attempt migration from fixed salt if secrets file exists
+    this.migrateFromFixedSalt(configDir);
+  }
+
+  /**
+   * If the secrets file was encrypted with the old fixed salt, re-encrypt
+   * with the new random salt. This is a one-time migration.
+   */
+  private migrateFromFixedSalt(configDir: string): void {
+    if (!fs.existsSync(this.filePath)) return;
+
+    const configPath = path.join(configDir, "config.json");
+    let configData: Record<string, unknown> = {};
+    try {
+      configData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    } catch { /* ignore */ }
+
+    // If migration was already done, skip
+    if (configData._saltMigrated === true) return;
+
+    // Try decrypting with the current (random) salt key first
+    try {
+      this.load();
+      // If decryption succeeded with the new key, mark migration as done
+      configData._saltMigrated = true;
+      fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), "utf-8");
+      return;
+    } catch {
+      // Decryption failed with new key — try the old fixed salt
+    }
+
+    const FIXED_SALT = Buffer.from("agentgazer-machine-key-v1");
+    const oldKey = MachineKeyStore.deriveKey(FIXED_SALT);
+
+    try {
+      const raw = fs.readFileSync(this.filePath, "utf-8");
+      const envelope = JSON.parse(raw) as EncryptedEnvelope;
+
+      if (!envelope.iv || !envelope.tag || !envelope.ciphertext) return;
+
+      const iv = Buffer.from(envelope.iv, "hex");
+      const tag = Buffer.from(envelope.tag, "hex");
+      const ciphertext = Buffer.from(envelope.ciphertext, "hex");
+
+      const decipher = crypto.createDecipheriv("aes-256-gcm", oldKey, iv);
+      decipher.setAuthTag(tag);
+      const decrypted = Buffer.concat([
+        decipher.update(ciphertext),
+        decipher.final(),
+      ]);
+      const data = JSON.parse(decrypted.toString("utf-8")) as SecretsData;
+
+      // Re-encrypt with the new random-salt derived key
+      this.cache = data;
+      this.save(data);
+
+      // Mark migration as complete
+      configData._saltMigrated = true;
+      fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), "utf-8");
+    } catch {
+      // Neither key works — file may be corrupted or from another machine.
+      // Let the normal load() error surface later.
+    }
   }
 
   async isAvailable(): Promise<boolean> {

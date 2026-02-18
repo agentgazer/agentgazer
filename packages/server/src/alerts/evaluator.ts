@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { createHmac } from "node:crypto";
 import nodemailer from "nodemailer";
 import { createLogger } from "@agentgazer/shared";
 import { isAllowed, recordSuccess, recordFailure, getState } from "./circuit-breaker.js";
@@ -25,6 +26,7 @@ interface AlertRuleRow {
   email: string | null;
   smtp_config: string | null;
   telegram_config: string | null;
+  webhook_secret: string | null;
   repeat_enabled: number;
   repeat_interval_minutes: number;
   recovery_notify: number;
@@ -151,6 +153,7 @@ const SQL_INSERT_HISTORY = `
 function postWebhook(
   url: string,
   payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
+  webhookSecret?: string | null,
 ): void {
   // Check circuit breaker before attempting
   if (!isAllowed(url)) {
@@ -158,20 +161,38 @@ function postWebhook(
     return;
   }
   // Fire initial attempt, then retry in the background without blocking.
-  void postWebhookWithRetry(url, payload);
+  void postWebhookWithRetry(url, payload, webhookSecret);
+}
+
+/**
+ * Compute HMAC-SHA256 signature for a webhook payload.
+ * Returns the signature string in the format `sha256=<hex>`.
+ */
+function computeWebhookSignature(body: string, secret: string): string {
+  const hmac = createHmac("sha256", secret);
+  hmac.update(body, "utf-8");
+  return `sha256=${hmac.digest("hex")}`;
 }
 
 async function postWebhookWithRetry(
   url: string,
   payload: { agent_id: string; rule_type: string; message: string; timestamp: string },
+  webhookSecret?: string | null,
 ): Promise<void> {
   const MAX_RETRIES = 3;
+  const body = JSON.stringify(payload);
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (webhookSecret) {
+    headers["X-AgentGazer-Signature"] = computeWebhookSignature(body, webhookSecret);
+  }
+
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers,
+        body,
         signal: AbortSignal.timeout(10_000),
       });
       if (res.ok) {
@@ -326,7 +347,7 @@ async function deliverNotification(
   const notificationType = rule.notification_type || "webhook";
 
   if (notificationType === "webhook" && rule.webhook_url) {
-    postWebhook(rule.webhook_url, payload);
+    postWebhook(rule.webhook_url, payload, rule.webhook_secret);
     db.prepare(SQL_INSERT_HISTORY).run(
       rule.id,
       rule.agent_id,
